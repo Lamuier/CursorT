@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">CursorUsage</string>
+    <string name="widget_title">Cursor 用量</string>
+    <string name="widget_brand">Cursor 用量</string>
+    <string name="widget_account_placeholder">未添加账号</string>
+    <string name="widget_value_placeholder">—</string>
+    <string name="widget_status_loading">等待更新</string>
+    <string name="widget_spent_placeholder">已用 —</string>
+    <string name="widget_remaining_placeholder">剩余 —</string>
+    <string name="widget_refresh">刷新</string>
+    <string name="widget_refresh_description">刷新 Cursor 用量</string>
+    <string name="widget_progress_description">Cursor 总用量进度</string>
+    <string name="widget_plan_placeholder">套餐 —</string>
+    <string name="widget_auto_placeholder">Cursor 模型 —</string>
+    <string name="widget_auto_progress_description">Cursor 模型用量池进度</string>
+    <string name="widget_api_placeholder">其他模型 —</string>
+    <string name="widget_api_progress_description">其他模型用量池进度</string>
+    <string name="widget_credits_placeholder">Credits —</string>
+    <string name="widget_billing_placeholder">周期 —</string>
+    <string name="widget_tall_name">用量详情</string>
+    <string name="widget_tall_description">完整查看用量池、Credits 与计费周期，固定 4×3 尺寸</string>
+    <string name="widget_mini_name">用量迷你条</string>
+    <string name="widget_mini_description">极简显示总用量百分比与进度环，固定 2×1 尺寸</string>
+    <string name="settings_title">设置</string>
+    <string name="settings_description">外观、通知与账号统一管理</string>
+    <string name="appearance_title">外观</string>
+    <string name="appearance_description">深浅色与主题色板会同步到桌面小组件</string>
+    <string name="accounts_section_title">账号</string>
+    <string name="accounts_manage_label">管理 Cursor 账号</string>
+    <string name="accounts_manage_description">添加、编辑或删除本机保存的 Cursor 账号</string>
+    <string name="theme_mode_system">系统</string>
+    <string name="theme_mode_light">浅色</string>
+    <string name="theme_mode_dark">深色</string>
+    <string name="color_palette_section">主题色板</string>
+
+    <!-- 通知：用量监控 Live Update -->
+    <string name="notification_live_title">Cursor 用量</string>
+    <string name="notification_live_usage_dollars">%1$d%% · 已用 %2$s / %3$s</string>
+    <string name="notification_live_usage_percent">%1$d%%</string>
+    <string name="notification_live_usage_remaining_dollars">%1$d%% · 剩余 %2$s / %3$s</string>
+    <string name="notification_live_usage_remaining_percent">剩余 %1$d%%</string>
+    <string name="notification_live_body">%1$s · 还有 %2$d 天重置</string>
+    <string name="notification_island_title">用量 %1$d%%</string>
+    <string name="notification_island_remaining">剩余 %1$s</string>
+    <string name="notification_island_suffix_reset">后重置</string>
+    <string name="notification_short_percent">%1$d%%</string>
+    <string name="notification_reminder_title">Cursor 用量提醒</string>
+    <string name="notification_reminder_body_full">本月用量已达到 100%%</string>
+    <string name="notification_reminder_body_threshold">用量已达 %1$d%%（当前 %2$d%%）</string>
+    <string name="notification_live_channel_name">用量监控</string>
+    <string name="notification_live_channel_description">常驻显示 Cursor 用量进度，并支持上岛与实况</string>
+    <string name="notification_reminder_channel_name">用量阈值提醒</string>
+    <string name="notification_reminder_channel_description">用量达到 80%% 或 100%% 时提醒一次</string>
+
+    <!-- 设置：通知开关 -->
+    <string name="notification_section_title">通知</string>
+    <string name="notification_live_updates_label">用量监控（常驻）</string>
+    <string name="notification_live_updates_description">通知栏常驻用量进度，并支持小米超级岛</string>
+    <string name="notification_threshold_reminders_label">用量阈值提醒</string>
+    <string name="notification_threshold_reminders_description">用量达到 80%% / 100%% 时提醒一次</string>
+    <string name="notification_display_mode_title">主百分比显示</string>
+    <string name="notification_display_mode_used">已用百分比</string>
+    <string name="notification_display_mode_remaining">剩余/可用百分比</string>
+</resources>

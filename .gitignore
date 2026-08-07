@@ -1,0 +1,28 @@
+*.iml
+.gradle/
+.idea/
+.kotlin/
+.workbuddy/
+local.properties
+/build/
+/app/build/
+/captures/
+*.jks
+*.keystore
+*.p12
+*.clixml
+release-signing.json
+/dist/
+
+# 本地调试/产物（不入库）
+*.log
+ps_procs*.txt
+rm_result.txt
+widget_check*.png
+widget_home.png
+
+# 历史改写前的离线备份 bundle（本地安全网，勿提交）
+.prepublic_backup_*.bundle
+
+# 本地代码审查/工作流产出（非项目文档，勿提交）
+docs/code-review-*.md

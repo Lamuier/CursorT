@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android App Widget 尺寸：70 × n − 30（n = 单元格数） -->
+    <dimen name="widget_2x2_min_width">110dp</dimen>
+    <dimen name="widget_2x2_min_height">110dp</dimen>
+    <dimen name="widget_4x2_min_width">250dp</dimen>
+    <dimen name="widget_4x2_min_height">110dp</dimen>
+    <dimen name="widget_4x4_min_width">250dp</dimen>
+    <dimen name="widget_4x4_min_height">250dp</dimen>
+    <dimen name="widget_4x3_min_width">250dp</dimen>
+    <dimen name="widget_4x3_min_height">180dp</dimen>
+    <dimen name="widget_2x1_min_width">110dp</dimen>
+    <dimen name="widget_2x1_min_height">40dp</dimen>
+    <dimen name="widget_corner_radius">32dp</dimen>
+    <dimen name="widget_content_padding">16dp</dimen>
+    <dimen name="widget_refresh_size">28dp</dimen>
+</resources>

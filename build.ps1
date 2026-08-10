@@ -494,9 +494,9 @@ function Test-ReleaseApk {
     } finally {
         $archive.Dispose()
     }
-    $unexpectedAbis = $nativeAbis | Where-Object { $_ -notin @('arm64-v8a', 'x86_64') }
+    $unexpectedAbis = $nativeAbis | Where-Object { $_ -notin @('arm64-v8a') }
     if ($unexpectedAbis) { throw "不支持的 ABI: $($unexpectedAbis -join ', ')" }
-    foreach ($required in @('arm64-v8a', 'x86_64')) {
+    foreach ($required in @('arm64-v8a')) {
         if ($required -notin $nativeAbis) { throw "缺少 ABI: $required" }
     }
 

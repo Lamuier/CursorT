@@ -11,6 +11,10 @@ import android.content.pm.PackageManager
 import android.graphics.drawable.Icon
 import android.os.Build
 import android.os.Bundle
+import android.text.Spannable
+import android.text.SpannableString
+import android.text.SpannableStringBuilder
+import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
 import com.lamuier.cursorusage.MainActivity
 import com.lamuier.cursorusage.R
@@ -20,6 +24,7 @@ import com.lamuier.cursorusage.data.PercentDisplayMode
 import com.lamuier.cursorusage.model.CursorUsageOverview
 import com.lamuier.cursorusage.model.TotalFormat
 import com.lamuier.cursorusage.util.UsageCalculations
+import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -35,6 +40,8 @@ import kotlin.math.roundToInt
  *  - channel 必须 IMPORTANCE_HIGH（小米焦点通知只依附 HIGH 渠道）；
  *    渠道 ID 带 `_v2` 后缀，规避 Android「渠道创建后 importance 被系统锁定」的陷阱；
  *  - Android 16 上用 framework Notification.ProgressStyle + promoted ongoing 请求；
+ *    Android 17+ 升级为 MetricStyle 三指标模板（用量 % · 重置倒计时 · Credits）
+ *    并叠加 Live Update 语义颜色（<80% INFO / ≥80% CAUTION / ≥100% DANGER）；
  *    HyperOS 3（API 36.0）公开方法 `setRequestPromotedOngoing` 尚不存在，直接写入
  *    "android.requestPromotedOngoing" extra（与 NotificationCompat 内部行为一致，且 36.1+
  *    同样识别该 extra）；
@@ -141,14 +148,26 @@ class CursorUsageNotificationCoordinator(
                 appContext.getString(R.string.notification_live_usage_percent, usedPercentInt)
             }
         }
-        val text = if (billing != null) {
+        val resetSuffix = billing?.let {
             appContext.getString(
-                R.string.notification_live_body,
-                usagePart,
-                UsageCalculations.formatRemaining(billing.remainingMillis),
+                R.string.notification_live_body_suffix,
+                UsageCalculations.formatRemaining(it.remainingMillis),
             )
+        }.orEmpty()
+        val text = usagePart + resetSuffix
+        // Android 17+：正文用量部分套语义颜色（蓝 / 橙 / 红），低版本退化为纯文本。
+        val semanticStyle = semanticStyleFor(percent)
+        val displayText: CharSequence = if (Build.VERSION.SDK_INT >= 37) {
+            SpannableStringBuilder().apply {
+                append(
+                    usagePart,
+                    Notification.createSemanticStyleAnnotation(semanticStyle),
+                    Spannable.SPAN_EXCLUSIVE_EXCLUSIVE,
+                )
+                append(resetSuffix)
+            }
         } else {
-            usagePart
+            text
         }
 
         val contentIntent = PendingIntent.getActivity(
@@ -164,8 +183,8 @@ class CursorUsageNotificationCoordinator(
             .setSmallIcon(R.drawable.ic_notification)
             .setLargeIcon(Icon.createWithResource(appContext, R.drawable.ic_island))
             .setContentTitle(title)
-            .setContentText(text)
-            .setStyle(Notification.BigTextStyle().bigText(text))
+            .setContentText(displayText)
+            .setStyle(Notification.BigTextStyle().bigText(displayText))
             .setContentIntent(contentIntent)
             .setCategory(Notification.CATEGORY_PROGRESS)
             .setVisibility(Notification.VISIBILITY_PUBLIC)
@@ -184,7 +203,23 @@ class CursorUsageNotificationCoordinator(
             builder.setShowWhen(false)
         }
 
-        applyAndroid16LiveUpdate(builder, displayPercentInt)
+        val displayPercentFloat = when (mode) {
+            PercentDisplayMode.Remaining -> (100.0 - percent).coerceAtLeast(0.0)
+            else -> percent
+        }.toFloat()
+        when {
+            Build.VERSION.SDK_INT >= 37 -> applyAndroid17LiveUpdate(
+                builder,
+                displayPercentFloat,
+                semanticStyle,
+                cycleEndMillis?.takeIf { it > nowMillis },
+                usage.credits.totalDollars,
+            )
+            Build.VERSION.SDK_INT >= 36 -> applyAndroid16LiveUpdate(builder, displayPercentInt)
+        }
+        if (Build.VERSION.SDK_INT >= 36) {
+            requestPromotedOngoing(builder)
+        }
 
         val notification = builder.build()
         // 超级岛 payload 仅在小米的非 1/2 协议机型注入（适配器内部二次判定）。
@@ -206,9 +241,8 @@ class CursorUsageNotificationCoordinator(
         runCatching { notificationManager.notify(LIVE_NOTIFICATION_ID, notification) }
     }
 
+    @RequiresApi(36)
     private fun applyAndroid16LiveUpdate(builder: Notification.Builder, percentInt: Int) {
-        if (Build.VERSION.SDK_INT < 36) return
-
         val progressStyle = Notification.ProgressStyle()
             .setProgress(percentInt.coerceIn(0, PROGRESS_MAX))
             .addProgressSegment(Notification.ProgressStyle.Segment(PROGRESS_MAX))
@@ -216,13 +250,72 @@ class CursorUsageNotificationCoordinator(
         builder.setShortCriticalText(
             appContext.getString(R.string.notification_short_percent, percentInt),
         )
+    }
 
-        // Promotion (Live Updates / HyperOS island) works on every Android 16 build,
-        // not just QPR2: verified on HyperOS 3 (API 36.0). The public
-        // setRequestPromotedOngoing() setter only exists on 36.1+, so on 36.0 we write
-        // the same extra NotificationCompat emits. Writing the extra directly is honored
-        // on both 36.0 and 36.1+, so we do it unconditionally here. Colorized is never
-        // combined with a promotion request (that makes the notification ineligible).
+    /**
+     * Android 17+：Live Update 换用 MetricStyle 模板，AOD / 锁屏 / 状态栏同时
+     * 展示「用量 %（关键指标）· 重置倒计时 · Credits」。用量指标套语义颜色，
+     * 倒计时用 TimeDifference（FORMAT_ADAPTIVE）随系统自动走动。
+     */
+    @RequiresApi(37)
+    private fun applyAndroid17LiveUpdate(
+        builder: Notification.Builder,
+        displayPercentFloat: Float,
+        semanticStyle: Int,
+        cycleEndMillis: Long?,
+        creditsDollars: Double,
+    ) {
+        val metricStyle = Notification.MetricStyle()
+            .addMetric(
+                Notification.Metric(
+                    Notification.Metric.FixedFloat(displayPercentFloat, "%", 2, 2),
+                    appContext.getString(R.string.notification_metric_usage),
+                    semanticStyle,
+                ),
+            )
+        cycleEndMillis?.let { end ->
+            metricStyle.addMetric(
+                Notification.Metric(
+                    Notification.Metric.TimeDifference.forTimer(
+                        Instant.ofEpochMilli(end),
+                        Notification.Metric.TimeDifference.FORMAT_ADAPTIVE,
+                    ),
+                    appContext.getString(R.string.notification_metric_reset),
+                ),
+            )
+        }
+        if (creditsDollars > 0.0) {
+            metricStyle.addMetric(
+                Notification.Metric(
+                    Notification.Metric.FixedFloat(creditsDollars.toFloat(), "$", 2, 2),
+                    appContext.getString(R.string.notification_metric_credits),
+                ),
+            )
+        }
+        metricStyle.setCriticalMetric(0)
+        builder.setStyle(metricStyle)
+        builder.setShortCriticalText(
+            appContext.getString(
+                R.string.notification_short_percent,
+                displayPercentFloat.toInt(),
+            ),
+        )
+    }
+
+    /** 用量档位 → 语义颜色：<80% INFO（蓝）、≥80% CAUTION（橙）、≥100% DANGER（红）。 */
+    private fun semanticStyleFor(usedPercent: Double): Int = when {
+        usedPercent >= 100.0 -> Notification.SEMANTIC_STYLE_DANGER
+        usedPercent >= 80.0 -> Notification.SEMANTIC_STYLE_CAUTION
+        else -> Notification.SEMANTIC_STYLE_INFO
+    }
+
+    // Promotion (Live Updates / HyperOS island) works on every Android 16 build,
+    // not just QPR2: verified on HyperOS 3 (API 36.0). The public
+    // setRequestPromotedOngoing() setter only exists on 36.1+, so on 36.0 we write
+    // the same extra NotificationCompat emits. Writing the extra directly is honored
+    // on both 36.0 and 36.1+, so we do it unconditionally here. Colorized is never
+    // combined with a promotion request (that makes the notification ineligible).
+    private fun requestPromotedOngoing(builder: Notification.Builder) {
         builder.addExtras(
             Bundle().apply {
                 putBoolean(EXTRA_REQUEST_PROMOTED_ONGOING, true)
@@ -257,7 +350,7 @@ class CursorUsageNotificationCoordinator(
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        val notification = Notification.Builder(appContext, REMINDER_CHANNEL_ID)
+        val reminderBuilder = Notification.Builder(appContext, REMINDER_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(text)
@@ -268,7 +361,25 @@ class CursorUsageNotificationCoordinator(
             .setAutoCancel(true)
             .setShowWhen(true)
             .setWhen(System.currentTimeMillis())
-            .build()
+        if (Build.VERSION.SDK_INT >= 37) {
+            // Android 17+：80% 提醒套 CAUTION（橙）、100% 提醒套 DANGER（红）。
+            val style = if (threshold >= 100) {
+                Notification.SEMANTIC_STYLE_DANGER
+            } else {
+                Notification.SEMANTIC_STYLE_CAUTION
+            }
+            val spannable = SpannableString(text)
+            spannable.setSpan(
+                Notification.createSemanticStyleAnnotation(style),
+                0,
+                spannable.length,
+                Spannable.SPAN_EXCLUSIVE_EXCLUSIVE,
+            )
+            reminderBuilder
+                .setContentText(spannable)
+                .setStyle(Notification.BigTextStyle().bigText(spannable))
+        }
+        val notification = reminderBuilder.build()
         runCatching {
             notificationManager.notify(REMINDER_NOTIFICATION_ID_BASE + threshold, notification)
         }

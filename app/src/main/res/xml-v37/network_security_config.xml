@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 17+（API 37+）：在基础配置上启用 ECH（加密 Client Hello），
+     TLS 握手时加密 SNI，网络观察者无法识别应用连接的具体网域。
+     服务端不支持 ECH 时自动回退，无兼容性风险。
+     <domainEncryption> 仅 API 37+ 识别，故独立于 res/xml/ 放版本化目录。 -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <domainEncryption mode="enabled" />
+    </base-config>
+</network-security-config>

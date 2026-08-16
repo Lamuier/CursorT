@@ -507,7 +507,24 @@ function Test-ReleaseApk {
     if ($LASTEXITCODE -ne 0) { throw "无法读取 AndroidManifest.xml" }
     $manifest = $manifestLines -join "`n"
     if ($manifest -match "android:debuggable") { throw "Release APK 可调试" }
-    if ($manifest -match "android:networkSecurityConfig") { throw "存在意外 networkSecurityConfig" }
+    if ($manifest -match "android:networkSecurityConfig") {
+        # 资源收缩后 APK 内仅剩数字资源 ID（无 Raw 字符串），
+        # 故在源码层校验指向 @xml/network_security_config（ECH 域加密 + 禁明文）
+        $sourceManifest = Get-Content -Raw -LiteralPath (Join-Path $ProjectRoot "app\src\main\AndroidManifest.xml")
+        if ($sourceManifest -notmatch 'android:networkSecurityConfig\s*=\s*"@xml/network_security_config"') {
+            throw "AndroidManifest.xml 的 networkSecurityConfig 未指向 @xml/network_security_config"
+        }
+        foreach ($nscSource in @(
+            (Join-Path $ProjectRoot "app\src\main\res\xml\network_security_config.xml"),
+            (Join-Path $ProjectRoot "app\src\main\res\xml-v37\network_security_config.xml")
+        )) {
+            if (-not (Test-Path -LiteralPath $nscSource)) { throw "缺少网络安全配置源: $nscSource" }
+            $nscContent = Get-Content -Raw -LiteralPath $nscSource
+            if ($nscContent -match 'cleartextTrafficPermitted\s*=\s*"true"') {
+                throw "网络安全配置允许明文流量: $nscSource"
+            }
+        }
+    }
     if ($manifest -notmatch "android:allowBackup[^\n]*0x0") { throw "allowBackup 不是 false" }
     if ($manifest -notmatch "android:usesCleartextTraffic[^\n]*0x0") { throw "usesCleartextTraffic 不是 false" }
 
@@ -632,7 +649,12 @@ function Invoke-ReleasePackage {
         $useOffline = -not $Online.IsPresent
         if ($Offline.IsPresent) { $useOffline = $true }
 
-        $apk = Invoke-Assemble -Variant Release -DoClean:$Clean -DoOffline:$useOffline -DoSkipChecks:$SkipChecks
+        # Invoke-Assemble 的返回值可能混入瞬态输出（如 lint-cache 清理），只取 .apk 路径元素
+        # 注意 @() 必须包住整个管道：单个匹配经 Where-Object 返回标量字符串，直接 [-1] 会按字符索引
+        $apkCandidates = @(Invoke-Assemble -Variant Release -DoClean:$Clean -DoOffline:$useOffline -DoSkipChecks:$SkipChecks |
+            Where-Object { $_ -is [string] -and $_.EndsWith('.apk') })
+        $apk = $apkCandidates[-1]
+        if (-not $apk) { throw "未能取得 Release APK 路径" }
 
         Write-Step "校验 Release APK"
         Test-ReleaseApk `

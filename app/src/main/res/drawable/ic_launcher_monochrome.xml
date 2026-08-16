@@ -4,18 +4,16 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <path
-        android:fillColor="#00000000"
-        android:pathData="M27,54 A27,27 0 1 0 81,54 A27,27 0 1 0 27,54"
-        android:strokeColor="#59FFFFFF"
-        android:strokeWidth="8" />
-    <path
-        android:fillColor="#00000000"
-        android:pathData="M54,27 A27,27 0 1 1 28.32,62.34"
-        android:strokeColor="#FFFFFFFF"
-        android:strokeLineCap="round"
-        android:strokeWidth="8" />
+    <!-- 液体（白色，AI 星形镂空） -->
     <path
         android:fillColor="#FFFFFFFF"
-        android:pathData="M45,39 L63,39 L63,45 L57,45 L57,63 L63,63 L63,69 L45,69 L45,63 L51,63 L51,45 L45,45 Z" />
+        android:fillType="evenOdd"
+        android:pathData="M33.22,42 A24,24 0 1 0 74.78,42 Z M54,47 C55.5,53 57,55.5 59,57 C57,58.5 55.5,61 54,68 C52.5,61 51,58.5 49,57 C51,55.5 52.5,53 54,47 Z" />
+    <!-- 容器环（细） -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M54,30 A24,24 0 1 1 53.99,30"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeLineCap="round"
+        android:strokeWidth="2.5" />
 </vector>

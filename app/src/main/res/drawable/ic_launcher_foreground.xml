@@ -5,39 +5,75 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- 用量环轨道 -->
-    <path
-        android:fillColor="#00000000"
-        android:pathData="M27,54 A27,27 0 1 0 81,54 A27,27 0 1 0 27,54"
-        android:strokeColor="#2B4A78"
-        android:strokeWidth="8" />
-    <!-- 用量环进度（约 70%） -->
-    <path
-        android:fillColor="#00000000"
-        android:pathData="M54,27 A27,27 0 1 1 28.32,62.34"
-        android:strokeLineCap="round"
-        android:strokeWidth="8">
-        <aapt:attr name="android:strokeColor">
+
+    <!-- 液体：75% 液位，更饱和透亮的蓝色渐变 -->
+    <path android:pathData="M33.22,42 A24,24 0 1 0 74.78,42 Z">
+        <aapt:attr name="android:fillColor">
             <gradient
-                android:endX="86"
-                android:endY="86"
+                android:endX="54"
+                android:endY="78"
                 android:startX="54"
-                android:startY="22"
+                android:startY="42"
                 android:type="linear">
                 <item
                     android:color="#FF60A5FA"
                     android:offset="0" />
                 <item
                     android:color="#FF3B82F6"
-                    android:offset="0.5" />
+                    android:offset="0.45" />
                 <item
-                    android:color="#FF22D3EE"
+                    android:color="#FF1D4ED8"
                     android:offset="1" />
             </gradient>
         </aapt:attr>
     </path>
-    <!-- 文本光标 -->
+
+    <!-- 液面高光：表面张力弧线 -->
     <path
-        android:fillColor="#FFEAF2FF"
-        android:pathData="M45,39 L63,39 L63,45 L57,45 L57,63 L63,63 L63,69 L45,69 L45,63 L51,63 L51,45 L45,45 Z" />
+        android:fillColor="#33FFFFFF"
+        android:pathData="M36.2,42 A20.2,20.2 0 0 0 71.8,42" />
+
+    <!-- AI 星形光晕（半透明白色，营造发光感） -->
+    <path
+        android:fillColor="#4DFFFFFF"
+        android:pathData="M54,43 C56.5,53 58.5,55 64,57 C58.5,59 56.5,61 54,71 C51.5,61 49.5,59 44,57 C49.5,55 51.5,53 54,43 Z" />
+
+    <!-- AI 星形（更大更精致） -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M54,47 C55.5,53 57,55.5 59,57 C57,58.5 55.5,61 54,68 C52.5,61 51,58.5 49,57 C51,55.5 52.5,53 54,47 Z" />
+
+    <!-- 容器环：细、亮蓝渐变（由浅入深） -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M54,30 A24,24 0 1 1 53.99,30"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:endX="54"
+                android:endY="78"
+                android:startX="54"
+                android:startY="30"
+                android:type="linear">
+                <item
+                    android:color="#FF93C5FD"
+                    android:offset="0" />
+                <item
+                    android:color="#FF3B82F6"
+                    android:offset="0.4" />
+                <item
+                    android:color="#FF1E3A8A"
+                    android:offset="1" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- 环面高光弧（顶部左上方的柔光） -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M41,35.5 A24,24 0 0 1 64.5,35.5"
+        android:strokeColor="#99FFFFFF"
+        android:strokeLineCap="round"
+        android:strokeWidth="1.2" />
 </vector>

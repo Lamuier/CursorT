@@ -40,7 +40,7 @@
     <string name="notification_live_usage_percent">%1$d%%</string>
     <string name="notification_live_usage_remaining_dollars">%1$d%% · 剩余 %2$s / %3$s</string>
     <string name="notification_live_usage_remaining_percent">剩余 %1$d%%</string>
-    <string name="notification_live_body">%1$s · 还有 %2$d 天重置</string>
+    <string name="notification_live_body">%1$s · %2$s后重置</string>
     <string name="notification_island_title">用量 %1$d%%</string>
     <string name="notification_island_remaining">剩余 %1$s</string>
     <string name="notification_island_suffix_reset">后重置</string>

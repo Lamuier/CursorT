@@ -12,6 +12,7 @@ local.properties
 *.p12
 *.clixml
 release-signing.json
+.signing/
 /dist/
 
 # 本地调试/产物（不入库）

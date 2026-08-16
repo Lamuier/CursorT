@@ -508,8 +508,8 @@ object CursorUsageWidgetUpdater {
             usage.billingCycle.end,
         )
         return when {
-            billing != null -> "周期剩 ${billing.remainingDays} 天"
-            !usage.plan.billingCycleEnd.isNullOrBlank() -> "截至 ${usage.plan.billingCycleEnd.take(10)}"
+            billing != null -> "周期剩 ${UsageCalculations.formatRemaining(billing.remainingMillis, compact = true)}"
+            !usage.plan.billingCycleEnd.isNullOrBlank() -> "截至 ${usage.plan.billingCycleEnd.take(16)}"
             else -> "周期 —"
         }
     }

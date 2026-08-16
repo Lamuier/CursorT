@@ -80,6 +80,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -119,8 +120,15 @@ import com.lamuier.cursorusage.ui.theme.LocalPulseChartColors
 import com.lamuier.cursorusage.util.BillingProgress
 import com.lamuier.cursorusage.util.UsageCalculations
 import com.lamuier.cursorusage.util.UsageLevel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import java.util.Locale
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+/** 周期倒计时/百分比的本地走动间隔（仅重算时间，不触发网络请求）。 */
+private const val BILLING_TICK_MS = 5_000L
 
 private enum class DashboardTab(val label: String, val icon: ImageVector) {
     Overview("概览", Icons.Outlined.SpaceDashboard),
@@ -552,8 +560,9 @@ private fun OverviewTab(usage: CursorUsageOverview) {
         }
         val level = remember(percent) { UsageCalculations.level(percent) }
         val percentKnown = !usage.isTeam || limit > 0.0
-        val billing = remember(usage) {
-            UsageCalculations.billingProgress(usage.billingCycle.start, usage.billingCycle.end)
+        val nowMillis = rememberNowMillis()
+        val billing = remember(usage, nowMillis) {
+            UsageCalculations.billingProgress(usage.billingCycle.start, usage.billingCycle.end, nowMillis)
         }
         val metrics = remember(usage, limit, chartColors) {
             listOf(
@@ -651,7 +660,9 @@ private fun OverviewTab(usage: CursorUsageOverview) {
                         } else {
                             append("总用量 ${formatPercent(percent)}，${level.label()}")
                         }
-                        billing?.let { append("，计费周期剩余 ${it.remainingDays} 天") }
+                        billing?.let {
+                            append("，计费周期剩余 ${UsageCalculations.formatRemaining(it.remainingMillis)}")
+                        }
                     },
                     showProgress = percentKnown,
                     cyclePercent = billing?.percent,
@@ -667,7 +678,7 @@ private fun OverviewTab(usage: CursorUsageOverview) {
                     )
                     DotLabel(
                         color = MaterialTheme.colorScheme.primary,
-                        text = billing?.let { "周期 ${it.percent.toInt()}%" } ?: "周期 —",
+                        text = billing?.let { "周期 ${formatPercent(it.percent.toDouble())}" } ?: "周期 —",
                     )
                 }
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
@@ -718,7 +729,7 @@ private fun OverviewCycleRow(billing: BillingProgress?, planCycleEnd: String?) {
             )
         }
         billing?.let {
-            StatusChip(label = "剩余 ${it.remainingDays} 天")
+            StatusChip(label = "剩余 ${UsageCalculations.formatRemaining(it.remainingMillis)}")
         }
     }
 }
@@ -1367,9 +1378,29 @@ private fun SegmentLegend(segments: List<ChartSegment>) {
     }
 }
 
+/**
+ * 页面可见期间每 [BILLING_TICK_MS] 返回一次最新时间，驱动周期百分比/倒计时本地走动；
+ * 后台自动暂停，不触发网络请求。
+ */
+@Composable
+private fun rememberNowMillis(): Long {
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (true) {
+                delay(BILLING_TICK_MS)
+                now = System.currentTimeMillis()
+            }
+        }
+    }
+    return now
+}
+
 @Composable
 private fun BillingCycleChart(usage: CursorUsageOverview, compact: Boolean) {
-    val billing = UsageCalculations.billingProgress(usage.billingCycle.start, usage.billingCycle.end)
+    val nowMillis = rememberNowMillis()
+    val billing = UsageCalculations.billingProgress(usage.billingCycle.start, usage.billingCycle.end, nowMillis)
     val animatedProgress by animateFloatAsState(
         targetValue = billing?.let { (it.percent / 100f).coerceIn(0f, 1f) } ?: 0f,
         animationSpec = tween(560, easing = FastOutSlowInEasing),
@@ -1399,11 +1430,14 @@ private fun BillingCycleChart(usage: CursorUsageOverview, compact: Boolean) {
                         "${billing.startLabel} — ${billing.endLabel}",
                         modifier = Modifier.weight(1f),
                         style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        "剩余 ${billing.remainingDays} 天",
+                        "剩余 ${UsageCalculations.formatRemaining(billing.remainingMillis)}",
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
                     )
                 }
                 ProgressTrack(
@@ -1413,7 +1447,8 @@ private fun BillingCycleChart(usage: CursorUsageOverview, compact: Boolean) {
                     trackColor = trackColor,
                     modifier = Modifier.clearAndSetSemantics {
                         contentDescription =
-                            "计费周期已进行 ${billing.percent.toInt()}%，剩余 ${billing.remainingDays} 天"
+                            "计费周期已进行 ${formatPercent(billing.percent.toDouble())}，" +
+                                "剩余 ${UsageCalculations.formatRemaining(billing.remainingMillis)}"
                     },
                 )
                 Row(modifier = Modifier.fillMaxWidth()) {
@@ -1424,7 +1459,7 @@ private fun BillingCycleChart(usage: CursorUsageOverview, compact: Boolean) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Text(
-                        "${billing.percent.toInt()}%",
+                        formatPercent(billing.percent.toDouble()),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -1543,7 +1578,7 @@ private fun Double.visualPercent(): Double = safeNonNegative().coerceAtMost(100.
 private fun Double.toProgress(): Float = (visualPercent() / 100.0).toFloat()
 
 private fun formatPercent(value: Double): String =
-    String.format(Locale.US, "%.1f%%", value.safeNonNegative())
+    String.format(Locale.US, "%.2f%%", value.safeNonNegative())
 
 private fun money(value: Double): String =
     String.format(Locale.US, "\$%.2f", value.safeNonNegative())

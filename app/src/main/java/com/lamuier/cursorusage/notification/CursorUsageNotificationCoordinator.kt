@@ -145,7 +145,7 @@ class CursorUsageNotificationCoordinator(
             appContext.getString(
                 R.string.notification_live_body,
                 usagePart,
-                billing.remainingDays,
+                UsageCalculations.formatRemaining(billing.remainingMillis),
             )
         } else {
             usagePart

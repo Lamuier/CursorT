@@ -9,15 +9,15 @@
 | 语言 | Kotlin 2.0.21（JVM 17 toolchain） |
 | UI | Jetpack Compose + Material 3（Compose BOM 2024.12.01） |
 | 架构构件 | AndroidX Lifecycle（StateFlow / ViewModel）、Activity Compose、Biometric |
-| 构建 | Android Gradle Plugin 8.13.2 · Gradle 8.13 |
-| 平台 | `compileSdk` / `targetSdk` = 36 · `minSdk` = 26（Android 8.0） |
+| 构建 | Android Gradle Plugin 9.2.1 · Gradle 9.5.1 |
+| 平台 | `compileSdk` / `targetSdk` = 37 · `minSdk` = 26（Android 8.0） |
 | 包名 | `com.lamuier.cursorusage` |
-| 版本 | `versionCode` = 1 · `versionName` = 1.0.0 |
+| 版本 | `versionCode` = 2 · `versionName` = 1.1.0 |
 | 体积 | Release 开启 R8 混淆与资源压缩，仅引入 AndroidX 与 Biometric，无第三方网络 / 依赖注入框架 |
 
 ## 构建与发布
 
-工程使用统一入口 `build.ps1`（需先配置 Android SDK 36）：
+工程使用统一入口 `build.ps1`（需先配置 Android SDK 37）：
 
 ```powershell
 .\build.ps1                 # Debug 构建
@@ -55,7 +55,7 @@ Debug 默认先跑单元测试与 Lint，再产出 `app\build\outputs\apk\debug\
 .\build.ps1 -Release
 ```
 
-默认不做 clean（避免 Windows 上 `app\build` 被占用导致失败）；需要干净构建加 `-Clean`，联网拉依赖加 `-Online`，跳过测试 / Lint 加 `-SkipChecks`。脚本会校验签名证书、zipalign、包名、版本、权限与 Manifest，输出 `dist\CursorUsage-v1.0.0-release.apk`。
+默认不做 clean（避免 Windows 上 `app\build` 被占用导致失败）；需要干净构建加 `-Clean`，联网拉依赖加 `-Online`，跳过测试 / Lint 加 `-SkipChecks`。脚本会校验签名证书、zipalign、包名、版本、权限与 Manifest，输出 `dist\CursorUsage-v1.1.0-release.apk`。
 
 ### 数据安全实现要点
 

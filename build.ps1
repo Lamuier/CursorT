@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     CursorUsage 唯一构建入口。
 
@@ -32,7 +32,7 @@ param(
     [switch]$Offline,
     [switch]$Online,
     [switch]$SkipChecks,
-    [string]$SigningRoot = (Join-Path $env:LOCALAPPDATA "CursorUsage\signing"),
+    [string]$SigningRoot = (Join-Path $PSScriptRoot ".signing"),
     [switch]$AdoptDebugKeystore,
     [string]$AdoptKeystore,
     [string]$KeyAlias,
@@ -80,11 +80,13 @@ function Resolve-AndroidSdk {
 
     foreach ($candidate in $candidates) {
         if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
-        if (Test-Path -LiteralPath "$candidate\platforms\android-35\android.jar") {
+        # Android 17 起平台目录带次级版本号（android-37.0），兼容旧式 android-37 目录。
+        if ((Test-Path -LiteralPath "$candidate\platforms\android-37.0\android.jar") -or
+            (Test-Path -LiteralPath "$candidate\platforms\android-37\android.jar")) {
             return $candidate
         }
     }
-    throw "找不到 Android SDK 35。已检查: $($candidates -join '; ')"
+    throw "找不到 Android SDK 37。已检查: $($candidates -join '; ')"
 }
 
 function Get-AppVersion {
@@ -239,7 +241,8 @@ function Write-SigningMetadata {
             throw "keytool 导出证书失败"
         }
     } finally {
-        Remove-Item Env:CURSOR_PULSE_KEYTOOL_PASS -ErrorAction SilentlyContinue
+        # 用赋 null 清除环境变量：Remove-Item Env: 在部分宿主的删除包装器下会变成终止性绑定错误
+        $env:CURSOR_PULSE_KEYTOOL_PASS = $null
     }
 
     $securePassword = ConvertTo-SecureString $PlainPassword -AsPlainText -Force
@@ -360,7 +363,7 @@ function Invoke-SetupSigning {
         Write-SigningMetadata -Root $SigningRoot -StoreFile $storeFile `
             -KeyAliasName $alias -PlainPassword $plainPassword -Source "generated-pkcs12"
     } finally {
-        Remove-Item Env:CURSOR_PULSE_KEYTOOL_PASS -ErrorAction SilentlyContinue
+        $env:CURSOR_PULSE_KEYTOOL_PASS = $null
         [Array]::Clear($passwordBytes, 0, $passwordBytes.Length)
         $plainPassword = $null
     }
@@ -459,7 +462,7 @@ function Test-ReleaseApk {
     if (($badging | Where-Object { $_ -like "sdkVersion:*" } | Select-Object -First 1) -notmatch "'26'") {
         throw "minSdkVersion 不正确"
     }
-    if (($badging | Where-Object { $_ -like "targetSdkVersion:*" } | Select-Object -First 1) -notmatch "'36'") {
+    if (($badging | Where-Object { $_ -like "targetSdkVersion:*" } | Select-Object -First 1) -notmatch "'37'") {
         throw "targetSdkVersion 不正确"
     }
 

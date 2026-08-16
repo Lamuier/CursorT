@@ -35,7 +35,7 @@ internal object WidgetCalculations {
 
     fun money(value: Double): String = String.format(Locale.US, "\$%.2f", value.safeNonNegative())
 
-    fun percent(value: Double): String = String.format(Locale.US, "%.1f%%", value.safeNonNegative())
+    fun percent(value: Double): String = String.format(Locale.US, "%.2f%%", value.safeNonNegative())
 
     private fun effectiveLimit(usage: CursorUsageOverview): Double = when {
         usage.usage.limitDollars > 0.0 -> usage.usage.limitDollars

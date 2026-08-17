@@ -93,6 +93,20 @@ enum class AppStage {
     Dashboard,
 }
 
+/** 长按图标静态 Shortcut 对应的应用内动作。 */
+enum class ShortcutAction(val intentAction: String) {
+    RevealToken(INTENT_ACTION_PREFIX + ".SHORTCUT_REVEAL_TOKEN"),
+    ManageAccounts(INTENT_ACTION_PREFIX + ".SHORTCUT_MANAGE_ACCOUNTS"),
+    Settings(INTENT_ACTION_PREFIX + ".SHORTCUT_SETTINGS");
+
+    companion object {
+        fun fromIntentAction(action: String?): ShortcutAction? =
+            entries.firstOrNull { it.intentAction == action }
+    }
+}
+
+private const val INTENT_ACTION_PREFIX = "com.lamuier.cursorusage.action"
+
 @Immutable
 data class AppUiState(
     val stage: AppStage = AppStage.Booting,

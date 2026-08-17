@@ -4,6 +4,13 @@
 
 （暂无）
 
+## 1.3.0
+
+- 新增长按图标静态 App Shortcuts（Android 8.0+）：「查看 Access Token」不进账号面板，直接弹出设备验证（指纹 / 面部 / 锁屏密码），通过后对话框内明文展示 Token 并支持一键复制，无账号时转入添加流程；另有「管理 Cursor 账号」「应用设置」两个直达入口；快捷方式图标沿用新品牌视觉（暖米白圆底 + 蓝色 glyph）
+- `MainActivity` 改为 `singleTask` 启动模式并处理 `onNewIntent`，应用已在后台时点击 Shortcut 同样生效（冷启动经 `onCreate` 解析 intent action）
+- 新增 `ShortcutAction` 模型统一解析 Shortcut intent action（`com.lamuier.cursorusage.action.SHORTCUT_*`）
+- `versionCode=4`，`versionName=1.3.0`
+
 ## 1.2.0
 
 - 重绘应用图标，主视觉改为「AI 工具用量」：中性圆形容器 + 蓝色液体（`#2563EB` 渐变）填充至 75% 液位，液体中心浸入 AI 星形（sparkle）；去除品牌化图形与品牌配色，暖米白底（`#F2F1ED` 系）+ 淡蓝光晕；同步更新前景、背景与单色（主题图标）层，legacy 层自动生效

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- 暖米白圆底，与应用图标容器一致 -->
+    <path
+        android:fillColor="#FFF2F1ED"
+        android:pathData="M54,54 m-54,0 a54,54 0 1 1 108,0 a54,54 0 1 1 -108,0" />
+    <group
+        android:scaleX="3"
+        android:scaleY="3"
+        android:translateX="18"
+        android:translateY="18">
+        <path
+            android:fillColor="#FF2563EB"
+            android:pathData="M3,17 v2 h6 v-2 H3 z M3,5 v2 h10 V5 H3 z m10,16 v-2 h8 v-2 h-8 v-2 h-2 v6 h2 z M7,9 v2 H3 v2 h4 v2 h2 V9 H7 z m14,4 v-2 H11 v2 h10 z m-6,-4 h2 V7 h4 V5 h-4 V3 h-2 v6 z" />
+    </group>
+</vector>

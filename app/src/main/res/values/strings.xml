@@ -22,6 +22,13 @@
     <string name="widget_tall_description">完整查看用量池、Credits 与计费周期，固定 4×3 尺寸</string>
     <string name="widget_mini_name">用量迷你条</string>
     <string name="widget_mini_description">极简显示总用量百分比与进度环，固定 2×1 尺寸</string>
+    <!-- 长按图标静态 Shortcut -->
+    <string name="shortcut_token_short_label">查看 Token</string>
+    <string name="shortcut_token_long_label">查看 Access Token</string>
+    <string name="shortcut_accounts_short_label">管理账号</string>
+    <string name="shortcut_accounts_long_label">管理 Cursor 账号</string>
+    <string name="shortcut_settings_short_label">设置</string>
+    <string name="shortcut_settings_long_label">应用设置</string>
     <string name="settings_title">设置</string>
     <string name="settings_description">外观、通知与账号统一管理</string>
     <string name="appearance_title">外观</string>

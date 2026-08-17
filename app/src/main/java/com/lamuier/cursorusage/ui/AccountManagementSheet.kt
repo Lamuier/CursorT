@@ -649,7 +649,7 @@ private fun SheetError(message: String, onDismiss: () -> Unit) {
     }
 }
 
-private fun Context.findFragmentActivity(): FragmentActivity? {
+internal fun Context.findFragmentActivity(): FragmentActivity? {
     var current: Context? = this
     while (current is ContextWrapper) {
         if (current is FragmentActivity) return current

@@ -1,6 +1,7 @@
 package com.lamuier.cursorusage
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.os.Build
@@ -11,6 +12,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.ViewModelProvider
@@ -18,6 +21,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.lamuier.cursorusage.data.NotificationPreferences
 import com.lamuier.cursorusage.data.PercentDisplayMode
 import com.lamuier.cursorusage.data.ThemePreferences
+import com.lamuier.cursorusage.model.ShortcutAction
 import com.lamuier.cursorusage.notification.CursorUsageNotificationCoordinator
 import com.lamuier.cursorusage.ui.CursorUsageApp
 import com.lamuier.cursorusage.ui.CursorUsageViewModel
@@ -25,10 +29,14 @@ import com.lamuier.cursorusage.ui.theme.CursorUsageTheme
 import com.lamuier.cursorusage.widget.CursorUsageWidgetUpdater
 
 class MainActivity : FragmentActivity() {
+    /** 长按图标 Shortcut 带来的待执行动作，由 UI 层消费后清空。 */
+    private var pendingShortcutAction by mutableStateOf<ShortcutAction?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         preferWideColorGamut()
+        pendingShortcutAction = ShortcutAction.fromIntentAction(intent?.action)
         val viewModel = ViewModelProvider(
             this,
             CursorUsageViewModel.Factory(applicationContext),
@@ -44,6 +52,8 @@ class MainActivity : FragmentActivity() {
                     viewModel = viewModel,
                     themeSettings = themeSettings,
                     notificationSettings = notificationSettings,
+                    pendingShortcutAction = pendingShortcutAction,
+                    onShortcutActionConsumed = { pendingShortcutAction = null },
                     onThemeModeChange = { mode ->
                         themePreferences.setThemeMode(mode)
                         CursorUsageWidgetUpdater.requestUpdate(applicationContext)
@@ -80,6 +90,12 @@ class MainActivity : FragmentActivity() {
             )
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        pendingShortcutAction = ShortcutAction.fromIntentAction(intent.action)
     }
 
     /**

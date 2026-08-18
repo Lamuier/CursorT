@@ -1,5 +1,6 @@
 package com.lamuier.cursorusage.network
 
+import com.lamuier.cursorusage.BuildConfig
 import com.lamuier.cursorusage.util.TokenUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -116,6 +117,8 @@ class CursorApiClient {
         const val CONNECT_TIMEOUT_MS = 15_000
         const val READ_TIMEOUT_MS = 30_000
         const val MAX_RESPONSE_BYTES = 1024 * 1024
-        const val USER_AGENT = "CursorUsageAndroid/1.10"
+
+        // UA 版本号自动跟随 versionName（debug 构建带 -debug 后缀），便于服务端识别与问题排查
+        val USER_AGENT = "CursorUsageAndroid/${BuildConfig.VERSION_NAME}"
     }
 }

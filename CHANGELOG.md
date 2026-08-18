@@ -1,9 +1,14 @@
 # Changelog
 
-## 未归档
+## 1.3.2（灰度测试版）
 
+> 灰度测试发布（GitHub Release 标记为 Pre-release，不占用 Latest），经实际验证后转为正式版。
+
+- 合规：新增 `PRIVACY.md`（完整隐私政策：数据清单、去向、安全措施、权限用途、卸载行为）与 `THIRD_PARTY_NOTICES.md`（Apache-2.0 / EPL-2.0 第三方组件许可声明），README「隐私与安全」章节附链接
+- 修复：网络请求 User-Agent 版本号硬编码 `1.10` 与实际版本脱钩，改用 `BuildConfig.VERSION_NAME` 自动跟随 versionName（debug 构建带 `-debug` 后缀）
 - 构建：`build.ps1 -Release` 导出产物后自动清理 `dist/` 中旧版本产物（仅匹配 `CursorUsage-v*` 命名模式的 APK / mapping / sha256 / build.json），dist 只保留最新版本
 - 构建：`compose.ui.tooling.preview` 依赖从 `implementation` 移至 `debugImplementation`（预览注解无需进入 Release 编译类路径）
+- `versionCode=6`，`versionName=1.3.2`
 
 ## 1.3.1
 

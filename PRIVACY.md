@@ -1,0 +1,55 @@
+# 隐私政策 / Privacy Policy
+
+> 本文件适用于 CursorUsage Android 应用（包名 `com.lamuier.cursorusage`）。
+
+**生效日期：2026-08-18**
+
+CursorUsage 是一款本地优先的应用：不内置任何第三方统计、广告、崩溃收集 SDK，没有账号体系，没有自建服务端。以下是数据处理的完整说明。
+
+## 我们收集哪些数据
+
+**不收集。** 所有数据均产生并保留在你的设备上，开发者无法接触。
+
+## 应用处理的数据
+
+| 数据 | 用途 | 存储方式 | 离开设备的去向 |
+| --- | --- | --- | --- |
+| Cursor Access Token | 调用 Cursor 官方接口查询用量 | AndroidKeyStore（AES-GCM）加密后存于应用私有目录 | 仅在请求 Cursor 官方接口时作为认证凭据发出 |
+| 账号别名 | 本地标识账号 | AndroidKeyStore（AES-GCM）加密存储 | 不离开设备 |
+| 用量摘要（额度、百分比、Credits 等数字） | 界面展示、小组件、通知 | AndroidKeyStore（AES-GCM）加密缓存 | 不离开设备（缓存为解析后的摘要，不含原始响应） |
+
+## 数据去向
+
+- 网络请求仅指向 Cursor 官方域名：`api2.cursor.sh`、`cursor.com`
+- 全部连接强制 HTTPS，禁止明文传输，拒绝重定向
+- 不向任何第三方服务、开发者个人服务器发送数据
+
+## 数据安全
+
+- Token 与缓存经系统密钥库加密后落盘，密钥不出安全硬件
+- 云备份与设备迁移已排除（`allowBackup=false`）：换机、云恢复不会带走你的 Token
+- Token 明文展示期间自动启用 `FLAG_SECURE`，阻止截屏 / 录屏 / 最近任务缩略图捕获
+- 复制 Token 时（Android 13+）剪贴板标记为敏感内容，系统预览仅显示占位
+
+## 权限用途
+
+| 权限 | 用途 |
+| --- | --- |
+| `INTERNET` | 请求 Cursor 官方用量接口 |
+| `ACCESS_NETWORK_STATE` | 判断网络可用性，避免无效请求 |
+| `USE_BIOMETRIC` | 查看明文 Token 前的指纹 / 锁屏验证 |
+| `POST_NOTIFICATIONS` | 用量监控常驻通知与阈值提醒 |
+| `RECEIVE_BOOT_COMPLETED` | 开机后恢复通知刷新调度 |
+| `POST_PROMOTED_NOTIFICATIONS` | Android 16+ 实时通知进度样式 |
+
+## 卸载
+
+卸载应用即删除全部本地数据（账号、Token、缓存），无任何残留。
+
+## 变更
+
+本政策如有实质变更，将随应用更新在 [CHANGELOG.md](CHANGELOG.md) 中注明。
+
+## 联系
+
+通过 GitHub 仓库 issue 联系开发者：<https://github.com/Lamuier/CursorUsage>

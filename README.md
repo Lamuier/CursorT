@@ -46,6 +46,8 @@ CursorUsage 是一款原生 Android 应用。你只需在应用内填入本机�
 - **本地加密保存**：账号与 Token 经系统密钥库加密后保存在你的设备，不进入备份、不通过明文传输。
 - **最小收集**：仅缓存解析后的用量数字，不保存任何原始响应。
 
+完整说明见 [PRIVACY.md](PRIVACY.md)，第三方开源组件声明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+
 > ⚠️ Cursor 用量接口没有公开的稳定性承诺，接口变动时应用可能需要更新。
 
 ---

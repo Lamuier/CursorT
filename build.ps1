@@ -690,6 +690,15 @@ function Invoke-ReleasePackage {
             builtAt = (Get-Date).ToString("o")
         } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $dist "$artifactBaseName-build.json") -Encoding utf8
 
+        # dist 只保留最新版本：删除旧版本产物（仅匹配本项目命名模式，不触碰其他文件）
+        $artifactPattern = '^CursorUsage-v\S+-(release\.apk|mapping\.txt|release\.sha256|build\.json)$'
+        $staleFiles = Get-ChildItem -LiteralPath $dist -File |
+            Where-Object { $_.Name -match $artifactPattern -and $_.Name -notlike "$artifactBaseName-*" }
+        foreach ($stale in $staleFiles) {
+            Remove-Item -LiteralPath $stale.FullName -Force
+            Write-Host "  清理旧产物: $($stale.Name)" -ForegroundColor DarkGray
+        }
+
         Write-Host ""
         Write-Host "打包完成" -ForegroundColor Green
         Write-Host "  APK     : $destination"

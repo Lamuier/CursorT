@@ -1,5 +1,9 @@
 # Changelog
 
+## 未归档
+
+- 构建：`build.ps1 -Release` 导出产物后自动清理 `dist/` 中旧版本产物（仅匹配 `CursorUsage-v*` 命名模式的 APK / mapping / sha256 / build.json），dist 只保留最新版本
+
 ## 1.3.1
 
 - 安全加固：Access Token 明文展示期间（Shortcut「查看 Access Token」对话框与账号管理面板的展示区）临时启用 `FLAG_SECURE`，关闭展示后自动恢复，防止最近任务缩略图与截屏/录屏捕获明文 Token

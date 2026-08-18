@@ -2,6 +2,7 @@ package com.lamuier.cursorusage.ui
 
 import android.content.Context
 import android.content.ContextWrapper
+import android.view.WindowManager
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.horizontalScroll
@@ -46,6 +47,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -55,10 +57,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -69,6 +69,7 @@ import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
 import com.lamuier.cursorusage.model.CursorAccount
 import com.lamuier.cursorusage.util.DeviceCredentialGate
+import com.lamuier.cursorusage.util.SensitiveContent
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -98,14 +99,27 @@ internal fun AccountManagementSheet(
     var revealBusy by remember(account?.id) { mutableStateOf(false) }
     var tokenCopied by remember(account?.id) { mutableStateOf(false) }
 
-    val activity = LocalContext.current.findFragmentActivity()
-    val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
+    val activity = context.findFragmentActivity()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scrollState = rememberScrollState()
     val scope = rememberCoroutineScope()
     val aliasBringIntoView = remember { BringIntoViewRequester() }
     val tokenBringIntoView = remember { BringIntoViewRequester() }
     val imeBottom = WindowInsets.ime.getBottom(LocalDensity.current)
+
+    // Token 明文展示期间临时启用 FLAG_SECURE：最近任务缩略图与截屏/录屏无法捕获屏幕内容
+    DisposableEffect(activity, revealedToken) {
+        val window = activity?.window
+        if (window != null && revealedToken != null) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        }
+        onDispose {
+            if (window != null && revealedToken != null) {
+                window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+            }
+        }
+    }
 
     fun clearRevealedToken() {
         revealedToken = null
@@ -265,7 +279,7 @@ internal fun AccountManagementSheet(
                         onToggleVisibility = { revealedTokenVisible = !revealedTokenVisible },
                         onCopy = {
                             val token = revealedToken ?: return@SavedTokenRevealSection
-                            clipboard.setText(AnnotatedString(token))
+                            SensitiveContent.copyToClipboard(context, token)
                             tokenCopied = true
                         },
                     )

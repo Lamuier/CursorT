@@ -6,13 +6,13 @@
 
 | 类别 | 选型 |
 | --- | --- |
-| 语言 | Kotlin 2.0.21（JVM 17 toolchain） |
-| UI | Jetpack Compose + Material 3（Compose BOM 2024.12.01） |
+| 语言 | Kotlin 2.2.10（JVM 17 toolchain） |
+| UI | Jetpack Compose + Material 3（Compose BOM 2026.08.00） |
 | 架构构件 | AndroidX Lifecycle（StateFlow / ViewModel）、Activity Compose、Biometric |
 | 构建 | Android Gradle Plugin 9.2.1 · Gradle 9.5.1 |
 | 平台 | `compileSdk` / `targetSdk` = 37 · `minSdk` = 26（Android 8.0） |
 | 包名 | `com.lamuier.cursorusage` |
-| 版本 | `versionCode` = 4 · `versionName` = 1.3.0 |
+| 版本 | `versionCode` = 5 · `versionName` = 1.3.1 |
 | 体积 | Release 开启 R8 混淆与资源压缩，仅引入 AndroidX 与 Biometric，无第三方网络 / 依赖注入框架 |
 
 ## 构建与发布

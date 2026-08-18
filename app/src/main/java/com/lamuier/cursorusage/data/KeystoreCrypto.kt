@@ -25,10 +25,13 @@ internal class KeystoreCrypto(private val keyAlias: String) {
     fun decrypt(payload: String, aad: String): String {
         val parts = payload.split(":", limit = 2)
         require(parts.size == 2) { "Invalid encrypted payload" }
+        // 解密只使用既有密钥：密钥缺失时直接失败，避免静默新建密钥掩盖密钥被删的异常状态
+        val key = keyStore.getKey(keyAlias, null) as? SecretKey
+            ?: throw IllegalStateException("Android Keystore 中未找到解密密钥")
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(
             Cipher.DECRYPT_MODE,
-            getOrCreateKey(),
+            key,
             GCMParameterSpec(128, Base64.decode(parts[0], Base64.NO_WRAP)),
         )
         cipher.updateAAD(aad.toByteArray(Charsets.UTF_8))

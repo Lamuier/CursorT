@@ -1,5 +1,6 @@
 package com.lamuier.cursorusage.ui
 
+import android.view.WindowManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -21,6 +22,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -29,9 +31,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -48,6 +48,7 @@ import com.lamuier.cursorusage.model.ShortcutAction
 import com.lamuier.cursorusage.ui.theme.ColorPalette
 import com.lamuier.cursorusage.ui.theme.ThemeMode
 import com.lamuier.cursorusage.util.DeviceCredentialGate
+import com.lamuier.cursorusage.util.SensitiveContent
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -115,6 +116,19 @@ fun CursorUsageApp(
             },
             onCanceled = {},
         )
+    }
+
+    // Token 明文展示期间临时启用 FLAG_SECURE：最近任务缩略图与截屏/录屏无法捕获屏幕内容
+    DisposableEffect(activity, revealedToken) {
+        val window = activity?.window
+        if (window != null && revealedToken != null) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        }
+        onDispose {
+            if (window != null && revealedToken != null) {
+                window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+            }
+        }
     }
 
     LaunchedEffect(pendingShortcutAction, state.stage, state.loadingAccounts) {
@@ -303,7 +317,7 @@ private fun TokenRevealDialog(
     token: String,
     onDismiss: () -> Unit,
 ) {
-    val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
     var copied by remember { mutableStateOf(false) }
 
     AlertDialog(
@@ -339,7 +353,7 @@ private fun TokenRevealDialog(
         confirmButton = {
             TextButton(
                 onClick = {
-                    clipboard.setText(AnnotatedString(token))
+                    SensitiveContent.copyToClipboard(context, token)
                     copied = true
                 },
             ) {

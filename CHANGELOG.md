@@ -1,8 +1,12 @@
 # Changelog
 
-## 未归档
+## 1.3.1
 
-（暂无）
+- 安全加固：Access Token 明文展示期间（Shortcut「查看 Access Token」对话框与账号管理面板的展示区）临时启用 `FLAG_SECURE`，关闭展示后自动恢复，防止最近任务缩略图与截屏/录屏捕获明文 Token
+- 安全加固：复制 Access Token 改用系统 `ClipboardManager` 并在 Android 13+ 标记 `EXTRA_IS_SENSITIVE`，系统剪贴板预览仅显示敏感内容占位而不展示明文（新增 `SensitiveContent` 工具）
+- 安全加固：Gradle wrapper 增加 `distributionSha256Sum` 完整性 pin（哈希与官方 services.gradle.org 发布值一致），镜像分发被污染时构建直接失败
+- 安全加固：`KeystoreCrypto` 解密路径改为只使用既有密钥，密钥缺失时立即报错，不再静默新建密钥掩盖密钥被删的异常状态
+- 依赖维护：Compose BOM `2024.12.01` → `2026.08.00`、core-ktx `1.15.0` → `1.19.0`、lifecycle `2.8.7` → `2.11.0`、activity-compose `1.9.3` → `1.13.0`、fragment-ktx `1.8.5` → `1.9.0`（均为最新稳定版，含安全修复）
 
 ## 1.3.0
 

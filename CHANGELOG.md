@@ -3,6 +3,7 @@
 ## 未归档
 
 - 构建：`build.ps1 -Release` 导出产物后自动清理 `dist/` 中旧版本产物（仅匹配 `CursorUsage-v*` 命名模式的 APK / mapping / sha256 / build.json），dist 只保留最新版本
+- 构建：`compose.ui.tooling.preview` 依赖从 `implementation` 移至 `debugImplementation`（预览注解无需进入 Release 编译类路径）
 
 ## 1.3.1
 

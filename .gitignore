@@ -27,3 +27,6 @@ widget_home.png
 
 # 本地代码审查/工作流产出（非项目文档，勿提交）
 docs/code-review-*.md
+
+# 本仓库本地开发约定（仅本地生效，勿提交）
+AGENTS.md

@@ -1,12 +1,18 @@
 package com.lamuier.cursorT.data
 
 import android.content.Context
+import com.lamuier.cursorT.model.AgentTask
+import com.lamuier.cursorT.model.AgentTaskConversation
 import com.lamuier.cursorT.model.CursorAccount
+import com.lamuier.cursorT.model.CursorTasks
 import com.lamuier.cursorT.model.CursorTOverview
 import com.lamuier.cursorT.network.ApiException
 import com.lamuier.cursorT.network.CursorApiClient
 import com.lamuier.cursorT.network.CursorTAssembler
+import com.lamuier.cursorT.network.TaskConversationJsonParser
+import com.lamuier.cursorT.network.TasksJsonParser
 import com.lamuier.cursorT.network.UsageJsonParser
+import com.lamuier.cursorT.util.AgentTaskPresentation
 import com.lamuier.cursorT.util.TokenUtils
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CancellationException
@@ -26,6 +32,7 @@ class CursorRepository(context: Context) {
     private val api = CursorApiClient()
     private val accountStore = EncryptedAccountStore(context.applicationContext)
     private val usageCache = UsageCacheStore(context.applicationContext)
+    private val tasksCache = TasksCacheStore(context.applicationContext)
 
     init {
         clearMigratedAccountUsageCaches()
@@ -39,12 +46,14 @@ class CursorRepository(context: Context) {
     fun updateAccount(accountId: Int, alias: String?, accessToken: String?): CursorAccount {
         val updated = accountStore.update(accountId, alias, accessToken)
         invalidateUsage(accountId)
+        invalidateTasks(accountId)
         return updated
     }
 
     fun deleteAccount(accountId: Int) {
         require(accountStore.delete(accountId)) { "账号不存在" }
         invalidateUsage(accountId)
+        invalidateTasks(accountId)
     }
 
     fun selectedAccountId(): Int? = accountStore.selectedAccountId()
@@ -135,6 +144,191 @@ class CursorRepository(context: Context) {
         return live
     }
 
+    fun cachedTasks(
+        accountId: Int,
+        allowInvalidCredential: Boolean = false,
+    ): CursorTasks? {
+        val snapshot = runCatching { accountStore.snapshot(accountId) }.getOrNull() ?: return null
+        if (snapshot.tokenInvalid || TokenUtils.isExpired(snapshot.accessToken)) {
+            markCredentialInvalid(snapshot)
+            if (!allowInvalidCredential) return null
+        }
+        val cached = tasksCache.read(accountId, snapshot.revision) ?: return null
+        val stored = runCatching {
+            TasksJsonParser.parseStored(
+                cached.rawJson,
+                accountId = accountId,
+                fetchedAt = TasksJsonParser.nowStamp(),
+                cacheAgeSeconds = ageSeconds(cached.storedAtMillis),
+            )
+        }.getOrElse {
+            tasksCache.remove(accountId)
+            return null
+        }
+        if (stored.accountId != accountId || !accountStore.isCurrent(accountId, snapshot.revision)) {
+            tasksCache.remove(accountId)
+            return null
+        }
+        return stored
+    }
+
+    suspend fun fetchTasks(accountId: Int, forceRefresh: Boolean): CursorTasks {
+        val snapshot = accountStore.snapshot(accountId)
+        if (TokenUtils.isExpired(snapshot.accessToken) || (snapshot.tokenInvalid && !forceRefresh)) {
+            markCredentialInvalid(snapshot)
+            throw ApiException(401, "Cursor Access Token 已过期或无效，请更新 Token")
+        }
+
+        if (!forceRefresh) {
+            freshTasksMemoryEntry(snapshot)?.let { entry ->
+                return entry.tasks.copy(
+                    fromCache = true,
+                    cacheAgeSeconds = ageSeconds(entry.storedAtMillis),
+                )
+            }
+        }
+
+        val requestKey = NetworkRequestKey(accountId, snapshot.revision)
+        val live = singleFlightTasks(requestKey) {
+            try {
+                val payload = api.agentTasks(snapshot.accessToken)
+                ensureCurrent(snapshot)
+                if (!accountStore.markTokenInvalid(accountId, snapshot.revision, invalid = false)) {
+                    throw AccountRevisionChangedException()
+                }
+                val fetched = TasksJsonParser.parse(payload, accountId = snapshot.id)
+                val storedAtMillis = System.currentTimeMillis()
+                runCatching {
+                    tasksCache.write(accountId, snapshot.revision, TasksJsonParser.toJson(fetched), storedAtMillis)
+                }
+                if (!accountStore.isCurrent(accountId, snapshot.revision)) {
+                    tasksCache.remove(accountId, snapshot.revision)
+                    throw AccountRevisionChangedException()
+                }
+                fetched
+            } catch (error: ApiException) {
+                if (error.statusCode == 401 || error.statusCode == 403) {
+                    if (accountStore.isCurrent(accountId, snapshot.revision)) {
+                        if (!accountStore.markTokenInvalid(accountId, snapshot.revision, invalid = true)) {
+                            throw AccountRevisionChangedException()
+                        }
+                    } else {
+                        throw AccountRevisionChangedException()
+                    }
+                }
+                throw error
+            }
+        }
+        ensureCurrent(snapshot)
+        val storedAtMillis = System.currentTimeMillis()
+        synchronized(tasksMemoryLock) {
+            tasksMemoryCache[accountId] = TasksMemoryEntry(snapshot.revision, storedAtMillis, live)
+        }
+        if (!accountStore.isCurrent(accountId, snapshot.revision)) {
+            invalidateTasks(accountId, snapshot.revision)
+            throw AccountRevisionChangedException()
+        }
+        return live
+    }
+
+    suspend fun fetchConversation(
+        accountId: Int,
+        task: AgentTask,
+        forceRefresh: Boolean,
+    ): AgentTaskConversation {
+        if (!AgentTaskPresentation.isSafeBcId(task.id)) {
+            throw ApiException(400, "云端任务标识无效")
+        }
+        val snapshot = accountStore.snapshot(accountId)
+        if (TokenUtils.isExpired(snapshot.accessToken) || (snapshot.tokenInvalid && !forceRefresh)) {
+            markCredentialInvalid(snapshot)
+            throw ApiException(401, "Cursor Access Token 已过期或无效，请更新 Token")
+        }
+
+        if (!forceRefresh) {
+            freshConversationMemory(snapshot, task.id)?.let { entry ->
+                return entry.conversation.copy(fromCache = true)
+            }
+        }
+
+        val live = try {
+            val detail = api.agentTaskDetail(snapshot.accessToken, task.id)
+            ensureCurrent(snapshot)
+            if (!accountStore.markTokenInvalid(accountId, snapshot.revision, invalid = false)) {
+                throw AccountRevisionChangedException()
+            }
+            val fetchedAt = TasksJsonParser.nowStamp()
+            val extras = extraConversationPayloads(snapshot.accessToken, task.id)
+            ensureCurrent(snapshot)
+            val conversation = TaskConversationJsonParser.parsePreferred(
+                primary = detail,
+                extras = extras,
+                fallbackTask = task,
+                accountId = snapshot.id,
+                fetchedAt = fetchedAt,
+            )
+            android.util.Log.i(
+                "CursorTasks",
+                "conversation extras=${extras.size} picked=${conversation.messages.size}",
+            )
+            conversation
+        } catch (error: ApiException) {
+            if (error.statusCode == 401 || error.statusCode == 403) {
+                if (accountStore.isCurrent(accountId, snapshot.revision)) {
+                    if (!accountStore.markTokenInvalid(accountId, snapshot.revision, invalid = true)) {
+                        throw AccountRevisionChangedException()
+                    }
+                } else {
+                    throw AccountRevisionChangedException()
+                }
+            }
+            throw error
+        }
+        ensureCurrent(snapshot)
+        synchronized(conversationMemoryLock) {
+            conversationMemoryCache[ConversationKey(accountId, task.id, snapshot.revision)] =
+                ConversationMemoryEntry(System.currentTimeMillis(), live)
+        }
+        if (!accountStore.isCurrent(accountId, snapshot.revision)) {
+            invalidateConversation(accountId, task.id)
+            throw AccountRevisionChangedException()
+        }
+        return live
+    }
+
+    suspend fun sendFollowup(accountId: Int, taskId: String, text: String) {
+        val trimmed = text.trim()
+        require(trimmed.isNotEmpty()) { "消息不能为空" }
+        require(trimmed.length <= MAX_FOLLOWUP_CHARS) { "消息过长，请缩短后再发送" }
+        if (!AgentTaskPresentation.isSafeBcId(taskId)) {
+            throw ApiException(400, "云端任务标识无效")
+        }
+        val snapshot = accountStore.snapshot(accountId)
+        if (TokenUtils.isExpired(snapshot.accessToken) || snapshot.tokenInvalid) {
+            markCredentialInvalid(snapshot)
+            throw ApiException(401, "Cursor Access Token 已过期或无效，请更新 Token")
+        }
+        try {
+            api.addAgentFollowup(snapshot.accessToken, taskId, trimmed)
+            ensureCurrent(snapshot)
+            if (!accountStore.markTokenInvalid(accountId, snapshot.revision, invalid = false)) {
+                throw AccountRevisionChangedException()
+            }
+        } catch (error: ApiException) {
+            if (error.statusCode == 401 || error.statusCode == 403) {
+                if (accountStore.isCurrent(accountId, snapshot.revision)) {
+                    if (!accountStore.markTokenInvalid(accountId, snapshot.revision, invalid = true)) {
+                        throw AccountRevisionChangedException()
+                    }
+                } else {
+                    throw AccountRevisionChangedException()
+                }
+            }
+            throw error
+        }
+        invalidateConversation(accountId, taskId)
+    }
+
     private suspend fun singleFlight(
         key: NetworkRequestKey,
         block: suspend () -> CursorTOverview,
@@ -149,6 +343,25 @@ class CursorRepository(context: Context) {
                 candidate.completeExceptionally(error)
             } finally {
                 activeUsageRequests.remove(key, candidate)
+            }
+        }
+        return candidate.await()
+    }
+
+    private suspend fun singleFlightTasks(
+        key: NetworkRequestKey,
+        block: suspend () -> CursorTasks,
+    ): CursorTasks {
+        val candidate = CompletableDeferred<CursorTasks>()
+        val active = activeTasksRequests.putIfAbsent(key, candidate)
+        if (active != null) return active.await()
+        requestScope.launch {
+            try {
+                candidate.complete(block())
+            } catch (error: Throwable) {
+                candidate.completeExceptionally(error)
+            } finally {
+                activeTasksRequests.remove(key, candidate)
             }
         }
         return candidate.await()
@@ -187,6 +400,25 @@ class CursorRepository(context: Context) {
         )
     }
 
+    private suspend fun extraConversationPayloads(accessToken: String, bcId: String): List<JSONObject> =
+        coroutineScope {
+            val jobs = listOf(
+                async { optionalConversation { api.agentTaskConversationOrNull(accessToken, bcId) } },
+                async { optionalConversation { api.agentTaskComposerConversationOrNull(accessToken, bcId) } },
+                async { optionalConversation { api.agentTaskConversationRpcOrNull(accessToken, bcId) } },
+                async { optionalConversation { api.agentTaskDetailRpcOrNull(accessToken, bcId) } },
+            )
+            jobs.mapNotNull { it.await() }
+        }
+
+    private suspend fun optionalConversation(block: suspend () -> JSONObject?): JSONObject? = try {
+        block()?.takeIf { it.length() > 0 }
+    } catch (error: CancellationException) {
+        throw error
+    } catch (_: Exception) {
+        null
+    }
+
     private suspend fun optionalPayload(
         authenticationFailureIsFatal: Boolean,
         block: suspend () -> JSONObject,
@@ -205,6 +437,14 @@ class CursorRepository(context: Context) {
         snapshot: EncryptedAccountStore.AccountSnapshot,
     ): MemoryCacheEntry? = synchronized(memoryLock) {
         val entry = memoryCache[snapshot.id] ?: return@synchronized null
+        val age = System.currentTimeMillis() - entry.storedAtMillis
+        entry.takeIf { it.revision == snapshot.revision && age in 0 until MEMORY_TTL_MILLIS }
+    }
+
+    private fun freshTasksMemoryEntry(
+        snapshot: EncryptedAccountStore.AccountSnapshot,
+    ): TasksMemoryEntry? = synchronized(tasksMemoryLock) {
+        val entry = tasksMemoryCache[snapshot.id] ?: return@synchronized null
         val age = System.currentTimeMillis() - entry.storedAtMillis
         entry.takeIf { it.revision == snapshot.revision && age in 0 until MEMORY_TTL_MILLIS }
     }
@@ -233,6 +473,46 @@ class CursorRepository(context: Context) {
         usageCache.remove(accountId)
     }
 
+    private fun invalidateTasks(accountId: Int, revision: Long) {
+        synchronized(tasksMemoryLock) {
+            if (tasksMemoryCache[accountId]?.revision == revision) tasksMemoryCache.remove(accountId)
+        }
+        tasksCache.remove(accountId, revision)
+        invalidateConversations(accountId)
+    }
+
+    private fun invalidateTasks(accountId: Int) {
+        synchronized(tasksMemoryLock) { tasksMemoryCache.remove(accountId) }
+        tasksCache.remove(accountId)
+        invalidateConversations(accountId)
+    }
+
+    private fun freshConversationMemory(
+        snapshot: EncryptedAccountStore.AccountSnapshot,
+        taskId: String,
+    ): ConversationMemoryEntry? = synchronized(conversationMemoryLock) {
+        val entry = conversationMemoryCache[ConversationKey(snapshot.id, taskId, snapshot.revision)]
+            ?: return@synchronized null
+        val age = System.currentTimeMillis() - entry.storedAtMillis
+        entry.takeIf { age in 0 until MEMORY_TTL_MILLIS }
+    }
+
+    private fun invalidateConversation(accountId: Int, taskId: String) {
+        synchronized(conversationMemoryLock) {
+            conversationMemoryCache.keys
+                .filter { it.accountId == accountId && it.taskId == taskId }
+                .forEach(conversationMemoryCache::remove)
+        }
+    }
+
+    private fun invalidateConversations(accountId: Int) {
+        synchronized(conversationMemoryLock) {
+            conversationMemoryCache.keys
+                .filter { it.accountId == accountId }
+                .forEach(conversationMemoryCache::remove)
+        }
+    }
+
     private fun clearMigratedAccountUsageCaches() {
         val pendingAccountIds = accountStore.pendingUsageCacheCleanupAccountIds()
         val clearedAccountIds = pendingAccountIds.filter { accountId -> usageCache.remove(accountId) }
@@ -258,6 +538,23 @@ class CursorRepository(context: Context) {
         val overview: CursorTOverview,
     )
 
+    private data class TasksMemoryEntry(
+        val revision: Long,
+        val storedAtMillis: Long,
+        val tasks: CursorTasks,
+    )
+
+    private data class ConversationKey(
+        val accountId: Int,
+        val taskId: String,
+        val revision: Long,
+    )
+
+    private data class ConversationMemoryEntry(
+        val storedAtMillis: Long,
+        val conversation: AgentTaskConversation,
+    )
+
     private data class OptionalPayload(
         val payload: JSONObject?,
         val partial: Boolean,
@@ -272,10 +569,19 @@ class CursorRepository(context: Context) {
         const val MEMORY_TTL_MILLIS = 60_000L
         val memoryCache = mutableMapOf<Int, MemoryCacheEntry>()
         val memoryLock = Any()
+        val tasksMemoryCache = mutableMapOf<Int, TasksMemoryEntry>()
+        val tasksMemoryLock = Any()
+        val conversationMemoryCache = mutableMapOf<ConversationKey, ConversationMemoryEntry>()
+        val conversationMemoryLock = Any()
+        const val MAX_FOLLOWUP_CHARS = 8_000
         val requestScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         val activeUsageRequests = ConcurrentHashMap<
             NetworkRequestKey,
             CompletableDeferred<CursorTOverview>
+        >()
+        val activeTasksRequests = ConcurrentHashMap<
+            NetworkRequestKey,
+            CompletableDeferred<CursorTasks>
         >()
     }
 }

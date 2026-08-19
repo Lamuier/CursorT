@@ -1,0 +1,40 @@
+package com.lamuier.cursorT.util
+
+import com.lamuier.cursorT.model.AgentTaskStatus
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class AgentTaskPresentationTest {
+    @Test
+    fun agentConversationUrl_onlyAllowsSafeBcId() {
+        assertEquals(
+            "https://cursor.com/agents?id=bc-finished-0001",
+            AgentTaskPresentation.agentConversationUrl("bc-finished-0001"),
+        )
+        assertNull(AgentTaskPresentation.agentConversationUrl("https://evil.test"))
+        assertNull(AgentTaskPresentation.agentConversationUrl("bc-finished-0001/../x"))
+        assertFalse(AgentTaskPresentation.isSafeBcId(""))
+        assertTrue(AgentTaskPresentation.isSafeBcId("bc_abc123"))
+    }
+
+    @Test
+    fun isSafeCursorUrl_allowsAgentsIdQuery() {
+        assertTrue(AgentTaskPresentation.isSafeCursorUrl("https://cursor.com/agents"))
+        assertTrue(AgentTaskPresentation.isSafeCursorUrl("https://cursor.com/agents?id=bc-finished-0001"))
+        assertFalse(AgentTaskPresentation.isSafeCursorUrl("https://cursor.com/agents?id=bc-finished-0001&next=https://evil.test"))
+        assertFalse(AgentTaskPresentation.isSafeCursorUrl("https://cursor.com/agents?next=https://evil.test"))
+        assertFalse(AgentTaskPresentation.isSafeCursorUrl("http://cursor.com/agents?id=bc-finished-0001"))
+    }
+
+    @Test
+    fun canSendFollowup_blocksExpired() {
+        assertFalse(AgentTaskPresentation.canSendFollowup(AgentTaskStatus.Expired))
+        assertTrue(AgentTaskPresentation.canSendFollowup(AgentTaskStatus.Finished))
+        assertTrue(AgentTaskPresentation.canSendFollowup(AgentTaskStatus.Running))
+        assertEquals("任务已过期，无法继续发送", AgentTaskPresentation.sendDisabledReason(AgentTaskStatus.Expired))
+        assertNull(AgentTaskPresentation.sendDisabledReason(AgentTaskStatus.Finished))
+    }
+}

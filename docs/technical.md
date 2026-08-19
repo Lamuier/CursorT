@@ -62,14 +62,20 @@ Debug 默认先跑单元测试与 Lint，再产出 `app\build\outputs\apk\debug\
 ```text
 Android App（本机）
   ├─ Bearer Token  ──▶  https://api2.cursor.sh/...DashboardService/*
+  │                      https://api2.cursor.sh/...BackgroundComposerService/*（对话 / 跟进回退）
   ├─ Cursor 会话    ──▶  https://cursor.com/api/auth/stripe
+  │                      https://cursor.com/api/background-composer/list（云端任务列表）
+  │                      https://cursor.com/api/background-composer/get-detailed-composer（任务详情）
+  │                      https://cursor.com/api/background-composer/get-conversation（对话，若可用）
+  │                      https://cursor.com/api/background-composer/get-composer-conversation（对话，若可用）
+  │                      https://cursor.com/api/background-composer/add-followup（发送跟进，若可用）
   └─ 公开状态（无 Token）──▶  https://status.cursor.com/api/v2/summary.json
                               https://status.cursor.com/api/v2/incidents.json
 ```
 
 - Alias 与 Access Token 使用 Android Keystore 不可导出密钥 + AES-GCM 加密保存。
 - Token 仅发往固定 Cursor 官方 HTTPS 域名，禁止重定向，不允许自定义服务地址。状态页请求不携带 Token。
-- Token 不进入 `savedInstanceState`、日志或用量缓存；Release 禁止应用数据备份、设备迁移及明文 HTTP。
-- 仅缓存解析后的用量字段，不保存 Cursor 原始响应。
+- Token 不进入 `savedInstanceState`、日志或用量 / 任务缓存；Release 禁止应用数据备份、设备迁移及明文 HTTP。
+- 仅缓存解析后的用量与任务字段（任务缓存同样按 账号+凭据修订号 加密存储），不保存 Cursor 原始响应。任务对话只在打开详情时请求，停留在内存，不写入磁盘。
 - 服务状态使用 Statuspage 公开 JSON（`/api/v2/summary.json` 与 `/api/v2/incidents.json`），不解析 HTML、不订阅 RSS。`summary.json` 含总览、组件与未恢复事件；`incidents.json` 提供近期历史。二者均为官方、结构化、无需鉴权的接口。
 - 桌面小组件运行在独立进程 `:widgetProvider`。用量与状态两套小组件共用同一个 JobService 刷新调度（缓存 TTL 15 分钟）。仅放置状态小组件时不会请求用量接口；状态请求不携带 Token。

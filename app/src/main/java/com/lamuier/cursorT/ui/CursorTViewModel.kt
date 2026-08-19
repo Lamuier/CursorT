@@ -6,20 +6,31 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.lamuier.cursorT.data.CursorRepository
 import com.lamuier.cursorT.data.CursorStatusRepository
+import com.lamuier.cursorT.model.AgentTask
+import com.lamuier.cursorT.model.AgentTaskConversation
+import com.lamuier.cursorT.model.AgentTaskMessage
+import com.lamuier.cursorT.model.AgentTaskMessageRole
+import com.lamuier.cursorT.model.AgentTaskStatus
 import com.lamuier.cursorT.model.AppStage
 import com.lamuier.cursorT.model.AppUiState
 import com.lamuier.cursorT.model.CursorAccount
 import com.lamuier.cursorT.model.CursorServiceStatus
+import com.lamuier.cursorT.model.CursorTasks
 import com.lamuier.cursorT.model.CursorTOverview
 import com.lamuier.cursorT.network.ApiException
+import com.lamuier.cursorT.network.TasksJsonParser
 import com.lamuier.cursorT.notification.CursorTNotificationCoordinator
+import com.lamuier.cursorT.util.AgentTaskPresentation
 import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -30,6 +41,9 @@ class CursorTViewModel(
 ) : ViewModel() {
     private val activeUsageRequests = mutableSetOf<UsageRequestKey>()
     private var statusRequestInFlight = false
+    private var tasksRequestInFlight = false
+    private var conversationRequestInFlight = false
+    private var conversationPollJob: Job? = null
 
     private val _state = MutableStateFlow(
         AppUiState(
@@ -53,21 +67,280 @@ class CursorTViewModel(
 
         val selectionError = saveSelection(accountId)
         val cached = repository.cachedUsage(accountId)?.takeIf { it.accountId == accountId }
+        val cachedTasks = repository.cachedTasks(accountId)?.takeIf { it.accountId == accountId }
+        conversationPollJob?.cancel()
         _state.update {
             it.copy(
                 selectedAccountId = accountId,
                 usage = cached,
+                tasks = cachedTasks,
                 loadingUsage = cached == null,
+                loadingTasks = cachedTasks == null,
                 refreshing = false,
+                refreshingTasks = false,
                 error = selectionError,
+                tasksError = null,
+                selectedTask = null,
+                conversation = null,
+                loadingConversation = false,
+                refreshingConversation = false,
+                sendingFollowup = false,
+                conversationError = null,
             )
         }
         refreshSelected(force = false, silent = cached != null)
     }
 
-    fun refreshSelected(force: Boolean, silent: Boolean, includeStatus: Boolean = true) {
+    fun refreshSelected(
+        force: Boolean,
+        silent: Boolean,
+        includeStatus: Boolean = true,
+        includeTasks: Boolean = true,
+    ) {
         refreshUsage(force = force, silent = silent)
+        if (includeTasks) refreshTasks(force = force, silent = silent)
         if (includeStatus) refreshStatus(force = force, silent = silent)
+    }
+
+    fun refreshTasks(force: Boolean, silent: Boolean) {
+        val snapshot = _state.value
+        if (snapshot.stage != AppStage.Dashboard || snapshot.submitting) return
+        val accountId = snapshot.selectedAccountId ?: return
+        if (tasksRequestInFlight) return
+        tasksRequestInFlight = true
+
+        _state.update {
+            if (silent || it.tasks != null) {
+                it.copy(
+                    refreshingTasks = true,
+                    loadingTasks = false,
+                    tasksError = if (force) null else it.tasksError,
+                )
+            } else {
+                it.copy(loadingTasks = true, refreshingTasks = false, tasksError = null)
+            }
+        }
+
+        viewModelScope.launch {
+            try {
+                val tasks = withContext(Dispatchers.IO) {
+                    repository.fetchTasks(accountId, force)
+                }
+                if (_state.value.selectedAccountId == accountId) {
+                    val selected = _state.value.selectedTask
+                    val updatedSelected = selected?.let { current ->
+                        tasks.tasks.firstOrNull { it.id == current.id } ?: current
+                    }
+                    _state.update {
+                        it.copy(
+                            tasks = tasks,
+                            tasksError = null,
+                            selectedTask = updatedSelected,
+                        )
+                    }
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                if (_state.value.selectedAccountId == accountId) {
+                    _state.update {
+                        it.copy(tasksError = messageFor(error, "加载云端任务失败"))
+                    }
+                }
+            } finally {
+                tasksRequestInFlight = false
+                if (_state.value.selectedAccountId == accountId) {
+                    _state.update { it.copy(loadingTasks = false, refreshingTasks = false) }
+                }
+            }
+        }
+    }
+
+    fun openTask(task: AgentTask) {
+        val snapshot = _state.value
+        if (snapshot.stage != AppStage.Dashboard || snapshot.selectedAccountId == null) return
+        if (!AgentTaskPresentation.isSafeBcId(task.id)) {
+            _state.update { it.copy(tasksError = "云端任务标识无效") }
+            return
+        }
+        val reuse = snapshot.conversation?.takeIf { it.task.id == task.id }
+        conversationPollJob?.cancel()
+        _state.update {
+            it.copy(
+                selectedTask = task,
+                conversation = reuse,
+                loadingConversation = reuse == null,
+                refreshingConversation = reuse != null,
+                sendingFollowup = false,
+                conversationError = null,
+            )
+        }
+        refreshConversation(force = reuse == null, silent = reuse != null)
+        startConversationPolling()
+    }
+
+    fun closeTask() {
+        conversationPollJob?.cancel()
+        conversationPollJob = null
+        _state.update {
+            it.copy(
+                selectedTask = null,
+                conversation = null,
+                loadingConversation = false,
+                refreshingConversation = false,
+                sendingFollowup = false,
+                conversationError = null,
+            )
+        }
+    }
+
+    fun refreshConversation(force: Boolean, silent: Boolean = false) {
+        val snapshot = _state.value
+        if (snapshot.stage != AppStage.Dashboard || snapshot.submitting) return
+        val accountId = snapshot.selectedAccountId ?: return
+        val task = snapshot.selectedTask ?: return
+        if (conversationRequestInFlight) return
+        conversationRequestInFlight = true
+        if (!silent) {
+            _state.update {
+                if (it.conversation != null) {
+                    it.copy(
+                        refreshingConversation = true,
+                        loadingConversation = false,
+                        conversationError = if (force) null else it.conversationError,
+                    )
+                } else {
+                    it.copy(loadingConversation = true, refreshingConversation = false, conversationError = null)
+                }
+            }
+        }
+        viewModelScope.launch {
+            try {
+                loadConversation(accountId, task, force)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                if (_state.value.selectedTask?.id == task.id) {
+                    _state.update {
+                        it.copy(conversationError = messageFor(error, "加载对话失败"))
+                    }
+                }
+            } finally {
+                conversationRequestInFlight = false
+                if (_state.value.selectedTask?.id == task.id) {
+                    _state.update { it.copy(loadingConversation = false, refreshingConversation = false) }
+                }
+            }
+        }
+    }
+
+    fun sendFollowup(text: String) {
+        val snapshot = _state.value
+        val accountId = snapshot.selectedAccountId ?: return
+        val task = snapshot.selectedTask ?: return
+        if (snapshot.sendingFollowup || snapshot.submitting) return
+        if (!AgentTaskPresentation.canSendFollowup(task.status)) {
+            _state.update {
+                it.copy(conversationError = AgentTaskPresentation.sendDisabledReason(task.status))
+            }
+            return
+        }
+        val trimmed = text.trim()
+        if (trimmed.isEmpty()) return
+        if (trimmed.length > MAX_FOLLOWUP_CHARS) {
+            _state.update { it.copy(conversationError = "消息过长，请缩短后再发送") }
+            return
+        }
+        val pending = AgentTaskMessage(
+            id = "local-${System.currentTimeMillis()}",
+            role = AgentTaskMessageRole.User,
+            text = trimmed,
+            createdAtMs = System.currentTimeMillis(),
+            pending = true,
+        )
+        _state.update {
+            val current = it.conversation
+            it.copy(
+                sendingFollowup = true,
+                conversationError = null,
+                conversation = current?.copy(messages = current.messages + pending)
+                    ?: AgentTaskConversation(
+                        accountId = accountId,
+                        task = task,
+                        messages = listOf(pending),
+                        fetchedAt = TasksJsonParser.nowStamp(),
+                    ),
+            )
+        }
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    repository.sendFollowup(accountId, task.id, trimmed)
+                }
+                if (_state.value.selectedTask?.id == task.id) {
+                    loadConversation(accountId, _state.value.selectedTask ?: task, force = true)
+                    startConversationPolling()
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                if (_state.value.selectedTask?.id == task.id) {
+                    _state.update {
+                        it.copy(
+                            conversationError = messageFor(error, "发送失败"),
+                            conversation = it.conversation?.copy(
+                                messages = it.conversation.messages.filterNot { message -> message.pending },
+                            ),
+                        )
+                    }
+                }
+            } finally {
+                if (_state.value.selectedTask?.id == task.id) {
+                    _state.update { it.copy(sendingFollowup = false) }
+                }
+            }
+        }
+    }
+
+    fun clearConversationError() {
+        _state.update { it.copy(conversationError = null) }
+    }
+
+    private suspend fun loadConversation(accountId: Int, task: AgentTask, force: Boolean) {
+        val conversation = withContext(Dispatchers.IO) {
+            repository.fetchConversation(accountId, task, force)
+        }
+        if (_state.value.selectedTask?.id != task.id || _state.value.selectedAccountId != accountId) {
+            return
+        }
+        _state.update {
+            it.copy(
+                selectedTask = conversation.task,
+                conversation = conversation,
+                conversationError = null,
+            )
+        }
+    }
+
+    private fun startConversationPolling() {
+        conversationPollJob?.cancel()
+        conversationPollJob = viewModelScope.launch {
+            while (isActive) {
+                val state = _state.value
+                val task = state.selectedTask ?: break
+                val interval = when {
+                    state.sendingFollowup -> FOLLOWUP_POLL_MS
+                    task.status == AgentTaskStatus.Running ||
+                        task.status == AgentTaskStatus.Creating -> RUNNING_POLL_MS
+                    else -> break
+                }
+                delay(interval)
+                if (_state.value.selectedTask?.id != task.id) break
+                if (!conversationRequestInFlight) {
+                    refreshConversation(force = true, silent = true)
+                }
+            }
+        }
     }
 
     fun refreshStatus(force: Boolean, silent: Boolean) {
@@ -204,6 +477,7 @@ class CursorTViewModel(
                     AccountSaveResult(
                         account = account,
                         cachedUsage = repository.cachedUsage(account.id)?.takeIf { it.accountId == account.id },
+                        cachedTasks = repository.cachedTasks(account.id)?.takeIf { it.accountId == account.id },
                         selectionError = saveSelection(account.id),
                     )
                 }
@@ -213,8 +487,11 @@ class CursorTViewModel(
                         accounts = accounts,
                         selectedAccountId = result.account.id,
                         usage = result.cachedUsage,
+                        tasks = result.cachedTasks,
                         loadingUsage = result.cachedUsage == null,
+                        loadingTasks = result.cachedTasks == null,
                         refreshing = false,
+                        refreshingTasks = false,
                         submitting = false,
                         error = result.selectionError,
                     )
@@ -256,12 +533,18 @@ class CursorTViewModel(
             try {
                 val selected = _state.value.selectedAccountId == accountId
                 val previousUsage = _state.value.usage?.takeIf { it.accountId == accountId }
+                val previousTasks = _state.value.tasks?.takeIf { it.accountId == accountId }
                 val result = withContext(Dispatchers.IO) {
                     val updated = repository.updateAccount(accountId, alias, accessToken)
                     AccountSaveResult(
                         account = updated,
                         cachedUsage = if (selected) {
                             repository.cachedUsage(accountId)?.takeIf { it.accountId == accountId }
+                        } else {
+                            null
+                        },
+                        cachedTasks = if (selected) {
+                            repository.cachedTasks(accountId)?.takeIf { it.accountId == accountId }
                         } else {
                             null
                         },
@@ -272,18 +555,26 @@ class CursorTViewModel(
                 } else {
                     null
                 }
+                val cachedTasks = if (selected) {
+                    result.cachedTasks ?: previousTasks.takeIf { accessToken.isNullOrBlank() }
+                } else {
+                    null
+                }
                 _state.update {
                     it.copy(
                         accounts = mergeAccount(it.accounts, result.account),
                         usage = if (selected) cached else it.usage,
+                        tasks = if (selected) cachedTasks else it.tasks,
                         loadingUsage = selected && cached == null,
+                        loadingTasks = selected && cachedTasks == null,
                         refreshing = false,
+                        refreshingTasks = false,
                         submitting = false,
                         error = null,
                     )
                 }
                 runCatching(onSuccess)
-                if (selected) refreshSelected(force = true, silent = cached != null)
+                if (selected) refreshSelected(force = true, silent = cached != null && cachedTasks != null)
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
@@ -319,25 +610,37 @@ class CursorTViewModel(
                         accounts = accounts,
                         selectedAccountId = selected,
                         cachedUsage = selected?.let(repository::cachedUsage)?.takeIf { it.accountId == selected },
+                        cachedTasks = selected?.let(repository::cachedTasks)?.takeIf { it.accountId == selected },
                         selectionError = saveSelection(selected),
                     )
                 }
                 val selectionChanged = result.selectedAccountId != previousSelected
                 val cached = if (selectionChanged) result.cachedUsage else _state.value.usage
+                val cachedTasks = if (selectionChanged) result.cachedTasks else _state.value.tasks
+                conversationPollJob?.cancel()
                 _state.update {
                     it.copy(
                         accounts = result.accounts,
                         selectedAccountId = result.selectedAccountId,
                         usage = cached,
+                        tasks = cachedTasks,
                         loadingUsage = selectionChanged && result.selectedAccountId != null && cached == null,
+                        loadingTasks = selectionChanged && result.selectedAccountId != null && cachedTasks == null,
                         refreshing = false,
+                        refreshingTasks = false,
                         submitting = false,
                         error = result.selectionError,
+                        selectedTask = null,
+                        conversation = null,
+                        loadingConversation = false,
+                        refreshingConversation = false,
+                        sendingFollowup = false,
+                        conversationError = null,
                     )
                 }
                 runCatching(onSuccess)
                 if (selectionChanged && result.selectedAccountId != null) {
-                    refreshSelected(force = false, silent = cached != null)
+                    refreshSelected(force = false, silent = cached != null && cachedTasks != null)
                 }
             } catch (error: CancellationException) {
                 throw error
@@ -375,6 +678,7 @@ class CursorTViewModel(
                         accounts = accounts,
                         selectedAccountId = selected,
                         usage = selected?.let(repository::cachedUsage)?.takeIf { it.accountId == selected },
+                        tasks = selected?.let(repository::cachedTasks)?.takeIf { it.accountId == selected },
                         serviceStatus = statusRepository.cached(),
                         selectionError = saveSelection(selected),
                     )
@@ -384,9 +688,11 @@ class CursorTViewModel(
                     accounts = initial.accounts,
                     selectedAccountId = initial.selectedAccountId,
                     usage = initial.usage,
+                    tasks = initial.tasks,
                     serviceStatus = initial.serviceStatus,
                     loadingAccounts = false,
                     loadingUsage = initial.selectedAccountId != null && initial.usage == null,
+                    loadingTasks = initial.selectedAccountId != null && initial.tasks == null,
                     loadingStatus = initial.serviceStatus == null,
                     error = initial.selectionError,
                 )
@@ -440,6 +746,12 @@ class CursorTViewModel(
         else -> error.message?.takeIf { it.isNotBlank() } ?: fallback
     }
 
+    private companion object {
+        const val MAX_FOLLOWUP_CHARS = 8_000
+        const val FOLLOWUP_POLL_MS = 3_000L
+        const val RUNNING_POLL_MS = 8_000L
+    }
+
     private data class UsageRequestKey(
         val accountId: Int,
         val revision: Long,
@@ -449,6 +761,7 @@ class CursorTViewModel(
         val accounts: List<CursorAccount>,
         val selectedAccountId: Int?,
         val usage: CursorTOverview?,
+        val tasks: CursorTasks?,
         val serviceStatus: CursorServiceStatus?,
         val selectionError: String?,
     )
@@ -456,6 +769,7 @@ class CursorTViewModel(
     private data class AccountSaveResult(
         val account: CursorAccount,
         val cachedUsage: CursorTOverview?,
+        val cachedTasks: CursorTasks? = null,
         val selectionError: String? = null,
     )
 
@@ -463,6 +777,7 @@ class CursorTViewModel(
         val accounts: List<CursorAccount>,
         val selectedAccountId: Int?,
         val cachedUsage: CursorTOverview?,
+        val cachedTasks: CursorTasks? = null,
         val selectionError: String?,
     )
 

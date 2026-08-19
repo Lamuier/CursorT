@@ -61,6 +61,7 @@ import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Savings
 import androidx.compose.material.icons.outlined.SpaceDashboard
+import androidx.compose.material.icons.outlined.SmartToy
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -115,6 +116,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.lamuier.cursorT.model.AgentTask
 import com.lamuier.cursorT.model.AppUiState
 import com.lamuier.cursorT.model.CursorAccount
 import com.lamuier.cursorT.model.CursorTOverview
@@ -136,6 +138,7 @@ private enum class DashboardTab(val label: String, val icon: ImageVector) {
     Overview("概览", Icons.Outlined.SpaceDashboard),
     Usage("用量", Icons.Outlined.DataUsage),
     Billing("账单", Icons.AutoMirrored.Outlined.ReceiptLong),
+    Tasks("任务", Icons.Outlined.SmartToy),
     Status("状态", Icons.Outlined.HealthAndSafety),
 }
 
@@ -163,6 +166,10 @@ internal fun DashboardScreen(
     onManageAccount: () -> Unit,
     onShowSettings: () -> Unit,
     onShowTokenHelp: () -> Unit,
+    onOpenTask: (AgentTask) -> Unit,
+    onCloseTask: () -> Unit,
+    onRefreshConversation: () -> Unit,
+    onSendFollowup: (String) -> Unit,
 ) {
     val account = remember(state.accounts, state.selectedAccountId) {
         state.accounts.firstOrNull { it.id == state.selectedAccountId }
@@ -194,15 +201,15 @@ internal fun DashboardScreen(
                 actions = {
                     IconButton(
                         modifier = Modifier.semantics {
-                            val busy = state.refreshing || state.refreshingStatus
+                            val busy = state.refreshing || state.refreshingStatus || state.refreshingTasks
                             contentDescription = if (busy) "正在刷新数据" else "刷新数据"
                             if (busy) liveRegion = LiveRegionMode.Polite
                         },
                         enabled = !state.loadingAccounts && !state.refreshing &&
-                            !state.refreshingStatus && !state.submitting,
+                            !state.refreshingStatus && !state.refreshingTasks && !state.submitting,
                         onClick = onRefresh,
                     ) {
-                        if (state.refreshing || state.refreshingStatus) {
+                        if (state.refreshing || state.refreshingStatus || state.refreshingTasks) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(20.dp),
                                 strokeWidth = 2.dp,
@@ -254,7 +261,7 @@ internal fun DashboardScreen(
                     )
                     val pagerScope = rememberCoroutineScope()
                     val selectedTab = pagerState.currentPage
-                    val refreshing = state.refreshing || state.refreshingStatus
+                    val refreshing = state.refreshing || state.refreshingStatus || state.refreshingTasks
 
                     Column(modifier = Modifier.fillMaxSize()) {
                         DashboardTabPills(
@@ -295,6 +302,20 @@ internal fun DashboardScreen(
                                         onManageAccount = onManageAccount,
                                         onShowTokenHelp = onShowTokenHelp,
                                     ) { BillingTab(it) }
+                                    DashboardTab.Tasks -> AccountOnlyTab(
+                                        state = state,
+                                        onManageAccount = onManageAccount,
+                                        onShowTokenHelp = onShowTokenHelp,
+                                    ) {
+                                        TasksTab(
+                                            tasks = state.tasks,
+                                            loading = state.loadingTasks,
+                                            refreshing = state.refreshingTasks,
+                                            error = state.tasksError,
+                                            onRetry = onRefresh,
+                                            onOpenTask = onOpenTask,
+                                        )
+                                    }
                                     DashboardTab.Status -> StatusTab(
                                         status = state.serviceStatus,
                                         loading = state.loadingStatus,
@@ -309,6 +330,20 @@ internal fun DashboardScreen(
                 }
             }
         }
+    }
+
+    state.selectedTask?.let { task ->
+        TaskDetailSheet(
+            task = task,
+            conversation = state.conversation?.takeIf { it.task.id == task.id },
+            loading = state.loadingConversation,
+            refreshing = state.refreshingConversation,
+            sending = state.sendingFollowup,
+            error = state.conversationError,
+            onDismiss = onCloseTask,
+            onRefresh = onRefreshConversation,
+            onSend = onSendFollowup,
+        )
     }
 }
 
@@ -428,6 +463,38 @@ private fun UsageDependentTab(
             onSecondaryAction = onManageAccount,
         )
         else -> content(state.usage!!)
+    }
+}
+
+@Composable
+private fun AccountOnlyTab(
+    state: AppUiState,
+    onManageAccount: () -> Unit,
+    onShowTokenHelp: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    val account = state.accounts.firstOrNull { it.id == state.selectedAccountId }
+        ?: state.accounts.firstOrNull()
+    when {
+        account == null -> DashboardState(
+            icon = Icons.Outlined.PersonAdd,
+            title = "添加 Cursor 账号",
+            description = "录入 Access Token 后即可查看云端任务。也可先查看「状态」页。",
+            primaryActionLabel = "添加账号",
+            onPrimaryAction = onManageAccount,
+            secondaryActionLabel = "如何获取 Token",
+            onSecondaryAction = onShowTokenHelp,
+        )
+        account.tokenExpired -> DashboardState(
+            icon = Icons.Outlined.KeyOff,
+            title = "Access Token 已过期",
+            description = "更新 Token 后即可继续获取云端任务。",
+            primaryActionLabel = "更新 Token",
+            onPrimaryAction = onManageAccount,
+            secondaryActionLabel = "Token 帮助",
+            onSecondaryAction = onShowTokenHelp,
+        )
+        else -> content()
     }
 }
 

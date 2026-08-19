@@ -1,0 +1,83 @@
+{
+  "composers": [
+    {
+      "bcId": "bc-finished-0001",
+      "createdAtMs": 1787138110492,
+      "workspaceRootPath": "/workspace",
+      "name": "Cursor可用性状态",
+      "branchName": "cursor/cursor-status-tab-f839",
+      "hasStartedVm": true,
+      "repoUrl": "github.com/example/demo",
+      "status": "BACKGROUND_COMPOSER_STATUS_FINISHED",
+      "source": "BACKGROUND_COMPOSER_SOURCE_WEBSITE",
+      "updatedAtMs": 1787147261056,
+      "prUrl": "https://github.com/example/demo/pull/1",
+      "isPrMerged": true,
+      "linesAdded": 2812,
+      "linesRemoved": 425,
+      "filesChanged": 67,
+      "modelDetails": {
+        "modelName": "cursor-grok-4.6-high",
+        "maxMode": true
+      },
+      "visibility": "user",
+      "workflowId": "cloud-agent-turn-bc-finished-0001",
+      "lastMessageActivityAtMs": 1787144151489,
+      "prStatus": "PR_STATUS_MERGED",
+      "participantUserIds": [
+        1001
+      ],
+      "requestedModel": {
+        "modelId": "cursor-grok-4.6-high",
+        "maxMode": true,
+        "builtInModel": true
+      },
+      "usePrivateWorker": false,
+      "repoUrls": [
+        "github.com/example/demo"
+      ],
+      "initiatedEnvSetup": true
+    },
+    {
+      "bcId": "bc-running-0002",
+      "createdAtMs": 1787150000000,
+      "workspaceRootPath": "/workspace",
+      "name": "修复登录重试",
+      "branchName": "cursor/login-retry",
+      "hasStartedVm": true,
+      "repoUrl": "github.com/example/demo",
+      "status": "BACKGROUND_COMPOSER_STATUS_RUNNING",
+      "source": "BACKGROUND_COMPOSER_SOURCE_WEBSITE",
+      "updatedAtMs": 1787151000000,
+      "linesAdded": 12,
+      "linesRemoved": 3,
+      "filesChanged": 2,
+      "modelDetails": {
+        "modelName": "cursor-composer-2",
+        "maxMode": false
+      },
+      "visibility": "user",
+      "participantUserIds": [
+        1001
+      ],
+      "usePrivateWorker": false,
+      "repoUrls": [
+        "github.com/example/demo"
+      ]
+    },
+    {
+      "createdAtMs": 1787150000000,
+      "name": "缺少标识应被跳过",
+      "status": "BACKGROUND_COMPOSER_STATUS_RUNNING"
+    }
+  ],
+  "didLoadStatus": true,
+  "participants": [
+    {
+      "userId": 1001,
+      "displayName": "tester",
+      "email": "tester@example.com",
+      "profilePictureUrl": "https://example.com/avatar.png"
+    }
+  ]
+}

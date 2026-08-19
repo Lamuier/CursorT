@@ -14,15 +14,18 @@ Cursor助手 是一款本地优先的应用：不内置任何第三方统计、�
 
 | 数据 | 用途 | 存储方式 | 离开设备的去向 |
 | --- | --- | --- | --- |
-| Cursor Access Token | 调用 Cursor 官方接口查询用量 | AndroidKeyStore（AES-GCM）加密后存于应用私有目录 | 仅在请求 Cursor 官方接口时作为认证凭据发出 |
+| Cursor Access Token | 调用 Cursor 官方接口查询用量、云端任务与任务对话 | AndroidKeyStore（AES-GCM）加密后存于应用私有目录 | 仅在请求 Cursor 官方接口时作为认证凭据发出 |
 | 账号别名 | 本地标识账号 | AndroidKeyStore（AES-GCM）加密存储 | 不离开设备 |
 | 用量摘要（额度、百分比、Credits 等数字） | 界面展示、小组件、通知 | AndroidKeyStore（AES-GCM）加密缓存 | 不离开设备（缓存为解析后的摘要，不含原始响应） |
+| 云端任务摘要（任务名、状态、分支、PR 链接、增删行数等） | 「任务」页展示 | AndroidKeyStore（AES-GCM）加密缓存 | 不离开设备（缓存为解析后的摘要，不含原始响应） |
+| 云端任务对话（用户提示与助手回复文本） | 任务详情页展示与发送跟进 | 仅在打开详情时请求，保存在内存中，不落盘 | 查看对话与发送跟进时发往 Cursor 官方接口；关闭详情后从内存清除 |
 | Cursor 服务状态（组件名、可用状态、事件摘要） | 「状态」页与桌面小组件展示 | 应用私有目录明文缓存最近一次成功结果（公开信息，不含 Token） | 仅向 Cursor 官方状态页请求；响应中的公开状态数据会短暂离开设备到达本机 |
 
 ## 数据去向
 
 - 网络请求仅指向 Cursor 官方域名：`api2.cursor.sh`、`cursor.com`、`status.cursor.com`
-- Access Token 只用于用量相关接口（`api2.cursor.sh`、`cursor.com`），不会随状态页请求发送
+- Access Token 只用于用量与任务相关接口（`api2.cursor.sh`、`cursor.com`），不会随状态页请求发送
+- 发送跟进消息时，消息正文会发往 Cursor 官方任务接口；对话内容不会上传到任何第三方
 - 全部连接强制 HTTPS，禁止明文传输，拒绝重定向
 - 不向任何第三方服务、开发者个人服务器发送数据
 
@@ -37,7 +40,7 @@ Cursor助手 是一款本地优先的应用：不内置任何第三方统计、�
 
 | 权限 | 用途 |
 | --- | --- |
-| `INTERNET` | 请求 Cursor 官方用量接口与官方状态页 |
+| `INTERNET` | 请求 Cursor 官方用量、云端任务 / 对话接口与官方状态页 |
 | `ACCESS_NETWORK_STATE` | 判断网络可用性，避免无效请求 |
 | `USE_BIOMETRIC` | 查看明文 Token 前的指纹 / 锁屏验证 |
 | `POST_NOTIFICATIONS` | 用量监控常驻通知与阈值提醒 |

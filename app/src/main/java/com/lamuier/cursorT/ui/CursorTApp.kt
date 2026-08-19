@@ -83,7 +83,7 @@ fun CursorTApp(
     var deleteTarget by remember { mutableStateOf<CursorAccount?>(null) }
     // Shortcut「查看 Token」：验证通过后暂存的明文 Token，非空时弹出展示对话框。
     var revealedToken by remember { mutableStateOf<String?>(null) }
-    val sheetOpen = manageAccount || showTokenHelp || showSettings
+    val sheetOpen = manageAccount || showTokenHelp || showSettings || state.selectedTask != null
 
     val activity = LocalContext.current.findFragmentActivity()
     val scope = rememberCoroutineScope()
@@ -236,6 +236,10 @@ fun CursorTApp(
             onManageAccount = { manageAccount = true },
             onShowSettings = { showSettings = true },
             onShowTokenHelp = { showTokenHelp = true },
+            onOpenTask = viewModel::openTask,
+            onCloseTask = viewModel::closeTask,
+            onRefreshConversation = { viewModel.refreshConversation(force = true) },
+            onSendFollowup = viewModel::sendFollowup,
         )
     }
 

@@ -93,6 +93,77 @@ enum class AppStage {
     Dashboard,
 }
 
+/** 云端任务（Cursor 后台智能体）的执行状态。 */
+enum class AgentTaskStatus {
+    Creating,
+    Running,
+    Finished,
+    Error,
+    Expired,
+    Unknown,
+}
+
+/** 云端任务关联的 Pull Request 状态。 */
+enum class AgentTaskPrStatus {
+    Open,
+    Draft,
+    Merged,
+    Closed,
+    Unknown,
+}
+
+@Immutable
+data class AgentTask(
+    val id: String,
+    val name: String,
+    val status: AgentTaskStatus,
+    val repoUrl: String?,
+    val branchName: String?,
+    val prUrl: String?,
+    val prStatus: AgentTaskPrStatus?,
+    val linesAdded: Int,
+    val linesRemoved: Int,
+    val filesChanged: Int,
+    val modelName: String?,
+    val maxMode: Boolean,
+    val createdAtMs: Long,
+    val updatedAtMs: Long,
+    val lastActivityMs: Long?,
+)
+
+enum class AgentTaskMessageRole {
+    User,
+    Assistant,
+    Unknown,
+}
+
+@Immutable
+data class AgentTaskMessage(
+    val id: String,
+    val role: AgentTaskMessageRole,
+    val text: String,
+    val createdAtMs: Long? = null,
+    val pending: Boolean = false,
+)
+
+@Immutable
+data class AgentTaskConversation(
+    val accountId: Int,
+    val task: AgentTask,
+    val messages: List<AgentTaskMessage>,
+    val fetchedAt: String,
+    val fromCache: Boolean = false,
+)
+
+@Immutable
+data class CursorTasks(
+    val accountId: Int,
+    val tasks: List<AgentTask>,
+    val fetchedAt: String,
+    val fromCache: Boolean,
+    val cacheAgeSeconds: Int = 0,
+)
+
 /** 长按图标静态 Shortcut 对应的应用内动作。 */
 enum class ShortcutAction(val intentAction: String) {
     RevealToken(INTENT_ACTION_PREFIX + ".SHORTCUT_REVEAL_TOKEN"),
@@ -113,15 +184,25 @@ data class AppUiState(
     val accounts: List<CursorAccount> = emptyList(),
     val selectedAccountId: Int? = null,
     val usage: CursorTOverview? = null,
+    val tasks: CursorTasks? = null,
     val serviceStatus: CursorServiceStatus? = null,
     val loadingAccounts: Boolean = false,
     val loadingUsage: Boolean = false,
+    val loadingTasks: Boolean = false,
     val loadingStatus: Boolean = false,
     val refreshing: Boolean = false,
+    val refreshingTasks: Boolean = false,
     val refreshingStatus: Boolean = false,
     val submitting: Boolean = false,
     val error: String? = null,
+    val tasksError: String? = null,
     val statusError: String? = null,
+    val selectedTask: AgentTask? = null,
+    val conversation: AgentTaskConversation? = null,
+    val loadingConversation: Boolean = false,
+    val refreshingConversation: Boolean = false,
+    val sendingFollowup: Boolean = false,
+    val conversationError: String? = null,
 )
 
 /** Cursor 官方状态页（Statuspage）的整体指示灯。 */

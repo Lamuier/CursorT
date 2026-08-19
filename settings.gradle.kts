@@ -38,6 +38,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "CursorUsage"
+rootProject.name = "Cursor助手"
 include(":app")
 

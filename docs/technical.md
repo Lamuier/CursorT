@@ -1,4 +1,4 @@
-# CursorUsage 技术说明
+# Cursor助手 技术说明
 
 面向开发者与贡献者。本文档覆盖技术栈、构建与发布流程，以及数据安全实现的要点。README 面向终端用户，仅保留功能与使用说明。
 
@@ -11,7 +11,7 @@
 | 架构构件 | AndroidX Lifecycle（StateFlow / ViewModel）、Activity Compose、Biometric |
 | 构建 | Android Gradle Plugin 9.2.1 · Gradle 9.5.1 |
 | 平台 | `compileSdk` / `targetSdk` = 37 · `minSdk` = 26（Android 8.0） |
-| 包名 | `com.lamuier.cursorusage` |
+| 包名 | `com.lamuier.cursorT` |
 | 版本 | `versionCode` = 7 · `versionName` = 1.4.0 |
 | 体积 | Release 开启 R8 混淆与资源压缩，仅引入 AndroidX 与 Biometric，无第三方网络 / 依赖注入框架 |
 

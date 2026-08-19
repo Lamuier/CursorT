@@ -1,6 +1,6 @@
 # 第三方开源许可声明 / Third-Party Notices
 
-CursorUsage 本体以 [MIT 许可证](LICENSE) 开源。Release 分发的 APK 中包含以下第三方开源组件：
+Cursor助手 本体以 [MIT 许可证](LICENSE) 开源。Release 分发的 APK 中包含以下第三方开源组件：
 
 ## Apache License 2.0
 
@@ -27,4 +27,4 @@ Eclipse Public License 2.0 全文：<https://www.eclipse.org/legal/epl-2.0/>
 
 ## 声明
 
-以上组件按「按原样」基础分发，各自遵循其原许可证条款；与 CursorUsage（MIT）本身分发的许可互相独立。本声明如需更新，随依赖变更在 [CHANGELOG.md](CHANGELOG.md) 记录。
+以上组件按「按原样」基础分发，各自遵循其原许可证条款；与 Cursor助手（MIT）本身分发的许可互相独立。本声明如需更新，随依赖变更在 [CHANGELOG.md](CHANGELOG.md) 记录。

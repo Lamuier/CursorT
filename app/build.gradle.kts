@@ -15,12 +15,12 @@ val releaseSigningConfigured = listOf(
 ).all { !it.isNullOrBlank() }
 
 android {
-    namespace = "com.lamuier.cursorusage"
+    namespace = "com.lamuier.cursorT"
     compileSdk = 37
     buildToolsVersion = "37.0.0"
 
     defaultConfig {
-        applicationId = "com.lamuier.cursorusage"
+        applicationId = "com.lamuier.cursorT"
         minSdk = 26
         targetSdk = 37
         versionCode = 7

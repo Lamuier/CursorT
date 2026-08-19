@@ -1,10 +1,10 @@
 # 隐私政策 / Privacy Policy
 
-> 本文件适用于 CursorUsage Android 应用（包名 `com.lamuier.cursorusage`）。
+> 本文件适用于 Cursor助手 Android 应用（包名 `com.lamuier.cursorT`）。
 
 **生效日期：2026-08-19**
 
-CursorUsage 是一款本地优先的应用：不内置任何第三方统计、广告、崩溃收集 SDK，没有账号体系，没有自建服务端。以下是数据处理的完整说明。
+Cursor助手 是一款本地优先的应用：不内置任何第三方统计、广告、崩溃收集 SDK，没有账号体系，没有自建服务端。以下是数据处理的完整说明。
 
 ## 我们收集哪些数据
 

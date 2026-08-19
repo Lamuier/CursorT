@@ -1,11 +1,11 @@
-# CursorUsage
+# Cursor助手
 
 > 在手机上随时查看 Cursor 订阅用量——无需第三方服务端，数据只留在你自己的设备里。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 ![Platform](https://img.shields.io/badge/Platform-Android%208.0%2B-green.svg)
 
-CursorUsage 是一款原生 Android 应用。你只需在应用内填入本机的 Cursor Access Token，它就会向 Cursor 官方接口拉取用量，并在本地解析、加密保存。没有账号体系，没有自建后端，所有数据不经过任何第三方。
+Cursor助手 是一款原生 Android 应用。你只需在应用内填入本机的 Cursor Access Token，它就会向 Cursor 官方接口拉取用量，并在本地解析、加密保存。没有账号体系，没有自建后端，所有数据不经过任何第三方。
 
 ---
 
@@ -74,7 +74,7 @@ python -c 'import os,sqlite3,json; from pathlib import Path; p=Path(os.environ["
 ## 许可与免责声明
 
 - **许可**：以 [MIT 许可证](LICENSE) 开源。
-- **免责声明**：CursorUsage 是非官方、个人维护的工具，与 Cursor（Anysphere）无隶属关系。使用即表示你理解并自行承担相关风险。
+- **免责声明**：Cursor助手 是非官方、个人维护的工具，与 Cursor（Anysphere）无隶属关系。使用即表示你理解并自行承担相关风险。
 
 ---
 

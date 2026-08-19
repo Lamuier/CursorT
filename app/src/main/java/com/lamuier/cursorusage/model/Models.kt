@@ -113,9 +113,79 @@ data class AppUiState(
     val accounts: List<CursorAccount> = emptyList(),
     val selectedAccountId: Int? = null,
     val usage: CursorUsageOverview? = null,
+    val serviceStatus: CursorServiceStatus? = null,
     val loadingAccounts: Boolean = false,
     val loadingUsage: Boolean = false,
+    val loadingStatus: Boolean = false,
     val refreshing: Boolean = false,
+    val refreshingStatus: Boolean = false,
     val submitting: Boolean = false,
     val error: String? = null,
+    val statusError: String? = null,
+)
+
+/** Cursor 官方状态页（Statuspage）的整体指示灯。 */
+enum class StatusIndicator {
+    None,
+    Minor,
+    Major,
+    Critical,
+    Maintenance,
+}
+
+/** 单个服务组件的可用状态。 */
+enum class ComponentStatus {
+    Operational,
+    DegradedPerformance,
+    PartialOutage,
+    MajorOutage,
+    UnderMaintenance,
+    Unknown,
+}
+
+@Immutable
+data class CursorServiceStatus(
+    val description: String,
+    val indicator: StatusIndicator,
+    val pageUpdatedAt: String?,
+    val pageUrl: String,
+    val components: List<StatusComponent>,
+    val activeIncidents: List<StatusIncident>,
+    val scheduledMaintenances: List<StatusIncident>,
+    val recentIncidents: List<StatusIncident>,
+    val fetchedAt: String,
+    val fromCache: Boolean,
+    val cacheAgeSeconds: Int = 0,
+    val partialHistory: Boolean = false,
+)
+
+@Immutable
+data class StatusComponent(
+    val id: String,
+    val name: String,
+    val status: ComponentStatus,
+    val position: Int,
+)
+
+@Immutable
+data class StatusIncident(
+    val id: String,
+    val name: String,
+    val status: String,
+    val impact: String,
+    val createdAt: String?,
+    val updatedAt: String?,
+    val resolvedAt: String?,
+    val scheduledFor: String?,
+    val scheduledUntil: String?,
+    val shortlink: String?,
+    val affectedComponents: List<String>,
+    val updates: List<StatusIncidentUpdate>,
+)
+
+@Immutable
+data class StatusIncidentUpdate(
+    val status: String,
+    val body: String,
+    val displayAt: String?,
 )

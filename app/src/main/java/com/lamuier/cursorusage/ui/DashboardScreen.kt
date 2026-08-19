@@ -51,6 +51,7 @@ import androidx.compose.material.icons.outlined.CloudDone
 import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.DataUsage
 import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material.icons.outlined.HealthAndSafety
 import androidx.compose.material.icons.outlined.KeyOff
 import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.Palette
@@ -98,6 +99,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
@@ -134,6 +136,7 @@ private enum class DashboardTab(val label: String, val icon: ImageVector) {
     Overview("概览", Icons.Outlined.SpaceDashboard),
     Usage("用量", Icons.Outlined.DataUsage),
     Billing("账单", Icons.AutoMirrored.Outlined.ReceiptLong),
+    Status("状态", Icons.Outlined.HealthAndSafety),
 }
 
 @Immutable
@@ -191,15 +194,15 @@ internal fun DashboardScreen(
                 actions = {
                     IconButton(
                         modifier = Modifier.semantics {
-                            contentDescription = if (state.refreshing) "正在刷新用量" else "刷新用量"
-                            if (state.refreshing) liveRegion = LiveRegionMode.Polite
+                            val busy = state.refreshing || state.refreshingStatus
+                            contentDescription = if (busy) "正在刷新数据" else "刷新数据"
+                            if (busy) liveRegion = LiveRegionMode.Polite
                         },
-                        enabled = account != null && !account.tokenExpired &&
-                            state.usage != null && !state.loadingUsage &&
-                            !state.refreshing && !state.submitting,
+                        enabled = !state.loadingAccounts && !state.refreshing &&
+                            !state.refreshingStatus && !state.submitting,
                         onClick = onRefresh,
                     ) {
-                        if (state.refreshing) {
+                        if (state.refreshing || state.refreshingStatus) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(20.dp),
                                 strokeWidth = 2.dp,
@@ -224,14 +227,7 @@ internal fun DashboardScreen(
                 .nestedScroll(scrollBehavior.nestedScrollConnection)
                 .padding(contentPadding),
         ) {
-            val contentKey = when {
-                state.loadingAccounts -> "loading_accounts"
-                account == null -> "empty_account"
-                account.tokenExpired -> "token_expired"
-                state.loadingUsage && state.usage == null -> "loading_usage"
-                state.usage == null -> "usage_error"
-                else -> "dashboard"
-            }
+            val contentKey = if (state.loadingAccounts) "loading_accounts" else "dashboard"
             AnimatedContent(
                 targetState = contentKey,
                 modifier = Modifier.fillMaxSize(),
@@ -245,79 +241,67 @@ internal fun DashboardScreen(
                 },
                 label = "dashboard content",
             ) { key ->
-                when (key) {
-                    "loading_accounts" -> DashboardState(
+                if (key == "loading_accounts") {
+                    DashboardState(
                         icon = null,
                         title = "正在读取本机账号",
                         description = "请稍候…",
                         loading = true,
                     )
-                    "empty_account" -> DashboardState(
-                        icon = Icons.Outlined.PersonAdd,
-                        title = "添加 Cursor 账号",
-                        description = "录入 Access Token 后即可在本机查看套餐与用量。",
-                        primaryActionLabel = "添加账号",
-                        onPrimaryAction = onManageAccount,
-                        secondaryActionLabel = "如何获取 Token",
-                        onSecondaryAction = onShowTokenHelp,
+                } else {
+                    val pagerState = rememberPagerState(
+                        pageCount = { DashboardTab.entries.size },
                     )
-                    "token_expired" -> DashboardState(
-                        icon = Icons.Outlined.KeyOff,
-                        title = "Access Token 已过期",
-                        description = "更新 Token 后即可继续获取 Cursor 用量。",
-                        primaryActionLabel = "更新 Token",
-                        onPrimaryAction = onManageAccount,
-                        secondaryActionLabel = "Token 帮助",
-                        onSecondaryAction = onShowTokenHelp,
-                    )
-                    "loading_usage" -> DashboardState(
-                        icon = null,
-                        title = "正在获取 Cursor 用量",
-                        description = "正在连接 Cursor 官方接口…",
-                        loading = true,
-                    )
-                    "usage_error" -> DashboardState(
-                        icon = Icons.Outlined.CloudOff,
-                        title = "暂时无法显示用量",
-                        description = "请检查网络后重试；若持续失败，可重新录入 Token。",
-                        primaryActionLabel = "重新加载",
-                        onPrimaryAction = onRefresh,
-                        secondaryActionLabel = "管理账号",
-                        onSecondaryAction = onManageAccount,
-                    )
-                    else -> {
-                        val usage = state.usage!!
-                        val pagerState = rememberPagerState(
-                            pageCount = { DashboardTab.entries.size },
-                        )
-                        val pagerScope = rememberCoroutineScope()
-                        val selectedTab = pagerState.currentPage
+                    val pagerScope = rememberCoroutineScope()
+                    val selectedTab = pagerState.currentPage
+                    val refreshing = state.refreshing || state.refreshingStatus
 
-                        Column(modifier = Modifier.fillMaxSize()) {
-                            DashboardTabPills(
-                                selectedIndex = selectedTab,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
-                                onSelect = { index ->
-                                    pagerScope.launch { pagerState.animateScrollToPage(index) }
-                                },
-                            )
-                            PullToRefreshBox(
-                                isRefreshing = state.refreshing,
-                                onRefresh = {
-                                    if (!state.loadingUsage && !state.submitting) onRefresh()
-                                },
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        DashboardTabPills(
+                            selectedIndex = selectedTab,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                            onSelect = { index ->
+                                pagerScope.launch { pagerState.animateScrollToPage(index) }
+                            },
+                        )
+                        PullToRefreshBox(
+                            isRefreshing = refreshing,
+                            onRefresh = {
+                                if (!state.submitting && !refreshing) onRefresh()
+                            },
+                            modifier = Modifier.fillMaxSize(),
+                        ) {
+                            HorizontalPager(
+                                state = pagerState,
                                 modifier = Modifier.fillMaxSize(),
-                            ) {
-                                HorizontalPager(
-                                    state = pagerState,
-                                    modifier = Modifier.fillMaxSize(),
-                                    beyondViewportPageCount = 1,
-                                ) { page ->
-                                    when (DashboardTab.entries[page]) {
-                                        DashboardTab.Overview -> OverviewTab(usage)
-                                        DashboardTab.Usage -> UsageTab(usage)
-                                        DashboardTab.Billing -> BillingTab(usage)
-                                    }
+                                beyondViewportPageCount = 1,
+                            ) { page ->
+                                when (DashboardTab.entries[page]) {
+                                    DashboardTab.Overview -> UsageDependentTab(
+                                        state = state,
+                                        onRefresh = onRefresh,
+                                        onManageAccount = onManageAccount,
+                                        onShowTokenHelp = onShowTokenHelp,
+                                    ) { OverviewTab(it) }
+                                    DashboardTab.Usage -> UsageDependentTab(
+                                        state = state,
+                                        onRefresh = onRefresh,
+                                        onManageAccount = onManageAccount,
+                                        onShowTokenHelp = onShowTokenHelp,
+                                    ) { UsageTab(it) }
+                                    DashboardTab.Billing -> UsageDependentTab(
+                                        state = state,
+                                        onRefresh = onRefresh,
+                                        onManageAccount = onManageAccount,
+                                        onShowTokenHelp = onShowTokenHelp,
+                                    ) { BillingTab(it) }
+                                    DashboardTab.Status -> StatusTab(
+                                        status = state.serviceStatus,
+                                        loading = state.loadingStatus,
+                                        refreshing = state.refreshingStatus,
+                                        error = state.statusError,
+                                        onRetry = onRefresh,
+                                    )
                                 }
                             }
                         }
@@ -334,6 +318,8 @@ private fun DashboardTabPills(
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val compactTabs = LocalConfiguration.current.screenWidthDp < 380 ||
+        LocalDensity.current.fontScale > 1.12f
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = CircleShape,
@@ -381,8 +367,10 @@ private fun DashboardTabPills(
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Icon(tab.icon, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(6.dp))
+                        if (!compactTabs) {
+                            Icon(tab.icon, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                        }
                         Text(
                             tab.label,
                             style = MaterialTheme.typography.labelLarge,
@@ -392,6 +380,54 @@ private fun DashboardTabPills(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun UsageDependentTab(
+    state: AppUiState,
+    onRefresh: () -> Unit,
+    onManageAccount: () -> Unit,
+    onShowTokenHelp: () -> Unit,
+    content: @Composable (CursorUsageOverview) -> Unit,
+) {
+    val account = state.accounts.firstOrNull { it.id == state.selectedAccountId }
+        ?: state.accounts.firstOrNull()
+    when {
+        account == null -> DashboardState(
+            icon = Icons.Outlined.PersonAdd,
+            title = "添加 Cursor 账号",
+            description = "录入 Access Token 后即可在本机查看套餐与用量。也可先查看「状态」页。",
+            primaryActionLabel = "添加账号",
+            onPrimaryAction = onManageAccount,
+            secondaryActionLabel = "如何获取 Token",
+            onSecondaryAction = onShowTokenHelp,
+        )
+        account.tokenExpired -> DashboardState(
+            icon = Icons.Outlined.KeyOff,
+            title = "Access Token 已过期",
+            description = "更新 Token 后即可继续获取 Cursor 用量。",
+            primaryActionLabel = "更新 Token",
+            onPrimaryAction = onManageAccount,
+            secondaryActionLabel = "Token 帮助",
+            onSecondaryAction = onShowTokenHelp,
+        )
+        state.loadingUsage && state.usage == null -> DashboardState(
+            icon = null,
+            title = "正在获取 Cursor 用量",
+            description = "正在连接 Cursor 官方接口…",
+            loading = true,
+        )
+        state.usage == null -> DashboardState(
+            icon = Icons.Outlined.CloudOff,
+            title = "暂时无法显示用量",
+            description = "请检查网络后重试；若持续失败，可重新录入 Token。",
+            primaryActionLabel = "重新加载",
+            onPrimaryAction = onRefresh,
+            secondaryActionLabel = "管理账号",
+            onSecondaryAction = onManageAccount,
+        )
+        else -> content(state.usage!!)
     }
 }
 
@@ -438,7 +474,7 @@ private fun AccountStatusRow(account: CursorAccount?, loading: Boolean) {
 }
 
 @Composable
-private fun StatusChip(label: String, error: Boolean = false) {
+internal fun StatusChip(label: String, error: Boolean = false) {
     Surface(
         shape = RoundedCornerShape(999.dp),
         color = if (error) {
@@ -462,7 +498,7 @@ private fun StatusChip(label: String, error: Boolean = false) {
 }
 
 @Composable
-private fun DashboardState(
+internal fun DashboardState(
     icon: ImageVector?,
     title: String,
     description: String,
@@ -945,7 +981,7 @@ private fun BillingTab(usage: CursorUsageOverview) {
 }
 
 @Composable
-private fun AdaptiveTabContent(content: @Composable ColumnScope.(compact: Boolean) -> Unit) {
+internal fun AdaptiveTabContent(content: @Composable ColumnScope.(compact: Boolean) -> Unit) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val fontScale = LocalDensity.current.fontScale
         val compact = maxHeight < 620.dp || maxWidth < 360.dp || fontScale > 1.15f
@@ -983,7 +1019,7 @@ private fun AdaptiveTabContent(content: @Composable ColumnScope.(compact: Boolea
 }
 
 @Composable
-private fun SectionHeading(icon: ImageVector, title: String, supporting: String? = null) {
+internal fun SectionHeading(icon: ImageVector, title: String, supporting: String? = null) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(10.dp),

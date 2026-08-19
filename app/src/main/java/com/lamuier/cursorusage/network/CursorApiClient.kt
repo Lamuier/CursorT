@@ -38,12 +38,23 @@ class CursorApiClient {
         )
     }
 
+    /** Cursor 官方 Statuspage：当前总览、组件状态、未解决事件与计划维护。无需 Token。 */
+    suspend fun statusSummary(): JSONObject = withContext(Dispatchers.IO) {
+        JSONObject(request(url = STATUS_SUMMARY_URL, kind = ApiKind.Status))
+    }
+
+    /** Cursor 官方 Statuspage：近期事件历史（含已恢复）。无需 Token。 */
+    suspend fun statusIncidents(): JSONObject = withContext(Dispatchers.IO) {
+        JSONObject(request(url = STATUS_INCIDENTS_URL, kind = ApiKind.Status))
+    }
+
     private fun request(
         url: String,
         accessToken: String? = null,
         cookie: String? = null,
         jsonBody: JSONObject? = null,
         connectProtocol: Boolean = false,
+        kind: ApiKind = ApiKind.Usage,
     ): String {
         val connection = URL(url).openConnection() as HttpURLConnection
         try {
@@ -69,17 +80,22 @@ class CursorApiClient {
                 throw ApiException(status, "Cursor API 发生了不安全的重定向")
             }
             val stream = if (status in 200..299) connection.inputStream else connection.errorStream
-            val body = readBody(stream, connection.contentLengthLong, status)
-            if (status !in 200..299) throw ApiException(status, errorMessage(status))
+            val body = readBody(stream, connection.contentLengthLong, status, kind)
+            if (status !in 200..299) throw ApiException(status, errorMessage(status, kind))
             return body
         } finally {
             connection.disconnect()
         }
     }
 
-    private fun readBody(stream: InputStream?, declaredLength: Long, status: Int): String {
+    private fun readBody(
+        stream: InputStream?,
+        declaredLength: Long,
+        status: Int,
+        kind: ApiKind,
+    ): String {
         if (declaredLength > MAX_RESPONSE_BYTES) {
-            throw ApiException(status, "Cursor API 响应超过 1 MiB 安全上限")
+            throw ApiException(status, overflowMessage(kind))
         }
         if (stream == null) return ""
         return stream.use { input ->
@@ -95,7 +111,7 @@ class CursorApiClient {
                 if (count < 0) break
                 total += count
                 if (total > MAX_RESPONSE_BYTES) {
-                    throw ApiException(status, "Cursor API 响应超过 1 MiB 安全上限")
+                    throw ApiException(status, overflowMessage(kind))
                 }
                 output.write(buffer, 0, count)
             }
@@ -103,17 +119,34 @@ class CursorApiClient {
         }
     }
 
-    private fun errorMessage(status: Int): String = when (status) {
-        401, 403 -> "Cursor Access Token 已过期或无效，请更新 Token"
-        404 -> "Cursor 用量接口已发生变化，请升级应用"
-        429 -> "Cursor 请求过于频繁，请稍后重试"
-        in 500..599 -> "Cursor 服务暂时不可用（HTTP $status）"
-        else -> "Cursor API 请求失败（HTTP $status）"
+    private fun errorMessage(status: Int, kind: ApiKind): String = when (kind) {
+        ApiKind.Status -> when (status) {
+            404 -> "Cursor 状态接口已发生变化，请升级应用"
+            429 -> "Cursor 状态页请求过于频繁，请稍后重试"
+            in 500..599 -> "Cursor 状态页暂时不可用（HTTP $status）"
+            else -> "Cursor 状态页请求失败（HTTP $status）"
+        }
+        ApiKind.Usage -> when (status) {
+            401, 403 -> "Cursor Access Token 已过期或无效，请更新 Token"
+            404 -> "Cursor 用量接口已发生变化，请升级应用"
+            429 -> "Cursor 请求过于频繁，请稍后重试"
+            in 500..599 -> "Cursor 服务暂时不可用（HTTP $status）"
+            else -> "Cursor API 请求失败（HTTP $status）"
+        }
     }
+
+    private fun overflowMessage(kind: ApiKind): String = when (kind) {
+        ApiKind.Status -> "Cursor 状态页响应超过 1 MiB 安全上限"
+        ApiKind.Usage -> "Cursor API 响应超过 1 MiB 安全上限"
+    }
+
+    private enum class ApiKind { Usage, Status }
 
     private companion object {
         const val CURSOR_API_BASE = "https://api2.cursor.sh"
         const val CURSOR_WEB_BASE = "https://cursor.com"
+        const val STATUS_SUMMARY_URL = "https://status.cursor.com/api/v2/summary.json"
+        const val STATUS_INCIDENTS_URL = "https://status.cursor.com/api/v2/incidents.json"
         const val CONNECT_TIMEOUT_MS = 15_000
         const val READ_TIMEOUT_MS = 30_000
         const val MAX_RESPONSE_BYTES = 1024 * 1024

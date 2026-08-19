@@ -12,7 +12,7 @@
 | 构建 | Android Gradle Plugin 9.2.1 · Gradle 9.5.1 |
 | 平台 | `compileSdk` / `targetSdk` = 37 · `minSdk` = 26（Android 8.0） |
 | 包名 | `com.lamuier.cursorusage` |
-| 版本 | `versionCode` = 6 · `versionName` = 1.3.2 |
+| 版本 | `versionCode` = 7 · `versionName` = 1.4.0 |
 | 体积 | Release 开启 R8 混淆与资源压缩，仅引入 AndroidX 与 Biometric，无第三方网络 / 依赖注入框架 |
 
 ## 构建与发布
@@ -62,10 +62,13 @@ Debug 默认先跑单元测试与 Lint，再产出 `app\build\outputs\apk\debug\
 ```text
 Android App（本机）
   ├─ Bearer Token  ──▶  https://api2.cursor.sh/...DashboardService/*
-  └─ Cursor 会话    ──▶  https://cursor.com/api/auth/stripe
+  ├─ Cursor 会话    ──▶  https://cursor.com/api/auth/stripe
+  └─ 公开状态（无 Token）──▶  https://status.cursor.com/api/v2/summary.json
+                              https://status.cursor.com/api/v2/incidents.json
 ```
 
 - Alias 与 Access Token 使用 Android Keystore 不可导出密钥 + AES-GCM 加密保存。
-- Token 仅发往固定 Cursor 官方 HTTPS 域名，禁止重定向，不允许自定义服务地址。
+- Token 仅发往固定 Cursor 官方 HTTPS 域名，禁止重定向，不允许自定义服务地址。状态页请求不携带 Token。
 - Token 不进入 `savedInstanceState`、日志或用量缓存；Release 禁止应用数据备份、设备迁移及明文 HTTP。
 - 仅缓存解析后的用量字段，不保存 Cursor 原始响应。
+- 服务状态使用 Statuspage 公开 JSON（`/api/v2/summary.json` 与 `/api/v2/incidents.json`），不解析 HTML、不订阅 RSS。`summary.json` 含总览、组件与未恢复事件；`incidents.json` 提供近期历史。二者均为官方、结构化、无需鉴权的接口。

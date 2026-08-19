@@ -206,10 +206,23 @@ fun CursorUsageApp(
             return@LaunchedEffect
         }
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-            viewModel.refreshSelected(force = false, silent = true)
+            viewModel.refreshSelected(force = false, silent = true, includeStatus = false)
             while (true) {
                 delay(FOREGROUND_REFRESH_INTERVAL_MS)
-                viewModel.refreshSelected(force = false, silent = true)
+                viewModel.refreshSelected(force = false, silent = true, includeStatus = false)
+            }
+        }
+    }
+
+    LaunchedEffect(lifecycleOwner, state.stage, sheetOpen) {
+        if (state.stage != AppStage.Dashboard || sheetOpen) {
+            return@LaunchedEffect
+        }
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            viewModel.refreshStatus(force = false, silent = true)
+            while (true) {
+                delay(FOREGROUND_REFRESH_INTERVAL_MS)
+                viewModel.refreshStatus(force = false, silent = true)
             }
         }
     }

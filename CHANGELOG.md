@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.4.0
+
+- 新增「状态」页签：展示 Cursor 官方可用状态（总览、各服务组件、进行中的事件、计划维护与近期历史），数据来自 Statuspage 公开 JSON API（`status.cursor.com/api/v2`），无需 Access Token
+- 用量加载失败时仍可查看状态页，便于对照官方故障说明
+- 点击事件卡片或「打开官方状态页」仅允许跳转到 `status.cursor.com` / `stspg.io`
+- `versionCode=7`，`versionName=1.4.0`
+
 ## 1.3.2（灰度测试版）
 
 > 灰度测试发布（GitHub Release 标记为 Pre-release，不占用 Latest），经实际验证后转为正式版。

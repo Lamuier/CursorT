@@ -5,9 +5,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.lamuier.cursorusage.data.CursorRepository
+import com.lamuier.cursorusage.data.CursorStatusRepository
 import com.lamuier.cursorusage.model.AppStage
 import com.lamuier.cursorusage.model.AppUiState
 import com.lamuier.cursorusage.model.CursorAccount
+import com.lamuier.cursorusage.model.CursorServiceStatus
 import com.lamuier.cursorusage.model.CursorUsageOverview
 import com.lamuier.cursorusage.network.ApiException
 import com.lamuier.cursorusage.notification.CursorUsageNotificationCoordinator
@@ -23,9 +25,11 @@ import kotlinx.coroutines.withContext
 
 class CursorUsageViewModel(
     private val repository: CursorRepository,
+    private val statusRepository: CursorStatusRepository,
     private val appContext: Context,
 ) : ViewModel() {
     private val activeUsageRequests = mutableSetOf<UsageRequestKey>()
+    private var statusRequestInFlight = false
 
     private val _state = MutableStateFlow(
         AppUiState(
@@ -61,7 +65,51 @@ class CursorUsageViewModel(
         refreshSelected(force = false, silent = cached != null)
     }
 
-    fun refreshSelected(force: Boolean, silent: Boolean) {
+    fun refreshSelected(force: Boolean, silent: Boolean, includeStatus: Boolean = true) {
+        refreshUsage(force = force, silent = silent)
+        if (includeStatus) refreshStatus(force = force, silent = silent)
+    }
+
+    fun refreshStatus(force: Boolean, silent: Boolean) {
+        val snapshot = _state.value
+        if (snapshot.stage != AppStage.Dashboard || snapshot.submitting) return
+        if (statusRequestInFlight) return
+        statusRequestInFlight = true
+
+        _state.update {
+            if (silent || it.serviceStatus != null) {
+                it.copy(
+                    refreshingStatus = true,
+                    loadingStatus = false,
+                    statusError = if (force) null else it.statusError,
+                )
+            } else {
+                it.copy(loadingStatus = true, refreshingStatus = false, statusError = null)
+            }
+        }
+
+        viewModelScope.launch {
+            try {
+                val status = withContext(Dispatchers.IO) {
+                    statusRepository.fetch(force)
+                }
+                _state.update {
+                    it.copy(serviceStatus = status, statusError = null)
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                _state.update {
+                    it.copy(statusError = messageFor(error, "加载 Cursor 状态失败"))
+                }
+            } finally {
+                statusRequestInFlight = false
+                _state.update { it.copy(loadingStatus = false, refreshingStatus = false) }
+            }
+        }
+    }
+
+    private fun refreshUsage(force: Boolean, silent: Boolean) {
         val snapshot = _state.value
         if (snapshot.stage != AppStage.Dashboard || snapshot.submitting) return
         val accountId = snapshot.selectedAccountId ?: return
@@ -327,6 +375,7 @@ class CursorUsageViewModel(
                         accounts = accounts,
                         selectedAccountId = selected,
                         usage = selected?.let(repository::cachedUsage)?.takeIf { it.accountId == selected },
+                        serviceStatus = statusRepository.cached(),
                         selectionError = saveSelection(selected),
                     )
                 }
@@ -335,21 +384,26 @@ class CursorUsageViewModel(
                     accounts = initial.accounts,
                     selectedAccountId = initial.selectedAccountId,
                     usage = initial.usage,
+                    serviceStatus = initial.serviceStatus,
                     loadingAccounts = false,
                     loadingUsage = initial.selectedAccountId != null && initial.usage == null,
+                    loadingStatus = initial.serviceStatus == null,
                     error = initial.selectionError,
                 )
-                if (initial.selectedAccountId != null) {
-                    refreshSelected(force = false, silent = initial.usage != null)
-                }
+                refreshSelected(
+                    force = false,
+                    silent = initial.usage != null || initial.serviceStatus != null,
+                )
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
                 _state.value = AppUiState(
                     stage = AppStage.Dashboard,
                     loadingAccounts = false,
+                    serviceStatus = runCatching { statusRepository.cached() }.getOrNull(),
                     error = messageFor(error, "加载本地账号失败"),
                 )
+                refreshStatus(force = false, silent = true)
             }
         }
     }
@@ -395,6 +449,7 @@ class CursorUsageViewModel(
         val accounts: List<CursorAccount>,
         val selectedAccountId: Int?,
         val usage: CursorUsageOverview?,
+        val serviceStatus: CursorServiceStatus?,
         val selectionError: String?,
     )
 
@@ -417,7 +472,11 @@ class CursorUsageViewModel(
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             require(modelClass.isAssignableFrom(CursorUsageViewModel::class.java))
-            return CursorUsageViewModel(CursorRepository(appContext), appContext) as T
+            return CursorUsageViewModel(
+                CursorRepository(appContext),
+                CursorStatusRepository(appContext),
+                appContext,
+            ) as T
         }
     }
 }

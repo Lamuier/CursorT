@@ -1,6 +1,6 @@
-<#
+﻿<#
 .SYNOPSIS
-    CursorUsage 唯一构建入口。
+    CursorT 唯一构建入口。
 
 .DESCRIPTION
     .\build.ps1                 # Debug 构建
@@ -116,8 +116,16 @@ function Invoke-Gradle([string[]]$GradleArgs) {
     $env:JAVA_HOME = Resolve-JavaHome
     $env:ANDROID_HOME = Resolve-AndroidSdk
     # 必须写到 Host：否则 Gradle 日志会进入函数返回值，污染 $apk = Invoke-Assemble ...
-    & (Join-Path $ProjectRoot "gradlew.bat") @GradleArgs 2>&1 | ForEach-Object {
-        Write-Host $_
+    # JDK 会向 stderr 输出 restricted-method 警告；全局 ErrorActionPreference=Stop 时
+    # 这些警告会被当成终止性错误中断构建，故此处临时降为 Continue，成败仍看 $LASTEXITCODE。
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        & (Join-Path $ProjectRoot "gradlew.bat") @GradleArgs 2>&1 | ForEach-Object {
+            Write-Host $_
+        }
+    } finally {
+        $ErrorActionPreference = $previous
     }
     if ($LASTEXITCODE -ne 0) {
         throw "Gradle 失败 (exit $LASTEXITCODE): $($GradleArgs -join ' ')"
@@ -350,7 +358,7 @@ function Invoke-SetupSigning {
             "-keysize", "4096",
             "-sigalg", "SHA256withRSA",
             "-validity", "10000",
-            "-dname", "CN=CursorUsage Release,O=CursorUsage,C=CN",
+            "-dname", "CN=CursorT Release,O=CursorT,C=CN",
             "-storepass:env", "CURSOR_PULSE_KEYTOOL_PASS",
             "-keypass:env", "CURSOR_PULSE_KEYTOOL_PASS"
         )
@@ -616,9 +624,9 @@ function Invoke-InstallDebug {
 function Invoke-ReleasePackage {
     $version = Get-AppVersion
     $sdk = Resolve-AndroidSdk
-    $artifactBaseName = "CursorUsage-v$($version.VersionName)"
+    $artifactBaseName = "CursorT-v$($version.VersionName)"
 
-    Write-Host "CursorUsage Release 打包"
+    Write-Host "CursorT Release 打包"
     Write-Host "  versionName : $($version.VersionName)"
     Write-Host "  versionCode : $($version.VersionCode)"
     Write-Host "  Android SDK : $sdk"
@@ -691,7 +699,7 @@ function Invoke-ReleasePackage {
         } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $dist "$artifactBaseName-build.json") -Encoding utf8
 
         # dist 只保留最新版本：删除旧版本产物（仅匹配本项目命名模式，不触碰其他文件）
-        $artifactPattern = '^CursorUsage-v\S+-(release\.apk|mapping\.txt|release\.sha256|build\.json)$'
+        $artifactPattern = '^(CursorUsage|CursorT)-v\S+-(release\.apk|mapping\.txt|release\.sha256|build\.json)$'
         $staleFiles = Get-ChildItem -LiteralPath $dist -File |
             Where-Object { $_.Name -match $artifactPattern -and $_.Name -notlike "$artifactBaseName-*" }
         foreach ($stale in $staleFiles) {

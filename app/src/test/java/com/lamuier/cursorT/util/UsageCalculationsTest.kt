@@ -2,7 +2,7 @@ package com.lamuier.cursorT.util
 
 import com.lamuier.cursorT.model.BillingCycle
 import com.lamuier.cursorT.model.Credits
-import com.lamuier.cursorT.model.CursorUsageOverview
+import com.lamuier.cursorT.model.CursorTOverview
 import com.lamuier.cursorT.model.PlanInfo
 import com.lamuier.cursorT.model.Subscription
 import com.lamuier.cursorT.model.TotalFormat
@@ -127,7 +127,7 @@ class UsageCalculationsTest {
         totalUsed: Double,
         includedSpend: Double = 0.0,
         limit: Double = 0.0,
-    ) = CursorUsageOverview(
+    ) = CursorTOverview(
         accountId = 1,
         alias = "test",
         isTeam = format == TotalFormat.Dollars,

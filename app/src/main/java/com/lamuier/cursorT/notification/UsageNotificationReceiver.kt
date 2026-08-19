@@ -20,7 +20,7 @@ class UsageNotificationReceiver : BroadcastReceiver() {
                 val pendingResult = goAsync()
                 CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
                     try {
-                        CursorUsageNotificationCoordinator
+                        CursorTNotificationCoordinator
                             .get(context.applicationContext)
                             .refreshFromCache()
                     } finally {

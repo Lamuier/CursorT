@@ -10,9 +10,9 @@ import com.lamuier.cursorT.model.AppStage
 import com.lamuier.cursorT.model.AppUiState
 import com.lamuier.cursorT.model.CursorAccount
 import com.lamuier.cursorT.model.CursorServiceStatus
-import com.lamuier.cursorT.model.CursorUsageOverview
+import com.lamuier.cursorT.model.CursorTOverview
 import com.lamuier.cursorT.network.ApiException
-import com.lamuier.cursorT.notification.CursorUsageNotificationCoordinator
+import com.lamuier.cursorT.notification.CursorTNotificationCoordinator
 import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -23,7 +23,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class CursorUsageViewModel(
+class CursorTViewModel(
     private val repository: CursorRepository,
     private val statusRepository: CursorStatusRepository,
     private val appContext: Context,
@@ -159,7 +159,7 @@ class CursorUsageViewModel(
                 }
                 // 用量刷新成功后同步推送常驻 Live Update 通知与阈值提醒。
                 runCatching {
-                    CursorUsageNotificationCoordinator.get(appContext).refresh(usage)
+                    CursorTNotificationCoordinator.get(appContext).refresh(usage)
                 }
             } catch (error: CancellationException) {
                 throw error
@@ -448,21 +448,21 @@ class CursorUsageViewModel(
     private data class BootstrapResult(
         val accounts: List<CursorAccount>,
         val selectedAccountId: Int?,
-        val usage: CursorUsageOverview?,
+        val usage: CursorTOverview?,
         val serviceStatus: CursorServiceStatus?,
         val selectionError: String?,
     )
 
     private data class AccountSaveResult(
         val account: CursorAccount,
-        val cachedUsage: CursorUsageOverview?,
+        val cachedUsage: CursorTOverview?,
         val selectionError: String? = null,
     )
 
     private data class DeleteAccountResult(
         val accounts: List<CursorAccount>,
         val selectedAccountId: Int?,
-        val cachedUsage: CursorUsageOverview?,
+        val cachedUsage: CursorTOverview?,
         val selectionError: String?,
     )
 
@@ -471,8 +471,8 @@ class CursorUsageViewModel(
 
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            require(modelClass.isAssignableFrom(CursorUsageViewModel::class.java))
-            return CursorUsageViewModel(
+            require(modelClass.isAssignableFrom(CursorTViewModel::class.java))
+            return CursorTViewModel(
                 CursorRepository(appContext),
                 CursorStatusRepository(appContext),
                 appContext,

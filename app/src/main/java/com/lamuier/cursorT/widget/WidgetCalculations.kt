@@ -2,14 +2,14 @@ package com.lamuier.cursorT.widget
 
 import com.lamuier.cursorT.model.ComponentStatus
 import com.lamuier.cursorT.model.CursorServiceStatus
-import com.lamuier.cursorT.model.CursorUsageOverview
+import com.lamuier.cursorT.model.CursorTOverview
 import com.lamuier.cursorT.model.StatusIndicator
 import com.lamuier.cursorT.util.UsageCalculations
 import java.util.Locale
 import kotlin.math.roundToInt
 
 internal object WidgetCalculations {
-    fun totalPercent(usage: CursorUsageOverview): Double {
+    fun totalPercent(usage: CursorTOverview): Double {
         val limit = effectiveLimit(usage)
         val raw = if (usage.isTeam && limit > 0.0) {
             usage.usage.includedSpendDollars.safeNonNegative() / limit * 100.0
@@ -25,7 +25,7 @@ internal object WidgetCalculations {
         ?.roundToInt()
         ?: 0
 
-    fun totalLabel(usage: CursorUsageOverview): String = if (usage.isTeam) {
+    fun totalLabel(usage: CursorTOverview): String = if (usage.isTeam) {
         money(usage.usage.totalUsed)
     } else {
         percent(usage.usage.totalUsed)
@@ -84,7 +84,7 @@ internal object WidgetCalculations {
         ComponentStatus.PartialOutage, ComponentStatus.MajorOutage, ComponentStatus.Unknown -> COLOR_CRITICAL
     }
 
-    private fun effectiveLimit(usage: CursorUsageOverview): Double = when {
+    private fun effectiveLimit(usage: CursorTOverview): Double = when {
         usage.usage.limitDollars > 0.0 -> usage.usage.limitDollars
         usage.plan.includedAmountDollars > 0.0 -> usage.plan.includedAmountDollars
         else -> 0.0

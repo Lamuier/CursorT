@@ -1,13 +1,24 @@
 # Changelog
 
-## 1.4.0
+## 2.0.0
 
-- 应用名称改为「Cursor助手」，包名由 `com.lamuier.cursorusage` 改为 `com.lamuier.cursorT`（与旧包不兼容，需重新安装）
+> 版本判定：1.3.2 → 2.0.0。本版包含更换应用包名等不向后兼容变更，已装用户无法覆盖升级、本机数据不迁移，按 SemVer 定为主版本（原计划的 1.4.0 未发布，直接升级为 2.0.0）。
+
+**破坏性变动（升级前必读）**
+
+- 应用包名由 `com.lamuier.cursorusage` 更换为 `com.lamuier.cursorT`，Android 将其视为全新应用：**无法覆盖安装旧包**，须先手动卸载旧版再安装本版
+- 旧包的本机数据不会迁移到新包：加密保存的账号（Access Token）、小组件与通知偏好、本地缓存等随卸载一并清除；本应用 `allowBackup=false`，系统备份/恢复同样不可用，安装新版后需重新添加 Access Token
+- 已放置的用量/状态桌面小组件、快捷方式（Shortcut）与通知权限均需在卸载重装后重新配置
+- 应用显示名称由「CursorUsage」更名为「Cursor助手」（启动器、顶栏与启动页同步变更）
+
+**其他变更**
+
 - 新增「状态」页签：展示 Cursor 官方可用状态（总览、各服务组件、进行中的事件、计划维护与近期历史），数据来自 Statuspage 公开 JSON API（`status.cursor.com/api/v2`），无需 Access Token
 - 新增状态桌面小组件：2×1 迷你条与 4×3 详情卡，与用量小组件共用刷新调度；无需 Access Token，未添加账号时也可使用
 - 用量加载失败时仍可查看状态页，便于对照官方故障说明
 - 点击事件卡片或「打开官方状态页」仅允许跳转到 `status.cursor.com` / `stspg.io`
-- `versionCode=7`，`versionName=1.4.0`
+- 品牌统一：GitHub 仓库更名为 `Lamuier/CursorT`，Release 产物改用 `CursorT-v*` 命名（旧 `CursorUsage-v*` 产物随打包自动清理），代码标识符与主题名同步为 `CursorT` 前缀
+- `versionCode=8`，`versionName=2.0.0`
 
 ## 1.3.2（灰度测试版）
 

@@ -21,7 +21,7 @@ import com.lamuier.cursorT.R
 import com.lamuier.cursorT.data.CursorRepository
 import com.lamuier.cursorT.data.NotificationPreferences
 import com.lamuier.cursorT.data.PercentDisplayMode
-import com.lamuier.cursorT.model.CursorUsageOverview
+import com.lamuier.cursorT.model.CursorTOverview
 import com.lamuier.cursorT.model.TotalFormat
 import com.lamuier.cursorT.util.UsageCalculations
 import java.time.Instant
@@ -51,7 +51,7 @@ import kotlin.math.roundToInt
  * 刷新由现有刷新链路驱动（应用内用量刷新成功后调用 [refresh]），另挂一个 15 分钟
  * 周期任务（[NotificationRefreshScheduler]）保证无小组件 / 后台时通知不过期。
  */
-class CursorUsageNotificationCoordinator(
+class CursorTNotificationCoordinator(
     context: Context,
     private val preferences: NotificationPreferences,
 ) {
@@ -63,7 +63,7 @@ class CursorUsageNotificationCoordinator(
      * 以最新用量快照刷新常驻通知与阈值提醒。usage 为 null（无账号 / 无数据）时
      * 撤下常驻通知。每次调用都会按开关状态维护周期刷新任务。
      */
-    fun refresh(usage: CursorUsageOverview?) {
+    fun refresh(usage: CursorTOverview?) {
         ensureChannels()
         val settings = preferences.read()
         if (!settings.liveUpdatesEnabled || !canPostNotifications()) {
@@ -100,7 +100,7 @@ class CursorUsageNotificationCoordinator(
         refresh(usage)
     }
 
-    private fun postLiveUpdate(usage: CursorUsageOverview) {
+    private fun postLiveUpdate(usage: CursorTOverview) {
         val nowMillis = System.currentTimeMillis()
         val percent = UsageCalculations.usagePercent(usage)
         val percentInt = percent.roundToInt().coerceIn(0, 999)
@@ -326,7 +326,7 @@ class CursorUsageNotificationCoordinator(
     /**
      * 用量达到 80% / 100% 时各提醒一次，按计费周期去重（周期切换自动重置）。
      */
-    private fun maybePostThresholdReminder(usage: CursorUsageOverview) {
+    private fun maybePostThresholdReminder(usage: CursorTOverview) {
         val percent = UsageCalculations.usagePercent(usage)
         val cycleKey = usage.billingCycle.start ?: usage.fetchedAt
         val reminded = preferences.remindedThresholds(cycleKey)
@@ -389,7 +389,7 @@ class CursorUsageNotificationCoordinator(
         }
     }
 
-    private fun islandRemainingText(usage: CursorUsageOverview): String {
+    private fun islandRemainingText(usage: CursorTOverview): String {
         if (usage.usage.totalFormat != TotalFormat.Dollars ||
             usage.usage.remainingDollars <= 0
         ) {
@@ -465,11 +465,11 @@ class CursorUsageNotificationCoordinator(
         private val THRESHOLDS = listOf(100, 80)
 
         @Volatile
-        private var instance: CursorUsageNotificationCoordinator? = null
+        private var instance: CursorTNotificationCoordinator? = null
 
-        fun get(context: Context): CursorUsageNotificationCoordinator {
+        fun get(context: Context): CursorTNotificationCoordinator {
             return instance ?: synchronized(this) {
-                instance ?: CursorUsageNotificationCoordinator(
+                instance ?: CursorTNotificationCoordinator(
                     context.applicationContext,
                     NotificationPreferences.get(context),
                 ).also { instance = it }

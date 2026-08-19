@@ -1,6 +1,6 @@
 package com.lamuier.cursorT.util
 
-import com.lamuier.cursorT.model.CursorUsageOverview
+import com.lamuier.cursorT.model.CursorTOverview
 import com.lamuier.cursorT.model.TotalFormat
 import java.time.Duration
 import java.time.LocalDateTime
@@ -29,7 +29,7 @@ data class BillingProgress(
 )
 
 object UsageCalculations {
-    fun usagePercent(overview: CursorUsageOverview): Double {
+    fun usagePercent(overview: CursorTOverview): Double {
         val usage = overview.usage
         return when {
             usage.totalFormat == TotalFormat.Percent -> usage.totalUsed

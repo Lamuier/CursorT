@@ -12,7 +12,7 @@ data class CursorAccount(
 )
 
 @Immutable
-data class CursorUsageOverview(
+data class CursorTOverview(
     val accountId: Int,
     val alias: String,
     val isTeam: Boolean,
@@ -112,7 +112,7 @@ data class AppUiState(
     val stage: AppStage = AppStage.Booting,
     val accounts: List<CursorAccount> = emptyList(),
     val selectedAccountId: Int? = null,
-    val usage: CursorUsageOverview? = null,
+    val usage: CursorTOverview? = null,
     val serviceStatus: CursorServiceStatus? = null,
     val loadingAccounts: Boolean = false,
     val loadingUsage: Boolean = false,

@@ -54,4 +54,4 @@ Cursor助手 是一款本地优先的应用：不内置任何第三方统计、�
 
 ## 联系
 
-通过 GitHub 仓库 issue 联系开发者：<https://github.com/Lamuier/CursorUsage>
+通过 GitHub 仓库 issue 联系开发者：<https://github.com/Lamuier/CursorT>

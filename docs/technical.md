@@ -12,7 +12,7 @@
 | 构建 | Android Gradle Plugin 9.2.1 · Gradle 9.5.1 |
 | 平台 | `compileSdk` / `targetSdk` = 37 · `minSdk` = 26（Android 8.0） |
 | 包名 | `com.lamuier.cursorT` |
-| 版本 | `versionCode` = 7 · `versionName` = 1.4.0 |
+| 版本 | `versionCode` = 8 · `versionName` = 2.0.0 |
 | 体积 | Release 开启 R8 混淆与资源压缩，仅引入 AndroidX 与 Biometric，无第三方网络 / 依赖注入框架 |
 
 ## 构建与发布
@@ -41,7 +41,7 @@ Debug 默认先跑单元测试与 Lint，再产出 `app\build\outputs\apk\debug\
 
 ### Release 签名与打包
 
-密钥库不进仓库，签名元数据默认位于 `%LOCALAPPDATA%\CursorUsage\signing`。首次打包若尚未配置，会自动绑定本机 `debug.keystore`；也可显式配置：
+密钥库不进仓库，签名元数据默认位于工程根目录的 `.signing\`（可用 `-SigningRoot` 指定其他位置）。首次打包若尚未配置，会自动绑定本机 `debug.keystore`；也可显式配置：
 
 ```powershell
 .\build.ps1 -SetupSigning                         # 默认沿用 debug.keystore
@@ -55,7 +55,7 @@ Debug 默认先跑单元测试与 Lint，再产出 `app\build\outputs\apk\debug\
 .\build.ps1 -Release
 ```
 
-默认不做 clean（避免 Windows 上 `app\build` 被占用导致失败）；需要干净构建加 `-Clean`，联网拉依赖加 `-Online`，跳过测试 / Lint 加 `-SkipChecks`。脚本会校验签名证书、zipalign、包名、版本、权限与 Manifest，输出 `dist\CursorUsage-v1.1.0-release.apk`。
+默认不做 clean（避免 Windows 上 `app\build` 被占用导致失败）；需要干净构建加 `-Clean`，联网拉依赖加 `-Online`，跳过测试 / Lint 加 `-SkipChecks`。脚本会校验签名证书、zipalign、包名、版本、权限与 Manifest，输出 `dist\CursorT-v2.0.0-release.apk`。
 
 ### 数据安全实现要点
 

@@ -16,9 +16,9 @@ import kotlinx.coroutines.launch
  * 15 分钟周期任务：保证后台 / 无小组件场景时常驻用量通知不过期。
  *
  * 注意：本任务只负责「定时触发刷新」，真正的通知构建与缓存读取都收敛在
- * [CursorUsageNotificationCoordinator.refreshFromCache]。这里刻意不在 Job 里直接读盘，
+ * [CursorTNotificationCoordinator.refreshFromCache]。这里刻意不在 Job 里直接读盘，
  * 而是把工作派发到 IO 协程并在完成后调用 [JobService.jobFinished]，避免在主线程
- * 阻塞（[CursorUsageNotificationCoordinator.refreshFromCache] 会同步读取本地缓存）。
+ * 阻塞（[CursorTNotificationCoordinator.refreshFromCache] 会同步读取本地缓存）。
  *
  * setPersisted(true) 让任务跨重启存活，因此宿主必须声明 RECEIVE_BOOT_COMPLETED。
  */
@@ -57,7 +57,7 @@ class NotificationRefreshJob : JobService() {
     override fun onStartJob(params: JobParameters?): Boolean {
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
-                CursorUsageNotificationCoordinator
+                CursorTNotificationCoordinator
                     .get(applicationContext)
                     .refreshFromCache()
             } finally {

@@ -35,7 +35,7 @@ val LocalPulseChartColors = staticCompositionLocalOf {
 }
 
 @Composable
-fun CursorUsageTheme(
+fun CursorTTheme(
     settings: ThemeSettings = ThemeSettings(),
     content: @Composable () -> Unit,
 ) {
@@ -76,8 +76,8 @@ fun CursorUsageTheme(
     CompositionLocalProvider(LocalPulseChartColors provides chartColors) {
         MaterialTheme(
             colorScheme = colorScheme,
-            typography = CursorUsageTypography,
-            shapes = CursorUsageShapes,
+            typography = CursorTTypography,
+            shapes = CursorTShapes,
         ) {
             Box(
                 modifier = Modifier

@@ -117,7 +117,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.lamuier.cursorT.model.AppUiState
 import com.lamuier.cursorT.model.CursorAccount
-import com.lamuier.cursorT.model.CursorUsageOverview
+import com.lamuier.cursorT.model.CursorTOverview
 import com.lamuier.cursorT.ui.theme.LocalPulseChartColors
 import com.lamuier.cursorT.util.BillingProgress
 import com.lamuier.cursorT.util.UsageCalculations
@@ -389,7 +389,7 @@ private fun UsageDependentTab(
     onRefresh: () -> Unit,
     onManageAccount: () -> Unit,
     onShowTokenHelp: () -> Unit,
-    content: @Composable (CursorUsageOverview) -> Unit,
+    content: @Composable (CursorTOverview) -> Unit,
 ) {
     val account = state.accounts.firstOrNull { it.id == state.selectedAccountId }
         ?: state.accounts.firstOrNull()
@@ -582,7 +582,7 @@ internal fun DashboardState(
 }
 
 @Composable
-private fun OverviewTab(usage: CursorUsageOverview) {
+private fun OverviewTab(usage: CursorTOverview) {
     AdaptiveTabContent { compact ->
         val chartColors = LocalPulseChartColors.current
         val chartSize = if (compact) 150.dp else 178.dp
@@ -791,7 +791,7 @@ private fun DotLabel(color: Color, text: String) {
 }
 
 @Composable
-private fun FreshnessRow(usage: CursorUsageOverview) {
+private fun FreshnessRow(usage: CursorTOverview) {
     val stamp = usage.fetchedAt.takeIf { it.length >= 16 }?.substring(11, 16)
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -816,7 +816,7 @@ private fun FreshnessRow(usage: CursorUsageOverview) {
 }
 
 @Composable
-private fun UsageTab(usage: CursorUsageOverview) {
+private fun UsageTab(usage: CursorTOverview) {
     AdaptiveTabContent { compact ->
         val chartColors = LocalPulseChartColors.current
         val segments = remember(usage, chartColors) {
@@ -896,7 +896,7 @@ private fun UsageTab(usage: CursorUsageOverview) {
 }
 
 @Composable
-private fun BillingTab(usage: CursorUsageOverview) {
+private fun BillingTab(usage: CursorTOverview) {
     AdaptiveTabContent { compact ->
         val chartColors = LocalPulseChartColors.current
         val segments = remember(usage, chartColors) {
@@ -1434,7 +1434,7 @@ private fun rememberNowMillis(): Long {
 }
 
 @Composable
-private fun BillingCycleChart(usage: CursorUsageOverview, compact: Boolean) {
+private fun BillingCycleChart(usage: CursorTOverview, compact: Boolean) {
     val nowMillis = rememberNowMillis()
     val billing = UsageCalculations.billingProgress(usage.billingCycle.start, usage.billingCycle.end, nowMillis)
     val animatedProgress by animateFloatAsState(
@@ -1506,7 +1506,7 @@ private fun BillingCycleChart(usage: CursorUsageOverview, compact: Boolean) {
 }
 
 @Composable
-private fun BillingStatusCard(usage: CursorUsageOverview, compact: Boolean) {
+private fun BillingStatusCard(usage: CursorTOverview, compact: Boolean) {
     val onDemand = usage.onDemand
     val membership = usage.subscription.membershipType?.takeIf { it.isNotBlank() }
     val status = usage.subscription.status?.takeIf { it.isNotBlank() }
@@ -1586,7 +1586,7 @@ private fun BillingRow(label: String, value: String) {
     }
 }
 
-private fun effectiveLimit(usage: CursorUsageOverview): Double = when {
+private fun effectiveLimit(usage: CursorTOverview): Double = when {
     usage.usage.limitDollars > 0.0 -> usage.usage.limitDollars
     usage.plan.includedAmountDollars > 0.0 -> usage.plan.includedAmountDollars
     else -> 0.0

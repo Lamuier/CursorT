@@ -2,7 +2,7 @@ package com.lamuier.cursorT.network
 
 import com.lamuier.cursorT.model.BillingCycle
 import com.lamuier.cursorT.model.Credits
-import com.lamuier.cursorT.model.CursorUsageOverview
+import com.lamuier.cursorT.model.CursorTOverview
 import com.lamuier.cursorT.model.OnDemandUsage
 import com.lamuier.cursorT.model.PlanInfo
 import com.lamuier.cursorT.model.Subscription
@@ -16,7 +16,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-object CursorUsageAssembler {
+object CursorTAssembler {
     fun assemble(
         accountId: Int,
         alias: String,
@@ -25,7 +25,7 @@ object CursorUsageAssembler {
         grantsPayload: JSONObject?,
         stripePayload: JSONObject?,
         partialData: Boolean,
-    ): CursorUsageOverview {
+    ): CursorTOverview {
         val plan = planPayload.optJSONObject("planInfo") ?: JSONObject()
         val planUsage = periodUsage.optJSONObject("planUsage") ?: JSONObject()
         val spendLimit = periodUsage.optJSONObject("spendLimitUsage") ?: JSONObject()
@@ -42,7 +42,7 @@ object CursorUsageAssembler {
         val customerBalance = stripePayload?.optNumber("customerBalance") ?: 0.0
         val stripeCreditCents = if (customerBalance < 0) -customerBalance else 0.0
 
-        return CursorUsageOverview(
+        return CursorTOverview(
             accountId = accountId,
             alias = alias,
             isTeam = isTeam,

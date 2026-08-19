@@ -4,7 +4,7 @@ import com.lamuier.cursorT.model.BillingCycle
 import com.lamuier.cursorT.model.ComponentStatus
 import com.lamuier.cursorT.model.Credits
 import com.lamuier.cursorT.model.CursorServiceStatus
-import com.lamuier.cursorT.model.CursorUsageOverview
+import com.lamuier.cursorT.model.CursorTOverview
 import com.lamuier.cursorT.model.PlanInfo
 import com.lamuier.cursorT.model.StatusComponent
 import com.lamuier.cursorT.model.StatusIncident
@@ -111,7 +111,7 @@ class WidgetCalculationsTest {
         includedSpend: Double = 0.0,
         limit: Double = 0.0,
         planLimit: Double = 0.0,
-    ) = CursorUsageOverview(
+    ) = CursorTOverview(
         accountId = 1,
         alias = "test",
         isTeam = isTeam,

@@ -23,7 +23,7 @@ import com.lamuier.cursorT.data.CursorRepository
 import com.lamuier.cursorT.data.CursorStatusRepository
 import com.lamuier.cursorT.model.CursorAccount
 import com.lamuier.cursorT.model.CursorServiceStatus
-import com.lamuier.cursorT.model.CursorUsageOverview
+import com.lamuier.cursorT.model.CursorTOverview
 import com.lamuier.cursorT.network.ApiException
 import com.lamuier.cursorT.util.StatusPresentation
 import com.lamuier.cursorT.util.UsageCalculations
@@ -64,7 +64,7 @@ private data class ProviderSpec(
 
 private data class WidgetSnapshot(
     val account: CursorAccount?,
-    val usage: CursorUsageOverview?,
+    val usage: CursorTOverview?,
     val status: String,
     val serviceStatus: CursorServiceStatus? = null,
     val serviceStatusLine: String = "",
@@ -88,8 +88,8 @@ abstract class BaseCursorWidgetProvider : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray,
     ) {
-        CursorUsageWidgetUpdater.updateFromCache(context.applicationContext, goAsync())
-        CursorUsageWidgetUpdater.scheduleRefresh(context.applicationContext, force = false)
+        CursorTWidgetUpdater.updateFromCache(context.applicationContext, goAsync())
+        CursorTWidgetUpdater.scheduleRefresh(context.applicationContext, force = false)
     }
 
     override fun onAppWidgetOptionsChanged(
@@ -98,7 +98,7 @@ abstract class BaseCursorWidgetProvider : AppWidgetProvider() {
         appWidgetId: Int,
         newOptions: android.os.Bundle,
     ) {
-        CursorUsageWidgetUpdater.updateFromCache(context.applicationContext, goAsync())
+        CursorTWidgetUpdater.updateFromCache(context.applicationContext, goAsync())
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -112,8 +112,8 @@ abstract class BaseCursorWidgetProvider : AppWidgetProvider() {
                     ComponentName(context, javaClass),
                 )
                 if (appWidgetId in ownedIds) {
-                    val accepted = CursorUsageWidgetUpdater.scheduleManualRefresh(context.applicationContext)
-                    CursorUsageWidgetUpdater.updateFromCache(
+                    val accepted = CursorTWidgetUpdater.scheduleManualRefresh(context.applicationContext)
+                    CursorTWidgetUpdater.updateFromCache(
                         context.applicationContext,
                         goAsync(),
                         statusOverride = if (accepted) "正在刷新…" else "请稍后再刷新",
@@ -125,11 +125,11 @@ abstract class BaseCursorWidgetProvider : AppWidgetProvider() {
     }
 
     override fun onEnabled(context: Context) {
-        CursorUsageWidgetUpdater.scheduleRefresh(context.applicationContext, force = false)
+        CursorTWidgetUpdater.scheduleRefresh(context.applicationContext, force = false)
     }
 
     override fun onDisabled(context: Context) {
-        CursorUsageWidgetUpdater.cancelIfNoWidgets(context.applicationContext)
+        CursorTWidgetUpdater.cancelIfNoWidgets(context.applicationContext)
     }
 }
 
@@ -141,7 +141,7 @@ class MiniCursorStatusWidgetProvider : BaseCursorWidgetProvider()
 
 class TallCursorStatusWidgetProvider : BaseCursorWidgetProvider()
 
-object CursorUsageWidgetUpdater {
+object CursorTWidgetUpdater {
     private val shortScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val refreshMutex = Mutex()
     private val lastManualRefreshAt = AtomicLong(0L)
@@ -223,7 +223,7 @@ object CursorUsageWidgetUpdater {
             }
             val job = JobInfo.Builder(
                 WIDGET_REFRESH_JOB_ID,
-                ComponentName(context, CursorUsageWidgetJobService::class.java),
+                ComponentName(context, CursorTWidgetJobService::class.java),
             )
                 .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
                 .setMinimumLatency(0L)
@@ -692,7 +692,7 @@ object CursorUsageWidgetUpdater {
         )
     }
 
-    private fun billingLabel(usage: CursorUsageOverview): String {
+    private fun billingLabel(usage: CursorTOverview): String {
         val billing = UsageCalculations.billingProgress(
             usage.billingCycle.start,
             usage.billingCycle.end,
@@ -776,12 +776,12 @@ object CursorUsageWidgetUpdater {
     )
 }
 
-class CursorUsageWidgetJobService : JobService() {
+class CursorTWidgetJobService : JobService() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var activeJob: Job? = null
 
     override fun onStartJob(params: JobParameters): Boolean {
-        val initialForce = CursorUsageWidgetUpdater.onJobStarted(
+        val initialForce = CursorTWidgetUpdater.onJobStarted(
             params.extras.getBoolean(EXTRA_FORCE_REFRESH, false),
         )
         activeJob?.cancel()
@@ -790,18 +790,18 @@ class CursorUsageWidgetJobService : JobService() {
             var retry: Boolean
             while (true) {
                 retry = try {
-                    CursorUsageWidgetUpdater.performScheduledRefresh(applicationContext, force)
+                    CursorTWidgetUpdater.performScheduledRefresh(applicationContext, force)
                 } catch (_: CancellationException) {
                     return@launch
                 } catch (_: Exception) {
                     true
                 }
-                if (!CursorUsageWidgetUpdater.takeQueuedForce()) break
+                if (!CursorTWidgetUpdater.takeQueuedForce()) break
                 force = true
             }
             withContext(Dispatchers.Main) {
                 jobFinished(params, retry)
-                CursorUsageWidgetUpdater.onJobFinished(applicationContext)
+                CursorTWidgetUpdater.onJobFinished(applicationContext)
             }
         }
         return true
@@ -810,7 +810,7 @@ class CursorUsageWidgetJobService : JobService() {
     override fun onStopJob(params: JobParameters): Boolean {
         activeJob?.cancel()
         activeJob = null
-        CursorUsageWidgetUpdater.onJobStopped(applicationContext)
+        CursorTWidgetUpdater.onJobStopped(applicationContext)
         return true
     }
 
@@ -1028,12 +1028,12 @@ private object WidgetLoader {
         return current.takeIf { currentRevision == revision }
     }
 
-    private fun cachedStatus(usage: CursorUsageOverview): String = when {
+    private fun cachedStatus(usage: CursorTOverview): String = when {
         usage.partialData -> "缓存 · 部分数据"
         else -> "缓存 · ${timeLabel(usage.fetchedAt)}"
     }
 
-    private fun liveStatus(usage: CursorUsageOverview): String = when {
+    private fun liveStatus(usage: CursorTOverview): String = when {
         usage.partialData -> "已更新 · 部分数据"
         else -> "更新 ${timeLabel(usage.fetchedAt)}"
     }

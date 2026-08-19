@@ -22,11 +22,11 @@ import com.lamuier.cursorT.data.NotificationPreferences
 import com.lamuier.cursorT.data.PercentDisplayMode
 import com.lamuier.cursorT.data.ThemePreferences
 import com.lamuier.cursorT.model.ShortcutAction
-import com.lamuier.cursorT.notification.CursorUsageNotificationCoordinator
-import com.lamuier.cursorT.ui.CursorUsageApp
-import com.lamuier.cursorT.ui.CursorUsageViewModel
-import com.lamuier.cursorT.ui.theme.CursorUsageTheme
-import com.lamuier.cursorT.widget.CursorUsageWidgetUpdater
+import com.lamuier.cursorT.notification.CursorTNotificationCoordinator
+import com.lamuier.cursorT.ui.CursorTApp
+import com.lamuier.cursorT.ui.CursorTViewModel
+import com.lamuier.cursorT.ui.theme.CursorTTheme
+import com.lamuier.cursorT.widget.CursorTWidgetUpdater
 
 class MainActivity : FragmentActivity() {
     /** 长按图标 Shortcut 带来的待执行动作，由 UI 层消费后清空。 */
@@ -39,16 +39,16 @@ class MainActivity : FragmentActivity() {
         pendingShortcutAction = ShortcutAction.fromIntentAction(intent?.action)
         val viewModel = ViewModelProvider(
             this,
-            CursorUsageViewModel.Factory(applicationContext),
-        )[CursorUsageViewModel::class.java]
+            CursorTViewModel.Factory(applicationContext),
+        )[CursorTViewModel::class.java]
         val themePreferences = ThemePreferences.get(applicationContext)
         val notificationPreferences = NotificationPreferences.get(applicationContext)
 
         setContent {
             val themeSettings by themePreferences.settings.collectAsStateWithLifecycle()
             val notificationSettings by notificationPreferences.settings.collectAsStateWithLifecycle()
-            CursorUsageTheme(settings = themeSettings) {
-                CursorUsageApp(
+            CursorTTheme(settings = themeSettings) {
+                CursorTApp(
                     viewModel = viewModel,
                     themeSettings = themeSettings,
                     notificationSettings = notificationSettings,
@@ -56,11 +56,11 @@ class MainActivity : FragmentActivity() {
                     onShortcutActionConsumed = { pendingShortcutAction = null },
                     onThemeModeChange = { mode ->
                         themePreferences.setThemeMode(mode)
-                        CursorUsageWidgetUpdater.requestUpdate(applicationContext)
+                        CursorTWidgetUpdater.requestUpdate(applicationContext)
                     },
                     onPaletteChange = { palette ->
                         themePreferences.setColorPalette(palette)
-                        CursorUsageWidgetUpdater.requestUpdate(applicationContext)
+                        CursorTWidgetUpdater.requestUpdate(applicationContext)
                     },
                 onLiveUpdatesToggle = { enabled ->
                     notificationPreferences.setLiveUpdatesEnabled(enabled)
@@ -68,7 +68,7 @@ class MainActivity : FragmentActivity() {
                         ensureNotificationPermissionAndRefresh()
                     } else {
                         runCatching {
-                            CursorUsageNotificationCoordinator
+                            CursorTNotificationCoordinator
                                 .get(applicationContext)
                                 .refreshFromCache()
                         }
@@ -82,7 +82,7 @@ class MainActivity : FragmentActivity() {
                 onPercentDisplayModeChange = { mode ->
                     notificationPreferences.setPercentDisplayMode(mode)
                     runCatching {
-                        CursorUsageNotificationCoordinator
+                        CursorTNotificationCoordinator
                             .get(applicationContext)
                             .refreshFromCache()
                     }
@@ -112,7 +112,7 @@ class MainActivity : FragmentActivity() {
             notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         } else {
             runCatching {
-                CursorUsageNotificationCoordinator.get(applicationContext).refreshFromCache()
+                CursorTNotificationCoordinator.get(applicationContext).refreshFromCache()
             }
         }
     }
@@ -122,7 +122,7 @@ class MainActivity : FragmentActivity() {
     ) {
         // 无论授权与否都按当前偏好刷新一次（未授权则 coordinator 内部撤下通知）。
         runCatching {
-            CursorUsageNotificationCoordinator.get(applicationContext).refreshFromCache()
+            CursorTNotificationCoordinator.get(applicationContext).refreshFromCache()
         }
     }
 
@@ -139,7 +139,7 @@ class MainActivity : FragmentActivity() {
 
     override fun onStop() {
         super.onStop()
-        CursorUsageWidgetUpdater.requestUpdate(applicationContext)
+        CursorTWidgetUpdater.requestUpdate(applicationContext)
     }
 
     private fun preferWideColorGamut() {

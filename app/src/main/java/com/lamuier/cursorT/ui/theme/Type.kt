@@ -8,7 +8,7 @@ import androidx.compose.ui.unit.sp
 
 private val PulseSans = FontFamily.SansSerif
 
-val CursorUsageTypography = Typography(
+val CursorTTypography = Typography(
     displayLarge = TextStyle(
         fontFamily = PulseSans,
         fontWeight = FontWeight.Bold,

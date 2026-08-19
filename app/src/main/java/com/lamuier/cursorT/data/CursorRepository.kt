@@ -2,10 +2,10 @@ package com.lamuier.cursorT.data
 
 import android.content.Context
 import com.lamuier.cursorT.model.CursorAccount
-import com.lamuier.cursorT.model.CursorUsageOverview
+import com.lamuier.cursorT.model.CursorTOverview
 import com.lamuier.cursorT.network.ApiException
 import com.lamuier.cursorT.network.CursorApiClient
-import com.lamuier.cursorT.network.CursorUsageAssembler
+import com.lamuier.cursorT.network.CursorTAssembler
 import com.lamuier.cursorT.network.UsageJsonParser
 import com.lamuier.cursorT.util.TokenUtils
 import java.util.concurrent.ConcurrentHashMap
@@ -60,7 +60,7 @@ class CursorRepository(context: Context) {
     fun cachedUsage(
         accountId: Int,
         allowInvalidCredential: Boolean = false,
-    ): CursorUsageOverview? {
+    ): CursorTOverview? {
         val snapshot = runCatching { accountStore.snapshot(accountId) }.getOrNull() ?: return null
         if (snapshot.tokenInvalid || TokenUtils.isExpired(snapshot.accessToken)) {
             markCredentialInvalid(snapshot)
@@ -79,7 +79,7 @@ class CursorRepository(context: Context) {
         return overview.asCached(ageSeconds(cached.storedAtMillis), isLocal = true)
     }
 
-    suspend fun fetchUsage(accountId: Int, forceRefresh: Boolean): CursorUsageOverview {
+    suspend fun fetchUsage(accountId: Int, forceRefresh: Boolean): CursorTOverview {
         val snapshot = accountStore.snapshot(accountId)
         if (TokenUtils.isExpired(snapshot.accessToken) || (snapshot.tokenInvalid && !forceRefresh)) {
             markCredentialInvalid(snapshot)
@@ -137,9 +137,9 @@ class CursorRepository(context: Context) {
 
     private suspend fun singleFlight(
         key: NetworkRequestKey,
-        block: suspend () -> CursorUsageOverview,
-    ): CursorUsageOverview {
-        val candidate = CompletableDeferred<CursorUsageOverview>()
+        block: suspend () -> CursorTOverview,
+    ): CursorTOverview {
+        val candidate = CompletableDeferred<CursorTOverview>()
         val active = activeUsageRequests.putIfAbsent(key, candidate)
         if (active != null) return active.await()
         requestScope.launch {
@@ -156,7 +156,7 @@ class CursorRepository(context: Context) {
 
     private suspend fun fetchLive(
         snapshot: EncryptedAccountStore.AccountSnapshot,
-    ): CursorUsageOverview = coroutineScope {
+    ): CursorTOverview = coroutineScope {
         val period = async {
             api.connectRpc(snapshot.accessToken, "GetCurrentPeriodUsage")
         }
@@ -176,7 +176,7 @@ class CursorRepository(context: Context) {
 
         val grantsResult = grants.await()
         val stripeResult = stripe.await()
-        CursorUsageAssembler.assemble(
+        CursorTAssembler.assemble(
             accountId = snapshot.id,
             alias = snapshot.alias,
             periodUsage = period.await(),
@@ -241,7 +241,7 @@ class CursorRepository(context: Context) {
         }
     }
 
-    private fun CursorUsageOverview.asCached(ageSeconds: Int, isLocal: Boolean): CursorUsageOverview = copy(
+    private fun CursorTOverview.asCached(ageSeconds: Int, isLocal: Boolean): CursorTOverview = copy(
         fromCache = true,
         cacheAgeSeconds = ageSeconds,
         isLocalCache = isLocal,
@@ -255,7 +255,7 @@ class CursorRepository(context: Context) {
     private data class MemoryCacheEntry(
         val revision: Long,
         val storedAtMillis: Long,
-        val overview: CursorUsageOverview,
+        val overview: CursorTOverview,
     )
 
     private data class OptionalPayload(
@@ -275,7 +275,7 @@ class CursorRepository(context: Context) {
         val requestScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         val activeUsageRequests = ConcurrentHashMap<
             NetworkRequestKey,
-            CompletableDeferred<CursorUsageOverview>
+            CompletableDeferred<CursorTOverview>
         >()
     }
 }

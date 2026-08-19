@@ -3,7 +3,7 @@ package com.lamuier.cursorT.network
 import com.lamuier.cursorT.model.BillingCycle
 import com.lamuier.cursorT.model.Credits
 import com.lamuier.cursorT.model.CursorAccount
-import com.lamuier.cursorT.model.CursorUsageOverview
+import com.lamuier.cursorT.model.CursorTOverview
 import com.lamuier.cursorT.model.OnDemandUsage
 import com.lamuier.cursorT.model.PlanInfo
 import com.lamuier.cursorT.model.Subscription
@@ -12,7 +12,7 @@ import com.lamuier.cursorT.model.UsageMetrics
 import org.json.JSONObject
 
 object UsageJsonParser {
-    fun toJson(usage: CursorUsageOverview): String {
+    fun toJson(usage: CursorTOverview): String {
         val root = JSONObject()
             .put("account_id", usage.accountId)
             .put("alias", usage.alias)
@@ -91,7 +91,7 @@ object UsageJsonParser {
 
     fun parseAccount(rawJson: String): CursorAccount = parseAccount(JSONObject(rawJson))
 
-    fun parseUsage(rawJson: String, isLocalCache: Boolean = false): CursorUsageOverview {
+    fun parseUsage(rawJson: String, isLocalCache: Boolean = false): CursorTOverview {
         val root = JSONObject(rawJson)
         val plan = root.optJSONObject("plan") ?: JSONObject()
         val cycle = root.optJSONObject("billing_cycle") ?: JSONObject()
@@ -99,7 +99,7 @@ object UsageJsonParser {
         val credits = root.optJSONObject("credits") ?: JSONObject()
         val subscription = root.optJSONObject("subscription") ?: JSONObject()
         val onDemand = root.optJSONObject("on_demand")
-        return CursorUsageOverview(
+        return CursorTOverview(
             accountId = root.optInt("account_id"),
             alias = root.optString("alias"),
             isTeam = root.optBoolean("is_team"),

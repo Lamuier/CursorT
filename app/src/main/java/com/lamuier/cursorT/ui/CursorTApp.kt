@@ -55,8 +55,8 @@ import kotlinx.coroutines.launch
 private const val FOREGROUND_REFRESH_INTERVAL_MS = 5 * 60 * 1_000L
 
 @Composable
-fun CursorUsageApp(
-    viewModel: CursorUsageViewModel,
+fun CursorTApp(
+    viewModel: CursorTViewModel,
     themeSettings: ThemeSettings,
     notificationSettings: NotificationSettings,
     pendingShortcutAction: ShortcutAction?,

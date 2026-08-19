@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.4.0
+
+- 应用名称改为「Cursor助手」，包名由 `com.lamuier.cursorusage` 改为 `com.lamuier.cursorT`（与旧包不兼容，需重新安装）
+- 新增「状态」页签：展示 Cursor 官方可用状态（总览、各服务组件、进行中的事件、计划维护与近期历史），数据来自 Statuspage 公开 JSON API（`status.cursor.com/api/v2`），无需 Access Token
+- 新增状态桌面小组件：2×1 迷你条与 4×3 详情卡，与用量小组件共用刷新调度；无需 Access Token，未添加账号时也可使用
+- 用量加载失败时仍可查看状态页，便于对照官方故障说明
+- 点击事件卡片或「打开官方状态页」仅允许跳转到 `status.cursor.com` / `stspg.io`
+- `versionCode=7`，`versionName=1.4.0`
+
 ## 1.3.2（灰度测试版）
 
 > 灰度测试发布（GitHub Release 标记为 Pre-release，不占用 Latest），经实际验证后转为正式版。

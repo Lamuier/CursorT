@@ -1,0 +1,42 @@
+{
+  "page": {
+    "id": "0tp9ssgtptvs",
+    "name": "Cursor",
+    "url": "https://status.cursor.com",
+    "updated_at": "2026-08-19T10:49:30.529Z"
+  },
+  "incidents": [
+    {
+      "id": "inc-active",
+      "name": "Cloud Agents degraded",
+      "status": "investigating",
+      "impact": "major",
+      "created_at": "2026-08-19T09:00:00.000Z",
+      "updated_at": "2026-08-19T09:20:00.000Z",
+      "resolved_at": null,
+      "shortlink": "https://stspg.io/abc123",
+      "incident_updates": [],
+      "components": []
+    },
+    {
+      "id": "inc-resolved",
+      "name": "Grok Bot connector delays",
+      "status": "resolved",
+      "impact": "minor",
+      "created_at": "2026-08-18T18:46:26.341Z",
+      "updated_at": "2026-08-18T20:15:48.726Z",
+      "resolved_at": "2026-08-18T20:15:48.707Z",
+      "shortlink": "https://stspg.io/b91p7l58x26v",
+      "incident_updates": [
+        {
+          "status": "resolved",
+          "body": "This incident has been resolved.",
+          "display_at": "2026-08-18T20:15:48.707Z"
+        }
+      ],
+      "components": [
+        { "id": "grok", "name": "Grok Bot" }
+      ]
+    }
+  ]
+}

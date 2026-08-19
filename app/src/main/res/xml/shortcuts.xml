@@ -7,9 +7,9 @@
         android:shortcutShortLabel="@string/shortcut_token_short_label"
         android:shortcutLongLabel="@string/shortcut_token_long_label">
         <intent
-            android:action="com.lamuier.cursorusage.action.SHORTCUT_REVEAL_TOKEN"
-            android:targetPackage="com.lamuier.cursorusage"
-            android:targetClass="com.lamuier.cursorusage.MainActivity" />
+            android:action="com.lamuier.cursorT.action.SHORTCUT_REVEAL_TOKEN"
+            android:targetPackage="com.lamuier.cursorT"
+            android:targetClass="com.lamuier.cursorT.MainActivity" />
     </shortcut>
     <shortcut
         android:shortcutId="manage_accounts"
@@ -18,9 +18,9 @@
         android:shortcutShortLabel="@string/shortcut_accounts_short_label"
         android:shortcutLongLabel="@string/shortcut_accounts_long_label">
         <intent
-            android:action="com.lamuier.cursorusage.action.SHORTCUT_MANAGE_ACCOUNTS"
-            android:targetPackage="com.lamuier.cursorusage"
-            android:targetClass="com.lamuier.cursorusage.MainActivity" />
+            android:action="com.lamuier.cursorT.action.SHORTCUT_MANAGE_ACCOUNTS"
+            android:targetPackage="com.lamuier.cursorT"
+            android:targetClass="com.lamuier.cursorT.MainActivity" />
     </shortcut>
     <shortcut
         android:shortcutId="settings"
@@ -29,8 +29,8 @@
         android:shortcutShortLabel="@string/shortcut_settings_short_label"
         android:shortcutLongLabel="@string/shortcut_settings_long_label">
         <intent
-            android:action="com.lamuier.cursorusage.action.SHORTCUT_SETTINGS"
-            android:targetPackage="com.lamuier.cursorusage"
-            android:targetClass="com.lamuier.cursorusage.MainActivity" />
+            android:action="com.lamuier.cursorT.action.SHORTCUT_SETTINGS"
+            android:targetPackage="com.lamuier.cursorT"
+            android:targetClass="com.lamuier.cursorT.MainActivity" />
     </shortcut>
 </shortcuts>

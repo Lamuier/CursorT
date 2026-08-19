@@ -1,11 +1,11 @@
-# CursorUsage
+# Cursor助手
 
 > 在手机上随时查看 Cursor 订阅用量——无需第三方服务端，数据只留在你自己的设备里。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 ![Platform](https://img.shields.io/badge/Platform-Android%208.0%2B-green.svg)
 
-CursorUsage 是一款原生 Android 应用。你只需在应用内填入本机的 Cursor Access Token，它就会向 Cursor 官方接口拉取用量，并在本地解析、加密保存。没有账号体系，没有自建后端，所有数据不经过任何第三方。
+Cursor助手 是一款原生 Android 应用。你只需在应用内填入本机的 Cursor Access Token，它就会向 Cursor 官方接口拉取用量，并在本地解析、加密保存。没有账号体系，没有自建后端，所有数据不经过任何第三方。
 
 ---
 
@@ -14,7 +14,8 @@ CursorUsage 是一款原生 Android 应用。你只需在应用内填入本机�
 ### 用量一目了然
 
 - 总用量、套餐额度、计费周期、Credits、两个用量池（Cursor 模型 / 其他模型）与 On-demand 预算，集中呈现。
-- 「概览 / 用量 / 账单」三页签，带流畅切换动效；双环展示用量与计费周期进度。
+- 「概览 / 用量 / 账单 / 状态」四页签，带流畅切换动效；双环展示用量与计费周期进度。
+- 「状态」页展示 Cursor 官方可用状态：总览、各组件、进行中的事件与近期历史，无需 Token。
 - 环形图、进度条与关键数字均有轻量动画，信息密度高却不杂乱。
 
 ### 实时用量通知
@@ -25,7 +26,7 @@ CursorUsage 是一款原生 Android 应用。你只需在应用内填入本机�
 
 ### 桌面小组件
 
-- 提供 2×1 紧凑卡与 4×3 统计卡两种 MD3 风格小组件，Android 12+ 跟随系统配色。
+- 提供用量与状态两套 MD3 小组件，各有 2×1 迷你条与 4×3 详情卡；Android 12+ 跟随系统配色。状态小组件无需 Access Token。
 
 ### 应用快捷方式
 
@@ -42,7 +43,7 @@ CursorUsage 是一款原生 Android 应用。你只需在应用内填入本机�
 
 ## 隐私与安全
 
-- **数据不出本机**：用量仅向 Cursor 官方接口请求，不连接任何第三方服务，Token 不发往任何自定义地址。
+- **数据不出本机**：用量仅向 Cursor 官方接口请求；可用状态仅向 Cursor 官方状态页请求。二者都不连接任何第三方分析/广告服务，Token 不发往任何自定义地址。
 - **本地加密保存**：账号与 Token 经系统密钥库加密后保存在你的设备，不进入备份、不通过明文传输。
 - **最小收集**：仅缓存解析后的用量数字，不保存任何原始响应。
 
@@ -73,7 +74,7 @@ python -c 'import os,sqlite3,json; from pathlib import Path; p=Path(os.environ["
 ## 许可与免责声明
 
 - **许可**：以 [MIT 许可证](LICENSE) 开源。
-- **免责声明**：CursorUsage 是非官方、个人维护的工具，与 Cursor（Anysphere）无隶属关系。使用即表示你理解并自行承担相关风险。
+- **免责声明**：Cursor助手 是非官方、个人维护的工具，与 Cursor（Anysphere）无隶属关系。使用即表示你理解并自行承担相关风险。
 
 ---
 

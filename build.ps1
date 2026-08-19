@@ -455,7 +455,7 @@ function Test-ReleaseApk {
     $badging = Invoke-Native $aapt @("dump", "badging", $apkPath)
     if ($LASTEXITCODE -ne 0) { throw "无法读取 APK badging" }
     $packageLine = $badging | Where-Object { $_ -like "package:*" } | Select-Object -First 1
-    if ($packageLine -notmatch "name='com\.lamuier\.cursorusage'") { throw "包名不正确: $packageLine" }
+    if ($packageLine -notmatch "name='com\.lamuier\.cursorT'") { throw "包名不正确: $packageLine" }
     if ($packageLine -notmatch "versionCode='$ExpectedVersionCode'") { throw "versionCode 不正确: $packageLine" }
     $escapedVersionName = [regex]::Escape($ExpectedVersionName)
     if ($packageLine -notmatch "versionName='$escapedVersionName'") { throw "versionName 不正确: $packageLine" }
@@ -528,7 +528,7 @@ function Test-ReleaseApk {
     if ($manifest -notmatch "android:allowBackup[^\n]*0x0") { throw "allowBackup 不是 false" }
     if ($manifest -notmatch "android:usesCleartextTraffic[^\n]*0x0") { throw "usesCleartextTraffic 不是 false" }
 
-    Write-Host "校验通过: com.lamuier.cursorusage $ExpectedVersionName ($ExpectedVersionCode)"
+    Write-Host "校验通过: com.lamuier.cursorT $ExpectedVersionName ($ExpectedVersionCode)"
     Write-Host "  ABIs      : $($nativeAbis -join ', ')"
     Write-Host "  Cert SHA256: $actualFingerprint"
 }
@@ -681,7 +681,7 @@ function Invoke-ReleasePackage {
             Set-Content -LiteralPath (Join-Path $dist "$artifactBaseName-release.sha256") -Encoding ascii
 
         [ordered]@{
-            packageName = "com.lamuier.cursorusage"
+            packageName = "com.lamuier.cursorT"
             versionCode = $version.VersionCode
             versionName = $version.VersionName
             apk = $destination

@@ -15,16 +15,16 @@ val releaseSigningConfigured = listOf(
 ).all { !it.isNullOrBlank() }
 
 android {
-    namespace = "com.lamuier.cursorusage"
+    namespace = "com.lamuier.cursorT"
     compileSdk = 37
     buildToolsVersion = "37.0.0"
 
     defaultConfig {
-        applicationId = "com.lamuier.cursorusage"
+        applicationId = "com.lamuier.cursorT"
         minSdk = 26
         targetSdk = 37
-        versionCode = 6
-        versionName = "1.3.2"
+        versionCode = 7
+        versionName = "1.4.0"
         ndk {
             abiFilters += setOf("arm64-v8a")
         }
@@ -88,6 +88,7 @@ dependencies {
     implementation(libs.androidx.biometric)
     implementation(libs.androidx.fragment.ktx)
     testImplementation(libs.junit)
+    testImplementation(libs.org.json)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.tooling.preview)
 }

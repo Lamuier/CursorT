@@ -20,9 +20,12 @@ import com.lamuier.cursorusage.MainActivity
 import com.lamuier.cursorusage.R
 import com.lamuier.cursorusage.data.AccountRevisionChangedException
 import com.lamuier.cursorusage.data.CursorRepository
+import com.lamuier.cursorusage.data.CursorStatusRepository
 import com.lamuier.cursorusage.model.CursorAccount
+import com.lamuier.cursorusage.model.CursorServiceStatus
 import com.lamuier.cursorusage.model.CursorUsageOverview
 import com.lamuier.cursorusage.network.ApiException
+import com.lamuier.cursorusage.util.StatusPresentation
 import com.lamuier.cursorusage.util.UsageCalculations
 import java.io.IOException
 import java.util.concurrent.atomic.AtomicLong
@@ -43,9 +46,15 @@ private const val WIDGET_REFRESH_JOB_ID = 0x43505731
 private const val CACHE_FRESH_SECONDS = 15 * 60
 private const val MANUAL_REFRESH_COOLDOWN_MS = 10_000L
 
-private enum class WidgetKind(val layoutId: Int, val requestBase: Int) {
+private enum class WidgetKind(
+    val layoutId: Int,
+    val requestBase: Int,
+    val isStatus: Boolean = false,
+) {
     Mini(R.layout.widget_cursor_mini, 15_000),
     Tall(R.layout.widget_cursor_tall, 25_000),
+    StatusMini(R.layout.widget_cursor_status_mini, 35_000, isStatus = true),
+    StatusTall(R.layout.widget_cursor_status_tall, 45_000, isStatus = true),
 }
 
 private data class ProviderSpec(
@@ -57,11 +66,19 @@ private data class WidgetSnapshot(
     val account: CursorAccount?,
     val usage: CursorUsageOverview?,
     val status: String,
+    val serviceStatus: CursorServiceStatus? = null,
+    val serviceStatusLine: String = "",
     val accountRevision: Long? = null,
 )
 
 private data class WidgetLoadResult(
     val snapshot: WidgetSnapshot,
+    val shouldRetry: Boolean = false,
+)
+
+private data class StatusLoadResult(
+    val status: CursorServiceStatus?,
+    val line: String,
     val shouldRetry: Boolean = false,
 )
 
@@ -120,6 +137,10 @@ class MiniCursorWidgetProvider : BaseCursorWidgetProvider()
 
 class TallCursorWidgetProvider : BaseCursorWidgetProvider()
 
+class MiniCursorStatusWidgetProvider : BaseCursorWidgetProvider()
+
+class TallCursorStatusWidgetProvider : BaseCursorWidgetProvider()
+
 object CursorUsageWidgetUpdater {
     private val shortScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val refreshMutex = Mutex()
@@ -133,6 +154,8 @@ object CursorUsageWidgetUpdater {
     private val providerSpecs = listOf(
         ProviderSpec(MiniCursorWidgetProvider::class.java, WidgetKind.Mini),
         ProviderSpec(TallCursorWidgetProvider::class.java, WidgetKind.Tall),
+        ProviderSpec(MiniCursorStatusWidgetProvider::class.java, WidgetKind.StatusMini),
+        ProviderSpec(TallCursorStatusWidgetProvider::class.java, WidgetKind.StatusTall),
     )
 
     fun requestUpdate(context: Context) {
@@ -157,7 +180,9 @@ object CursorUsageWidgetUpdater {
                 val snapshot = withContext(Dispatchers.IO) { WidgetLoader.readCached(context) }
                 renderAll(
                     context,
-                    statusOverride?.let { snapshot.copy(status = it) } ?: snapshot,
+                    statusOverride?.let {
+                        snapshot.copy(status = it, serviceStatusLine = it)
+                    } ?: snapshot,
                     generation,
                 )
             } finally {
@@ -238,7 +263,11 @@ object CursorUsageWidgetUpdater {
 
     internal suspend fun performScheduledRefresh(context: Context, force: Boolean): Boolean =
         refreshMutex.withLock {
-            val result = withContext(Dispatchers.IO) { WidgetLoader.load(context, force) }
+            val loadUsageData = hasKind(context) { !it.isStatus }
+            val loadStatusData = hasKind(context) { it.isStatus }
+            val result = withContext(Dispatchers.IO) {
+                WidgetLoader.load(context, force, loadUsageData, loadStatusData)
+            }
             val generation = cacheRenderGeneration.incrementAndGet()
             renderAll(context, result.snapshot, generation)
             result.shouldRetry
@@ -250,10 +279,13 @@ object CursorUsageWidgetUpdater {
         }
     }
 
-    private fun hasWidgets(context: Context): Boolean {
+    private fun hasWidgets(context: Context): Boolean = hasKind(context) { true }
+
+    private fun hasKind(context: Context, predicate: (WidgetKind) -> Boolean): Boolean {
         val manager = AppWidgetManager.getInstance(context)
         return providerSpecs.any { spec ->
-            manager.getAppWidgetIds(ComponentName(context, spec.providerClass)).isNotEmpty()
+            predicate(spec.kind) &&
+                manager.getAppWidgetIds(ComponentName(context, spec.providerClass)).isNotEmpty()
         }
     }
 
@@ -264,9 +296,10 @@ object CursorUsageWidgetUpdater {
     ) {
         synchronized(renderLock) {
             if (expectedGeneration != cacheRenderGeneration.get()) return
-            if (!WidgetLoader.isCurrent(context, snapshot)) return
+            val usageCurrent = WidgetLoader.isCurrent(context, snapshot)
             val manager = AppWidgetManager.getInstance(context)
             providerSpecs.forEach { spec ->
+                if (!spec.kind.isStatus && !usageCurrent) return@forEach
                 manager.getAppWidgetIds(ComponentName(context, spec.providerClass)).forEach { widgetId ->
                     val views = render(context, spec, widgetId, snapshot)
                     manager.updateAppWidget(widgetId, views)
@@ -276,6 +309,17 @@ object CursorUsageWidgetUpdater {
     }
 
     private fun render(
+        context: Context,
+        spec: ProviderSpec,
+        widgetId: Int,
+        snapshot: WidgetSnapshot,
+    ): RemoteViews = if (spec.kind.isStatus) {
+        renderStatus(context, spec, widgetId, snapshot)
+    } else {
+        renderUsage(context, spec, widgetId, snapshot)
+    }
+
+    private fun renderUsage(
         context: Context,
         spec: ProviderSpec,
         widgetId: Int,
@@ -362,6 +406,98 @@ object CursorUsageWidgetUpdater {
         return views
     }
 
+    private fun renderStatus(
+        context: Context,
+        spec: ProviderSpec,
+        widgetId: Int,
+        snapshot: WidgetSnapshot,
+    ): RemoteViews {
+        val kind = spec.kind
+        val views = RemoteViews(context.packageName, kind.layoutId)
+        val service = snapshot.serviceStatus
+        val colors = WidgetThemeColors.resolve(context)
+        val operationalPercent = service?.let(WidgetCalculations::operationalPercent)
+        val donutColor = service?.let { WidgetCalculations.indicatorColor(it.indicator) } ?: colors.primary
+
+        views.setTextViewText(R.id.widget_brand, context.getString(R.string.widget_status_brand))
+        views.setTextViewText(
+            R.id.widget_value,
+            service?.let { status ->
+                if (kind == WidgetKind.StatusMini) {
+                    StatusPresentation.compactIndicatorLabel(status.indicator)
+                } else {
+                    StatusPresentation.indicatorLabel(status.indicator)
+                }
+            } ?: "—",
+        )
+        views.setTextViewText(
+            R.id.widget_status,
+            snapshot.serviceStatusLine.ifBlank { "等待首次刷新" },
+        )
+        views.setOnClickPendingIntent(
+            R.id.widget_root,
+            openAppPendingIntent(context, spec, widgetId),
+        )
+        applyStatusWidgetTheme(
+            context = context,
+            views = views,
+            kind = kind,
+            widgetId = widgetId,
+            colors = colors,
+            operationalPercent = operationalPercent,
+            donutColor = donutColor,
+        )
+
+        if (kind == WidgetKind.StatusTall) {
+            views.setOnClickPendingIntent(
+                R.id.widget_refresh,
+                refreshPendingIntent(context, spec, widgetId),
+            )
+            views.setTextViewText(
+                R.id.widget_plan,
+                service?.let(WidgetCalculations::summaryChip) ?: "—/—",
+            )
+            views.setTextViewText(
+                R.id.widget_incident,
+                service?.let(WidgetCalculations::incidentHeadline) ?: "暂无事件",
+            )
+            bindStatusComponents(context, views, colors, service)
+        }
+        return views
+    }
+
+    private fun bindStatusComponents(
+        context: Context,
+        views: RemoteViews,
+        colors: WidgetThemeColors,
+        service: CursorServiceStatus?,
+    ) {
+        val items = service?.let { WidgetCalculations.highlightedComponents(it, STATUS_COMPONENT_SLOTS) }
+            .orEmpty()
+        STATUS_COMPONENT_ROWS.forEachIndexed { index, rowId ->
+            val item = items.getOrNull(index)
+            if (item == null) {
+                views.setViewVisibility(rowId, android.view.View.INVISIBLE)
+                return@forEachIndexed
+            }
+            views.setViewVisibility(rowId, android.view.View.VISIBLE)
+            views.setTextViewText(
+                STATUS_COMPONENT_NAMES[index],
+                "${item.first}  ${StatusPresentation.componentLabel(item.second)}",
+            )
+            views.setTextColor(STATUS_COMPONENT_NAMES[index], colors.onSurface)
+            views.setImageViewBitmap(
+                STATUS_COMPONENT_DOTS[index],
+                WidgetVisuals.chipBitmap(
+                    context,
+                    WidgetCalculations.componentColor(item.second),
+                    8,
+                    8,
+                ),
+            )
+        }
+    }
+
     private fun applyWidgetTheme(
         context: Context,
         views: RemoteViews,
@@ -371,8 +507,8 @@ object CursorUsageWidgetUpdater {
         totalPercent: Double?,
     ) {
         val (fallbackW, fallbackH) = when (kind) {
-            WidgetKind.Mini -> 110 to 40
-            WidgetKind.Tall -> 250 to 180
+            WidgetKind.Mini, WidgetKind.StatusMini -> 110 to 40
+            WidgetKind.Tall, WidgetKind.StatusTall -> 250 to 180
         }
         // Root must stay transparent — a solid color here fills the bitmap's
         // transparent corners and makes the widget look completely square.
@@ -442,6 +578,60 @@ object CursorUsageWidgetUpdater {
                 tintProgress(views, R.id.widget_auto_progress, colors)
                 tintProgress(views, R.id.widget_api_progress, colors, secondary = true)
             }
+            WidgetKind.StatusMini, WidgetKind.StatusTall -> Unit
+        }
+    }
+
+    private fun applyStatusWidgetTheme(
+        context: Context,
+        views: RemoteViews,
+        kind: WidgetKind,
+        widgetId: Int,
+        colors: WidgetThemeColors,
+        operationalPercent: Double?,
+        donutColor: Int,
+    ) {
+        val (fallbackW, fallbackH) = when (kind) {
+            WidgetKind.StatusMini -> 110 to 40
+            else -> 250 to 180
+        }
+        views.setInt(R.id.widget_root, "setBackgroundColor", android.graphics.Color.TRANSPARENT)
+        views.setImageViewBitmap(
+            R.id.widget_surface,
+            WidgetVisuals.surfaceBitmap(
+                context,
+                widgetId,
+                WidgetVisuals.glassSurface(colors.surface),
+                fallbackW,
+                fallbackH,
+            ),
+        )
+        views.setTextColor(R.id.widget_brand, colors.onSurfaceVariant)
+        views.setTextColor(R.id.widget_status, colors.onSurfaceVariant)
+        views.setTextColor(R.id.widget_value, donutColor)
+        val donutSize = if (kind == WidgetKind.StatusMini) 28 else 64
+        val stroke = if (kind == WidgetKind.StatusMini) 4f else 12f
+        views.setImageViewBitmap(
+            R.id.widget_donut,
+            WidgetVisuals.donutBitmap(
+                context = context,
+                sizeDp = donutSize,
+                progress = WidgetCalculations.progress(operationalPercent),
+                progressColor = donutColor,
+                trackColor = colors.progressTrack,
+                strokeDp = stroke,
+            ),
+        )
+        if (kind == WidgetKind.StatusTall) {
+            tintRefreshButton(views, colors)
+            views.setImageViewBitmap(
+                R.id.widget_refresh,
+                WidgetVisuals.refreshIconBitmap(context, colors.onSurfaceVariant),
+            )
+            tintChipBackground(views, R.id.widget_plan, colors.surfaceContainer)
+            tintChipBackground(views, R.id.widget_incident, colors.surfaceContainer)
+            views.setTextColor(R.id.widget_plan, colors.onSurfaceVariant)
+            views.setTextColor(R.id.widget_incident, colors.onSurface)
         }
     }
 
@@ -558,6 +748,34 @@ object CursorUsageWidgetUpdater {
             .appendPath(spec.kind.name.lowercase())
             .appendPath(widgetId.toString())
             .build()
+
+    private companion object {
+        const val STATUS_COMPONENT_SLOTS = 6
+        val STATUS_COMPONENT_ROWS = intArrayOf(
+            R.id.widget_status_row_1,
+            R.id.widget_status_row_2,
+            R.id.widget_status_row_3,
+            R.id.widget_status_row_4,
+            R.id.widget_status_row_5,
+            R.id.widget_status_row_6,
+        )
+        val STATUS_COMPONENT_DOTS = intArrayOf(
+            R.id.widget_status_dot_1,
+            R.id.widget_status_dot_2,
+            R.id.widget_status_dot_3,
+            R.id.widget_status_dot_4,
+            R.id.widget_status_dot_5,
+            R.id.widget_status_dot_6,
+        )
+        val STATUS_COMPONENT_NAMES = intArrayOf(
+            R.id.widget_status_name_1,
+            R.id.widget_status_name_2,
+            R.id.widget_status_name_3,
+            R.id.widget_status_name_4,
+            R.id.widget_status_name_5,
+            R.id.widget_status_name_6,
+        )
+    }
 }
 
 class CursorUsageWidgetJobService : JobService() {
@@ -606,13 +824,15 @@ class CursorUsageWidgetJobService : JobService() {
 
 private object WidgetLoader {
     fun readCached(context: Context): WidgetSnapshot {
-        return try {
+        val usageSnapshot = try {
             val repository = CursorRepository(context)
+            var result: WidgetSnapshot? = null
             repeat(3) {
                 val account = selectedAccount(repository)
                 if (account == null) {
                     if (selectedAccount(repository) == null) {
-                        return WidgetSnapshot(null, null, "点击添加账号")
+                        result = WidgetSnapshot(null, null, "点击添加账号")
+                        return@repeat
                     }
                     return@repeat
                 }
@@ -626,15 +846,42 @@ private object WidgetLoader {
                 } else {
                     usage?.let(::cachedStatus) ?: "等待首次刷新"
                 }
-                return WidgetSnapshot(stableAccount, usage, status, revision)
+                result = WidgetSnapshot(stableAccount, usage, status, accountRevision = revision)
+                return@repeat
             }
-            WidgetSnapshot(null, null, "账号已变化 · 正在更新")
+            result ?: WidgetSnapshot(null, null, "账号已变化 · 正在更新")
         } catch (_: Exception) {
             WidgetSnapshot(null, null, "打开应用检查账号")
         }
+        return attachCachedStatus(context, usageSnapshot)
     }
 
-    suspend fun load(context: Context, force: Boolean): WidgetLoadResult {
+    suspend fun load(
+        context: Context,
+        force: Boolean,
+        loadUsageData: Boolean = true,
+        loadStatusData: Boolean = true,
+    ): WidgetLoadResult {
+        val usageResult = if (loadUsageData) {
+            loadUsage(context, force)
+        } else {
+            WidgetLoadResult(WidgetSnapshot(null, null, ""))
+        }
+        val statusResult = if (loadStatusData) {
+            loadServiceStatus(context, force)
+        } else {
+            StatusLoadResult(null, "")
+        }
+        return WidgetLoadResult(
+            snapshot = usageResult.snapshot.copy(
+                serviceStatus = statusResult.status,
+                serviceStatusLine = statusResult.line,
+            ),
+            shouldRetry = usageResult.shouldRetry || statusResult.shouldRetry,
+        )
+    }
+
+    private suspend fun loadUsage(context: Context, force: Boolean): WidgetLoadResult {
         val repository = CursorRepository(context)
         val account = try {
             selectedAccount(repository)
@@ -651,29 +898,37 @@ private object WidgetLoader {
         val stableAccount = accountAtRevision(repository, account.id, revision)
             ?: return WidgetLoadResult(readCached(context))
         if (stableAccount.tokenExpired) {
-            return WidgetLoadResult(WidgetSnapshot(stableAccount, cached, "Token 已过期 · 点击更新", revision))
+            return WidgetLoadResult(
+                WidgetSnapshot(stableAccount, cached, "Token 已过期 · 点击更新", accountRevision = revision),
+            )
         }
         if (!force && cached != null && cached.cacheAgeSeconds < CACHE_FRESH_SECONDS) {
-            return WidgetLoadResult(WidgetSnapshot(stableAccount, cached, cachedStatus(cached), revision))
+            return WidgetLoadResult(
+                WidgetSnapshot(stableAccount, cached, cachedStatus(cached), accountRevision = revision),
+            )
         }
 
         return try {
             val live = repository.fetchUsage(stableAccount.id, forceRefresh = force)
             val latestAccount = accountAtRevision(repository, stableAccount.id, revision)
                 ?: return WidgetLoadResult(readCached(context))
-            WidgetLoadResult(WidgetSnapshot(latestAccount, live, liveStatus(live), revision))
+            WidgetLoadResult(
+                WidgetSnapshot(latestAccount, live, liveStatus(live), accountRevision = revision),
+            )
         } catch (error: ApiException) {
             val latestAccount = accountAtRevision(repository, stableAccount.id, revision)
                 ?: return WidgetLoadResult(readCached(context))
             if (error.statusCode == 401 || error.statusCode == 403) {
-                WidgetLoadResult(WidgetSnapshot(latestAccount, cached, "Token 已过期 · 点击更新", revision))
+                WidgetLoadResult(
+                    WidgetSnapshot(latestAccount, cached, "Token 已过期 · 点击更新", accountRevision = revision),
+                )
             } else {
                 WidgetLoadResult(
                     WidgetSnapshot(
                         latestAccount,
                         cached,
                         if (cached != null) "缓存 · 刷新失败" else "刷新失败",
-                        revision,
+                        accountRevision = revision,
                     ),
                     shouldRetry = error.statusCode == 429 || error.statusCode in 500..599,
                 )
@@ -688,7 +943,7 @@ private object WidgetLoader {
                     latestAccount,
                     cached,
                     if (cached != null) "缓存 · 网络不可用" else "网络不可用",
-                    revision,
+                    accountRevision = revision,
                 ),
                 shouldRetry = true,
             )
@@ -700,10 +955,47 @@ private object WidgetLoader {
                     latestAccount,
                     cached,
                     if (cached != null) "缓存 · 刷新失败" else "刷新失败",
-                    revision,
+                    accountRevision = revision,
                 ),
             )
         }
+    }
+
+    private suspend fun loadServiceStatus(context: Context, force: Boolean): StatusLoadResult {
+        val repository = CursorStatusRepository(context)
+        val cached = runCatching { repository.cached() }.getOrNull()
+        if (!force && cached != null && cached.cacheAgeSeconds < CACHE_FRESH_SECONDS) {
+            return StatusLoadResult(cached, cachedServiceLine(cached))
+        }
+        return try {
+            val live = repository.fetch(forceRefresh = force)
+            StatusLoadResult(live, liveServiceLine(live))
+        } catch (error: ApiException) {
+            StatusLoadResult(
+                status = cached,
+                line = if (cached != null) "缓存 · 刷新失败" else "刷新失败",
+                shouldRetry = error.statusCode == 429 || error.statusCode in 500..599,
+            )
+        } catch (_: IOException) {
+            StatusLoadResult(
+                status = cached,
+                line = if (cached != null) "缓存 · 网络不可用" else "网络不可用",
+                shouldRetry = true,
+            )
+        } catch (_: Exception) {
+            StatusLoadResult(
+                status = cached,
+                line = if (cached != null) "缓存 · 刷新失败" else "刷新失败",
+            )
+        }
+    }
+
+    private fun attachCachedStatus(context: Context, snapshot: WidgetSnapshot): WidgetSnapshot {
+        val status = runCatching { CursorStatusRepository(context).cached() }.getOrNull()
+        return snapshot.copy(
+            serviceStatus = status,
+            serviceStatusLine = status?.let(::cachedServiceLine) ?: "等待首次刷新",
+        )
     }
 
     fun isCurrent(context: Context, snapshot: WidgetSnapshot): Boolean {
@@ -746,6 +1038,16 @@ private object WidgetLoader {
     private fun liveStatus(usage: CursorUsageOverview): String = when {
         usage.partialData -> "已更新 · 部分数据"
         else -> "更新 ${timeLabel(usage.fetchedAt)}"
+    }
+
+    private fun cachedServiceLine(status: CursorServiceStatus): String = when {
+        status.partialHistory -> "缓存 · 部分数据"
+        else -> "缓存 · ${timeLabel(status.fetchedAt)}"
+    }
+
+    private fun liveServiceLine(status: CursorServiceStatus): String = when {
+        status.partialHistory -> "已更新 · 部分数据"
+        else -> "更新 ${timeLabel(status.fetchedAt)}"
     }
 
     private fun timeLabel(value: String): String = value

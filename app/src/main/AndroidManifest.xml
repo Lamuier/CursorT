@@ -68,6 +68,32 @@
                 android:resource="@xml/widget_cursor_tall_info" />
         </receiver>
 
+        <receiver
+            android:name=".widget.MiniCursorStatusWidgetProvider"
+            android:exported="false"
+            android:label="@string/widget_status_mini_name"
+            android:process=":widgetProvider">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_cursor_status_mini_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.TallCursorStatusWidgetProvider"
+            android:exported="false"
+            android:label="@string/widget_status_tall_name"
+            android:process=":widgetProvider">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_cursor_status_tall_info" />
+        </receiver>
+
         <service
             android:name=".widget.CursorUsageWidgetJobService"
             android:exported="true"

@@ -13,6 +13,8 @@ class StatusPresentationTest {
     @Test
     fun labels_coverOfficialStatuspageValues() {
         assertEquals("全部系统正常", StatusPresentation.indicatorLabel(StatusIndicator.None))
+        assertEquals("全部正常", StatusPresentation.compactIndicatorLabel(StatusIndicator.None))
+        assertEquals("部分中断", StatusPresentation.compactIndicatorLabel(StatusIndicator.Major))
         assertEquals("部分服务中断", StatusPresentation.indicatorLabel(StatusIndicator.Major))
         assertEquals("正常", StatusPresentation.componentLabel(ComponentStatus.Operational))
         assertEquals("部分中断", StatusPresentation.componentLabel(ComponentStatus.PartialOutage))

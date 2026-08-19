@@ -22,6 +22,16 @@
     <string name="widget_tall_description">完整查看用量池、Credits 与计费周期，固定 4×3 尺寸</string>
     <string name="widget_mini_name">用量迷你条</string>
     <string name="widget_mini_description">极简显示总用量百分比与进度环，固定 2×1 尺寸</string>
+    <string name="widget_status_brand">Cursor 状态</string>
+    <string name="widget_status_chip_placeholder">—/—</string>
+    <string name="widget_status_component_placeholder">组件 —</string>
+    <string name="widget_status_incident_placeholder">暂无事件</string>
+    <string name="widget_status_refresh_description">刷新 Cursor 状态</string>
+    <string name="widget_status_progress_description">Cursor 服务可用进度</string>
+    <string name="widget_status_mini_name">状态迷你条</string>
+    <string name="widget_status_mini_description">极简显示 Cursor 官方可用状态，固定 2×1 尺寸</string>
+    <string name="widget_status_tall_name">状态详情</string>
+    <string name="widget_status_tall_description">查看各服务组件与当前事件，固定 4×3 尺寸</string>
     <!-- 长按图标静态 Shortcut -->
     <string name="shortcut_token_short_label">查看 Token</string>
     <string name="shortcut_token_long_label">查看 Access Token</string>

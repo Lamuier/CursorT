@@ -18,6 +18,14 @@ object StatusPresentation {
         StatusIndicator.Maintenance -> "计划维护中"
     }
 
+    fun compactIndicatorLabel(indicator: StatusIndicator): String = when (indicator) {
+        StatusIndicator.None -> "全部正常"
+        StatusIndicator.Minor -> "性能下降"
+        StatusIndicator.Major -> "部分中断"
+        StatusIndicator.Critical -> "严重故障"
+        StatusIndicator.Maintenance -> "维护中"
+    }
+
     fun componentLabel(status: ComponentStatus): String = when (status) {
         ComponentStatus.Operational -> "正常"
         ComponentStatus.DegradedPerformance -> "性能下降"

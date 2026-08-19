@@ -72,3 +72,4 @@ Android App（本机）
 - Token 不进入 `savedInstanceState`、日志或用量缓存；Release 禁止应用数据备份、设备迁移及明文 HTTP。
 - 仅缓存解析后的用量字段，不保存 Cursor 原始响应。
 - 服务状态使用 Statuspage 公开 JSON（`/api/v2/summary.json` 与 `/api/v2/incidents.json`），不解析 HTML、不订阅 RSS。`summary.json` 含总览、组件与未恢复事件；`incidents.json` 提供近期历史。二者均为官方、结构化、无需鉴权的接口。
+- 桌面小组件运行在独立进程 `:widgetProvider`。用量与状态两套小组件共用同一个 JobService 刷新调度（缓存 TTL 15 分钟）。仅放置状态小组件时不会请求用量接口；状态请求不携带 Token。

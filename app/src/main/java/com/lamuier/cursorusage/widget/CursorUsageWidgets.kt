@@ -749,33 +749,31 @@ object CursorUsageWidgetUpdater {
             .appendPath(widgetId.toString())
             .build()
 
-    private companion object {
-        const val STATUS_COMPONENT_SLOTS = 6
-        val STATUS_COMPONENT_ROWS = intArrayOf(
-            R.id.widget_status_row_1,
-            R.id.widget_status_row_2,
-            R.id.widget_status_row_3,
-            R.id.widget_status_row_4,
-            R.id.widget_status_row_5,
-            R.id.widget_status_row_6,
-        )
-        val STATUS_COMPONENT_DOTS = intArrayOf(
-            R.id.widget_status_dot_1,
-            R.id.widget_status_dot_2,
-            R.id.widget_status_dot_3,
-            R.id.widget_status_dot_4,
-            R.id.widget_status_dot_5,
-            R.id.widget_status_dot_6,
-        )
-        val STATUS_COMPONENT_NAMES = intArrayOf(
-            R.id.widget_status_name_1,
-            R.id.widget_status_name_2,
-            R.id.widget_status_name_3,
-            R.id.widget_status_name_4,
-            R.id.widget_status_name_5,
-            R.id.widget_status_name_6,
-        )
-    }
+    private const val STATUS_COMPONENT_SLOTS = 6
+    private val STATUS_COMPONENT_ROWS = intArrayOf(
+        R.id.widget_status_row_1,
+        R.id.widget_status_row_2,
+        R.id.widget_status_row_3,
+        R.id.widget_status_row_4,
+        R.id.widget_status_row_5,
+        R.id.widget_status_row_6,
+    )
+    private val STATUS_COMPONENT_DOTS = intArrayOf(
+        R.id.widget_status_dot_1,
+        R.id.widget_status_dot_2,
+        R.id.widget_status_dot_3,
+        R.id.widget_status_dot_4,
+        R.id.widget_status_dot_5,
+        R.id.widget_status_dot_6,
+    )
+    private val STATUS_COMPONENT_NAMES = intArrayOf(
+        R.id.widget_status_name_1,
+        R.id.widget_status_name_2,
+        R.id.widget_status_name_3,
+        R.id.widget_status_name_4,
+        R.id.widget_status_name_5,
+        R.id.widget_status_name_6,
+    )
 }
 
 class CursorUsageWidgetJobService : JobService() {

@@ -44,10 +44,10 @@ import com.lamuier.cursorT.data.PercentDisplayMode
 import com.lamuier.cursorT.data.ThemeSettings
 import com.lamuier.cursorT.model.AppStage
 import com.lamuier.cursorT.model.CursorAccount
+import com.lamuier.cursorT.model.DashboardTab
 import com.lamuier.cursorT.model.ShortcutAction
 import com.lamuier.cursorT.ui.theme.ColorPalette
 import com.lamuier.cursorT.ui.theme.ThemeMode
-import com.lamuier.cursorT.util.AgentTaskPresentation
 import com.lamuier.cursorT.util.DeviceCredentialGate
 import com.lamuier.cursorT.util.SensitiveContent
 import kotlinx.coroutines.delay
@@ -68,6 +68,9 @@ fun CursorTApp(
     onThresholdRemindersToggle: (Boolean) -> Unit,
     percentDisplayMode: PercentDisplayMode,
     onPercentDisplayModeChange: (PercentDisplayMode) -> Unit,
+    tabOrder: List<DashboardTab>,
+    onTabOrderChange: (List<DashboardTab>) -> Unit,
+    onTabOrderReset: () -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -80,13 +83,11 @@ fun CursorTApp(
     var manageAccount by remember { mutableStateOf(false) }
     var showTokenHelp by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
-    var showCreateTask by remember { mutableStateOf(false) }
     var hasAutoOpenedEmptyAccount by remember { mutableStateOf(false) }
     var deleteTarget by remember { mutableStateOf<CursorAccount?>(null) }
     // Shortcut「查看 Token」：验证通过后暂存的明文 Token，非空时弹出展示对话框。
     var revealedToken by remember { mutableStateOf<String?>(null) }
-    val sheetOpen = manageAccount || showTokenHelp || showSettings ||
-        showCreateTask || state.selectedTask != null
+    val sheetOpen = manageAccount || showTokenHelp || showSettings
 
     val activity = LocalContext.current.findFragmentActivity()
     val scope = rememberCoroutineScope()
@@ -157,7 +158,6 @@ fun CursorTApp(
             manageAccount = false
             showTokenHelp = false
             showSettings = false
-            showCreateTask = false
             deleteTarget = null
         }
     }
@@ -236,15 +236,11 @@ fun CursorTApp(
         AppStage.Dashboard -> DashboardScreen(
             state = state,
             snackbarHostState = snackbarHostState,
+            tabOrder = tabOrder,
             onRefresh = { viewModel.refreshSelected(force = true, silent = true) },
             onManageAccount = { manageAccount = true },
             onShowSettings = { showSettings = true },
             onShowTokenHelp = { showTokenHelp = true },
-            onOpenTask = viewModel::openTask,
-            onCloseTask = viewModel::closeTask,
-            onRefreshConversation = { viewModel.refreshConversation(force = true) },
-            onSendFollowup = viewModel::sendFollowup,
-            onCreateTask = { showCreateTask = true },
         )
     }
 
@@ -259,26 +255,6 @@ fun CursorTApp(
             onUpdate = viewModel::updateAccount,
             onDeleteRequest = { deleteTarget = it },
             onRevealSavedToken = viewModel::revealAccessToken,
-        )
-    }
-
-    if (showCreateTask && state.stage == AppStage.Dashboard) {
-        CreateTaskSheet(
-            suggestedRepos = AgentTaskPresentation.suggestedRepositories(state.tasks?.tasks.orEmpty()),
-            creating = state.creatingTask,
-            error = state.createTaskError,
-            onDismiss = {
-                if (!state.creatingTask) {
-                    showCreateTask = false
-                    viewModel.clearCreateTaskError()
-                }
-            },
-            onClearError = viewModel::clearCreateTaskError,
-            onCreate = { prompt, repository, ref, autoCreatePr ->
-                viewModel.createTask(prompt, repository, ref, autoCreatePr) {
-                    showCreateTask = false
-                }
-            },
         )
     }
 
@@ -297,6 +273,9 @@ fun CursorTApp(
             onThresholdRemindersToggle = onThresholdRemindersToggle,
             percentDisplayMode = percentDisplayMode,
             onPercentDisplayModeChange = onPercentDisplayModeChange,
+            tabOrder = tabOrder,
+            onTabOrderChange = onTabOrderChange,
+            onTabOrderReset = onTabOrderReset,
             onManageAccount = { showSettings = false; manageAccount = true },
         )
     }

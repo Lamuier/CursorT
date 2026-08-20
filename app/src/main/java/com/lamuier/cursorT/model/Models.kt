@@ -131,30 +131,6 @@ data class AgentTask(
     val lastActivityMs: Long?,
 )
 
-enum class AgentTaskMessageRole {
-    User,
-    Assistant,
-    Unknown,
-}
-
-@Immutable
-data class AgentTaskMessage(
-    val id: String,
-    val role: AgentTaskMessageRole,
-    val text: String,
-    val createdAtMs: Long? = null,
-    val pending: Boolean = false,
-)
-
-@Immutable
-data class AgentTaskConversation(
-    val accountId: Int,
-    val task: AgentTask,
-    val messages: List<AgentTaskMessage>,
-    val fetchedAt: String,
-    val fromCache: Boolean = false,
-)
-
 @Immutable
 data class CursorTasks(
     val accountId: Int,
@@ -197,14 +173,6 @@ data class AppUiState(
     val error: String? = null,
     val tasksError: String? = null,
     val statusError: String? = null,
-    val selectedTask: AgentTask? = null,
-    val conversation: AgentTaskConversation? = null,
-    val loadingConversation: Boolean = false,
-    val refreshingConversation: Boolean = false,
-    val sendingFollowup: Boolean = false,
-    val conversationError: String? = null,
-    val creatingTask: Boolean = false,
-    val createTaskError: String? = null,
 )
 
 /** Cursor 官方状态页（Statuspage）的整体指示灯。 */

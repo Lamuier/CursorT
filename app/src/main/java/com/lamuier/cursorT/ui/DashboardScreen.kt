@@ -116,10 +116,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.lamuier.cursorT.model.AgentTask
 import com.lamuier.cursorT.model.AppUiState
 import com.lamuier.cursorT.model.CursorAccount
 import com.lamuier.cursorT.model.CursorTOverview
+import com.lamuier.cursorT.model.DashboardTab
 import com.lamuier.cursorT.ui.theme.LocalPulseChartColors
 import com.lamuier.cursorT.util.BillingProgress
 import com.lamuier.cursorT.util.UsageCalculations
@@ -134,13 +134,14 @@ import kotlinx.coroutines.launch
 /** 周期倒计时/百分比的本地走动间隔（仅重算时间，不触发网络请求）。 */
 private const val BILLING_TICK_MS = 5_000L
 
-private enum class DashboardTab(val label: String, val icon: ImageVector) {
-    Overview("概览", Icons.Outlined.SpaceDashboard),
-    Usage("用量", Icons.Outlined.DataUsage),
-    Billing("账单", Icons.AutoMirrored.Outlined.ReceiptLong),
-    Tasks("任务", Icons.Outlined.SmartToy),
-    Status("状态", Icons.Outlined.HealthAndSafety),
-}
+private val DashboardTab.icon: ImageVector
+    get() = when (this) {
+        DashboardTab.Overview -> Icons.Outlined.SpaceDashboard
+        DashboardTab.Usage -> Icons.Outlined.DataUsage
+        DashboardTab.Billing -> Icons.AutoMirrored.Outlined.ReceiptLong
+        DashboardTab.Tasks -> Icons.Outlined.SmartToy
+        DashboardTab.Status -> Icons.Outlined.HealthAndSafety
+    }
 
 @Immutable
 private data class ChartSegment(
@@ -162,16 +163,13 @@ private data class MetricTile(
 internal fun DashboardScreen(
     state: AppUiState,
     snackbarHostState: SnackbarHostState,
+    tabOrder: List<DashboardTab>,
     onRefresh: () -> Unit,
     onManageAccount: () -> Unit,
     onShowSettings: () -> Unit,
     onShowTokenHelp: () -> Unit,
-    onOpenTask: (AgentTask) -> Unit,
-    onCloseTask: () -> Unit,
-    onRefreshConversation: () -> Unit,
-    onSendFollowup: (String) -> Unit,
-    onCreateTask: () -> Unit,
 ) {
+    val uiScope = rememberCoroutineScope()
     val account = remember(state.accounts, state.selectedAccountId) {
         state.accounts.firstOrNull { it.id == state.selectedAccountId }
             ?: state.accounts.firstOrNull()
@@ -257,18 +255,31 @@ internal fun DashboardScreen(
                         loading = true,
                     )
                 } else {
+                    val tabs = remember(tabOrder) { DashboardTab.resolveOrder(tabOrder.map { it.id }) }
                     val pagerState = rememberPagerState(
-                        pageCount = { DashboardTab.entries.size },
+                        pageCount = { tabs.size },
                     )
                     val pagerScope = rememberCoroutineScope()
-                    val selectedTab = pagerState.currentPage
+                    var selectedTab by remember { mutableStateOf(tabs.first()) }
+                    LaunchedEffect(pagerState.settledPage, tabs) {
+                        tabs.getOrNull(pagerState.settledPage)?.let { selectedTab = it }
+                    }
+                    LaunchedEffect(tabs) {
+                        val index = tabs.indexOf(selectedTab).takeIf { it >= 0 } ?: 0
+                        if (pagerState.currentPage != index) {
+                            pagerState.scrollToPage(index)
+                        }
+                    }
+                    val selectedIndex = tabs.indexOf(selectedTab).takeIf { it >= 0 } ?: 0
                     val refreshing = state.refreshing || state.refreshingStatus || state.refreshingTasks
 
                     Column(modifier = Modifier.fillMaxSize()) {
                         DashboardTabPills(
-                            selectedIndex = selectedTab,
+                            tabs = tabs,
+                            selectedIndex = selectedIndex,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
                             onSelect = { index ->
+                                tabs.getOrNull(index)?.let { selectedTab = it }
                                 pagerScope.launch { pagerState.animateScrollToPage(index) }
                             },
                         )
@@ -284,7 +295,7 @@ internal fun DashboardScreen(
                                 modifier = Modifier.fillMaxSize(),
                                 beyondViewportPageCount = 1,
                             ) { page ->
-                                when (DashboardTab.entries[page]) {
+                                when (tabs.getOrNull(page) ?: DashboardTab.Overview) {
                                     DashboardTab.Overview -> UsageDependentTab(
                                         state = state,
                                         onRefresh = onRefresh,
@@ -314,8 +325,11 @@ internal fun DashboardScreen(
                                             refreshing = state.refreshingTasks,
                                             error = state.tasksError,
                                             onRetry = onRefresh,
-                                            onOpenTask = onOpenTask,
-                                            onCreateTask = onCreateTask,
+                                            onOpenFailed = { message ->
+                                                uiScope.launch {
+                                                    snackbarHostState.showSnackbar(message)
+                                                }
+                                            },
                                         )
                                     }
                                     DashboardTab.Status -> StatusTab(
@@ -333,24 +347,11 @@ internal fun DashboardScreen(
             }
         }
     }
-
-    state.selectedTask?.let { task ->
-        TaskDetailSheet(
-            task = task,
-            conversation = state.conversation?.takeIf { it.task.id == task.id },
-            loading = state.loadingConversation,
-            refreshing = state.refreshingConversation,
-            sending = state.sendingFollowup,
-            error = state.conversationError,
-            onDismiss = onCloseTask,
-            onRefresh = onRefreshConversation,
-            onSend = onSendFollowup,
-        )
-    }
 }
 
 @Composable
 private fun DashboardTabPills(
+    tabs: List<DashboardTab>,
     selectedIndex: Int,
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
@@ -366,7 +367,7 @@ private fun DashboardTabPills(
             modifier = Modifier.padding(4.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            DashboardTab.entries.forEachIndexed { index, tab ->
+            tabs.forEachIndexed { index, tab ->
                 val active = index == selectedIndex
                 val container by animateColorAsState(
                     targetValue = if (active) {

@@ -18,6 +18,7 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.lamuier.cursorT.data.DashboardPreferences
 import com.lamuier.cursorT.data.NotificationPreferences
 import com.lamuier.cursorT.data.PercentDisplayMode
 import com.lamuier.cursorT.data.ThemePreferences
@@ -43,10 +44,12 @@ class MainActivity : FragmentActivity() {
         )[CursorTViewModel::class.java]
         val themePreferences = ThemePreferences.get(applicationContext)
         val notificationPreferences = NotificationPreferences.get(applicationContext)
+        val dashboardPreferences = DashboardPreferences.get(applicationContext)
 
         setContent {
             val themeSettings by themePreferences.settings.collectAsStateWithLifecycle()
             val notificationSettings by notificationPreferences.settings.collectAsStateWithLifecycle()
+            val tabOrder by dashboardPreferences.order.collectAsStateWithLifecycle()
             CursorTTheme(settings = themeSettings) {
                 CursorTApp(
                     viewModel = viewModel,
@@ -87,6 +90,9 @@ class MainActivity : FragmentActivity() {
                             .refreshFromCache()
                     }
                 },
+                tabOrder = tabOrder,
+                onTabOrderChange = dashboardPreferences::setOrder,
+                onTabOrderReset = dashboardPreferences::resetOrder,
             )
             }
         }

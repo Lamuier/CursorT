@@ -40,9 +40,14 @@
     <string name="shortcut_settings_short_label">设置</string>
     <string name="shortcut_settings_long_label">应用设置</string>
     <string name="settings_title">设置</string>
-    <string name="settings_description">外观、通知与账号统一管理</string>
+    <string name="settings_description">外观、页签、通知与账号统一管理</string>
     <string name="appearance_title">外观</string>
     <string name="appearance_description">深浅色与主题色板会同步到桌面小组件</string>
+    <string name="tab_order_section_title">页签顺序</string>
+    <string name="tab_order_section_description">调整主界面功能页签的左右顺序，当前页签会跟着一起移动</string>
+    <string name="tab_order_move_up">上移%1$s</string>
+    <string name="tab_order_move_down">下移%1$s</string>
+    <string name="tab_order_reset">恢复默认顺序</string>
     <string name="accounts_section_title">账号</string>
     <string name="accounts_manage_label">管理 Cursor 账号</string>
     <string name="accounts_manage_description">添加、编辑或删除本机保存的 Cursor 账号</string>

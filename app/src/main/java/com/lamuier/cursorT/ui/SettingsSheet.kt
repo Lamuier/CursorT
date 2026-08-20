@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -21,8 +22,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.DarkMode
+import androidx.compose.material.icons.outlined.KeyboardArrowDown
+import androidx.compose.material.icons.outlined.KeyboardArrowUp
 import androidx.compose.material.icons.outlined.LightMode
-import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -32,6 +34,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.res.stringResource
@@ -49,6 +52,7 @@ import com.lamuier.cursorT.R
 import com.lamuier.cursorT.data.NotificationSettings
 import com.lamuier.cursorT.data.PercentDisplayMode
 import com.lamuier.cursorT.data.ThemeSettings
+import com.lamuier.cursorT.model.DashboardTab
 import com.lamuier.cursorT.ui.theme.ColorPalette
 import com.lamuier.cursorT.ui.theme.ThemeMode
 
@@ -64,6 +68,9 @@ internal fun SettingsSheet(
     onThresholdRemindersToggle: (Boolean) -> Unit,
     percentDisplayMode: PercentDisplayMode,
     onPercentDisplayModeChange: (PercentDisplayMode) -> Unit,
+    tabOrder: List<DashboardTab>,
+    onTabOrderChange: (List<DashboardTab>) -> Unit,
+    onTabOrderReset: () -> Unit,
     onManageAccount: () -> Unit,
 ) {
     val systemPaletteAvailable = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
@@ -159,6 +166,32 @@ internal fun SettingsSheet(
 
             HorizontalDivider()
 
+            // ---- 页签顺序 ----
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                SectionTitle(stringResource(R.string.tab_order_section_title))
+                Text(
+                    stringResource(R.string.tab_order_section_description),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                TabOrderEditor(
+                    order = tabOrder,
+                    onMove = { index, delta ->
+                        onTabOrderChange(DashboardTab.move(tabOrder, index, delta))
+                    },
+                )
+                val isDefault = tabOrder == DashboardTab.DEFAULT_ORDER
+                TextButton(
+                    onClick = onTabOrderReset,
+                    enabled = !isDefault,
+                    modifier = Modifier.align(Alignment.End),
+                ) {
+                    Text(stringResource(R.string.tab_order_reset))
+                }
+            }
+
+            HorizontalDivider()
+
             // ---- 通知 ----
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 SectionTitle(stringResource(R.string.notification_section_title))
@@ -198,6 +231,71 @@ internal fun SettingsSheet(
                     icon = Icons.Outlined.AccountCircle,
                     onClick = onManageAccount,
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TabOrderEditor(
+    order: List<DashboardTab>,
+    onMove: (index: Int, delta: Int) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        order.forEachIndexed { index, tab ->
+            TabOrderRow(
+                position = index + 1,
+                tab = tab,
+                canMoveUp = index > 0,
+                canMoveDown = index < order.lastIndex,
+                onMoveUp = { onMove(index, -1) },
+                onMoveDown = { onMove(index, 1) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun TabOrderRow(
+    position: Int,
+    tab: DashboardTab,
+    canMoveUp: Boolean,
+    canMoveDown: Boolean,
+    onMoveUp: () -> Unit,
+    onMoveDown: () -> Unit,
+) {
+    val moveUpDescription = stringResource(R.string.tab_order_move_up, tab.label)
+    val moveDownDescription = stringResource(R.string.tab_order_move_down, tab.label)
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 14.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                "$position",
+                modifier = Modifier.width(20.dp),
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Text(
+                tab.label,
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+            IconButton(onClick = onMoveUp, enabled = canMoveUp) {
+                Icon(Icons.Outlined.KeyboardArrowUp, contentDescription = moveUpDescription)
+            }
+            IconButton(onClick = onMoveDown, enabled = canMoveDown) {
+                Icon(Icons.Outlined.KeyboardArrowDown, contentDescription = moveDownDescription)
             }
         }
     }

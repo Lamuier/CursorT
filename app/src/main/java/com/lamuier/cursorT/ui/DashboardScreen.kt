@@ -120,6 +120,8 @@ import com.lamuier.cursorT.model.AppUiState
 import com.lamuier.cursorT.model.CursorAccount
 import com.lamuier.cursorT.model.CursorTOverview
 import com.lamuier.cursorT.model.DashboardTab
+import com.lamuier.cursorT.model.ModelTokenUsage
+import com.lamuier.cursorT.model.TokenUsageBreakdown
 import com.lamuier.cursorT.ui.theme.LocalPulseChartColors
 import com.lamuier.cursorT.util.BillingProgress
 import com.lamuier.cursorT.util.UsageCalculations
@@ -962,6 +964,185 @@ private fun UsageTab(usage: CursorTOverview) {
                 }
             }
         }
+
+        TokenUsageSection(usage = usage, compact = compact)
+    }
+}
+
+@Composable
+private fun TokenUsageSection(usage: CursorTOverview, compact: Boolean) {
+    val tokenUsage = usage.tokenUsage
+    SectionHeading(
+        icon = Icons.AutoMirrored.Outlined.TrendingUp,
+        title = "Token 用量",
+        supporting = "本计费周期按模型汇总的输入 / 输出 Token",
+    )
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        shadowElevation = 1.dp,
+    ) {
+        Column(
+            modifier = Modifier.padding(if (compact) 14.dp else 18.dp),
+            verticalArrangement = Arrangement.spacedBy(if (compact) 10.dp else 12.dp),
+        ) {
+            when {
+                tokenUsage == null -> {
+                    Text(
+                        text = "Token 明细暂时不可用，花费与用量百分比仍可正常查看。",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                tokenUsage.models.isEmpty() &&
+                    tokenUsage.totalInputTokens == 0L &&
+                    tokenUsage.totalOutputTokens == 0L -> {
+                    Text(
+                        text = "本周期暂无按模型 Token 记录。",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                else -> {
+                    TokenTotalsGrid(tokenUsage = tokenUsage, compact = compact)
+                    if (tokenUsage.models.isNotEmpty()) {
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                        tokenUsage.models.forEachIndexed { index, model ->
+                            ModelTokenRow(model = model, compact = compact)
+                            if (index < tokenUsage.models.lastIndex) {
+                                HorizontalDivider(
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TokenTotalsGrid(
+    tokenUsage: TokenUsageBreakdown,
+    compact: Boolean,
+) {
+    val cached = tokenUsage.totalCacheWriteTokens + tokenUsage.totalCacheReadTokens
+    Column(verticalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 10.dp)) {
+        Row(modifier = Modifier.fillMaxWidth()) {
+            TokenStat(
+                label = "输入",
+                value = UsageCalculations.formatTokens(tokenUsage.totalInputTokens),
+                detail = "${tokenUsage.totalInputTokens} tokens",
+                modifier = Modifier.weight(1f),
+            )
+            TokenStat(
+                label = "输出",
+                value = UsageCalculations.formatTokens(tokenUsage.totalOutputTokens),
+                detail = "${tokenUsage.totalOutputTokens} tokens",
+                modifier = Modifier.weight(1f),
+            )
+        }
+        Row(modifier = Modifier.fillMaxWidth()) {
+            TokenStat(
+                label = "缓存",
+                value = UsageCalculations.formatTokens(cached),
+                detail = "写 ${tokenUsage.totalCacheWriteTokens} · 读 ${tokenUsage.totalCacheReadTokens}",
+                modifier = Modifier.weight(1f),
+            )
+            TokenStat(
+                label = "费用",
+                value = money(tokenUsage.totalCostDollars),
+                detail = "按模型合计",
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun TokenStat(
+    label: String,
+    value: String,
+    detail: String,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .semantics(mergeDescendants = true) {
+                contentDescription = "$label $value，$detail"
+            }
+            .padding(horizontal = 2.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        AnimatedValueText(
+            value = value,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+    }
+}
+
+@Composable
+private fun ModelTokenRow(
+    model: ModelTokenUsage,
+    compact: Boolean,
+) {
+    val cached = model.cacheWriteTokens + model.cacheReadTokens
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics(mergeDescendants = true) {
+                contentDescription = buildString {
+                    append(model.modelIntent)
+                    append("，输入 ${model.inputTokens}，输出 ${model.outputTokens}")
+                    if (cached > 0L) append("，缓存 $cached")
+                    append("，费用 ${money(model.costDollars)}")
+                }
+            },
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = model.modelIntent,
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = money(model.costDollars),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+        Text(
+            text = buildString {
+                append("入 ${UsageCalculations.formatTokens(model.inputTokens)}")
+                append(" · 出 ${UsageCalculations.formatTokens(model.outputTokens)}")
+                if (cached > 0L) {
+                    append(" · 缓存 ${UsageCalculations.formatTokens(cached)}")
+                }
+            },
+            style = if (compact) {
+                MaterialTheme.typography.bodySmall
+            } else {
+                MaterialTheme.typography.bodyMedium
+            },
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

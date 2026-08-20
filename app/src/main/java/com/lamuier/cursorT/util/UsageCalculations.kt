@@ -123,6 +123,18 @@ object UsageCalculations {
         }
     }
 
+    /** Token 数量紧凑展示：≥1M 用 M，≥1K 用 K，否则原样。 */
+    fun formatTokens(value: Long): String {
+        val safe = value.coerceAtLeast(0L)
+        return when {
+            safe >= 1_000_000_000L -> String.format(java.util.Locale.US, "%.2fB", safe / 1_000_000_000.0)
+            safe >= 1_000_000L -> String.format(java.util.Locale.US, "%.2fM", safe / 1_000_000.0)
+            safe >= 10_000L -> String.format(java.util.Locale.US, "%.1fK", safe / 1_000.0)
+            safe >= 1_000L -> String.format(java.util.Locale.US, "%.2fK", safe / 1_000.0)
+            else -> safe.toString()
+        }
+    }
+
     private fun parseDate(value: String?): Long? {
         if (value.isNullOrBlank()) return null
         // 兼容纯日期（yyyy-MM-dd），按当天零点处理。

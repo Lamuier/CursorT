@@ -122,6 +122,15 @@ class UsageCalculationsTest {
         assertEquals("12 分", UsageCalculations.formatRemaining(12 * minute, compact = true))
     }
 
+    @Test
+    fun formatTokens_usesCompactUnits() {
+        assertEquals("999", UsageCalculations.formatTokens(999))
+        assertEquals("1.50K", UsageCalculations.formatTokens(1500))
+        assertEquals("12.3K", UsageCalculations.formatTokens(12300))
+        assertEquals("1.25M", UsageCalculations.formatTokens(1_250_000))
+        assertEquals("0", UsageCalculations.formatTokens(-5))
+    }
+
     private fun overview(
         format: TotalFormat,
         totalUsed: Double,

@@ -279,6 +279,12 @@ class CursorRepository(context: Context) {
                 api.connectRpc(snapshot.accessToken, "GetUsageLimitStatusAndActiveGrants")
             }
         }
+        val aggregations = async {
+            // Token 明细为增强信息：失败时仍展示花费 / 百分比用量。
+            optionalPayload(authenticationFailureIsFatal = false) {
+                api.connectRpc(snapshot.accessToken, "GetAggregatedUsageEvents")
+            }
+        }
         val stripe = async {
             // Stripe is supplementary. Its cookie contract may fail independently
             // even while the primary Bearer endpoints still accept the token.
@@ -286,6 +292,7 @@ class CursorRepository(context: Context) {
         }
 
         val grantsResult = grants.await()
+        val aggregationsResult = aggregations.await()
         val stripeResult = stripe.await()
         CursorTAssembler.assemble(
             accountId = snapshot.id,
@@ -294,7 +301,8 @@ class CursorRepository(context: Context) {
             planPayload = plan.await(),
             grantsPayload = grantsResult.payload,
             stripePayload = stripeResult.payload,
-            partialData = grantsResult.partial || stripeResult.partial,
+            aggregationsPayload = aggregationsResult.payload,
+            partialData = grantsResult.partial || stripeResult.partial || aggregationsResult.partial,
         )
     }
 

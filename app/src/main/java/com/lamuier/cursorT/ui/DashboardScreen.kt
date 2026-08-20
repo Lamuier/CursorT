@@ -1005,7 +1005,7 @@ private fun TokenUsageSection(usage: CursorTOverview, compact: Boolean) {
                     )
                 }
                 else -> {
-                    TokenTotalsGrid(tokenUsage = tokenUsage, compact = compact)
+                    TokenTotalsGrid(tokenUsage = tokenUsage)
                     if (tokenUsage.models.isNotEmpty()) {
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                         tokenUsage.models.forEachIndexed { index, model ->
@@ -1026,10 +1026,9 @@ private fun TokenUsageSection(usage: CursorTOverview, compact: Boolean) {
 @Composable
 private fun TokenTotalsGrid(
     tokenUsage: TokenUsageBreakdown,
-    compact: Boolean,
 ) {
     val cached = tokenUsage.totalCacheWriteTokens + tokenUsage.totalCacheReadTokens
-    Column(verticalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 10.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(modifier = Modifier.fillMaxWidth()) {
             TokenStat(
                 label = "输入",

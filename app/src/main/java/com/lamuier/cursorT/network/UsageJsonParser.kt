@@ -4,11 +4,14 @@ import com.lamuier.cursorT.model.BillingCycle
 import com.lamuier.cursorT.model.Credits
 import com.lamuier.cursorT.model.CursorAccount
 import com.lamuier.cursorT.model.CursorTOverview
+import com.lamuier.cursorT.model.ModelTokenUsage
 import com.lamuier.cursorT.model.OnDemandUsage
 import com.lamuier.cursorT.model.PlanInfo
 import com.lamuier.cursorT.model.Subscription
+import com.lamuier.cursorT.model.TokenUsageBreakdown
 import com.lamuier.cursorT.model.TotalFormat
 import com.lamuier.cursorT.model.UsageMetrics
+import org.json.JSONArray
 import org.json.JSONObject
 
 object UsageJsonParser {
@@ -75,6 +78,34 @@ object UsageJsonParser {
                     .put("pooled_limit_dollars", it.pooledLimitDollars)
                     .put("pooled_used_dollars", it.pooledUsedDollars)
                     .put("pooled_remaining_dollars", it.pooledRemainingDollars)
+            } ?: JSONObject.NULL,
+        )
+        root.put(
+            "token_usage",
+            usage.tokenUsage?.let { breakdown ->
+                JSONObject()
+                    .put("total_input_tokens", breakdown.totalInputTokens)
+                    .put("total_output_tokens", breakdown.totalOutputTokens)
+                    .put("total_cache_write_tokens", breakdown.totalCacheWriteTokens)
+                    .put("total_cache_read_tokens", breakdown.totalCacheReadTokens)
+                    .put("total_cost_dollars", breakdown.totalCostDollars)
+                    .put(
+                        "models",
+                        JSONArray().also { array ->
+                            breakdown.models.forEach { model ->
+                                array.put(
+                                    JSONObject()
+                                        .put("model_intent", model.modelIntent)
+                                        .put("input_tokens", model.inputTokens)
+                                        .put("output_tokens", model.outputTokens)
+                                        .put("cache_write_tokens", model.cacheWriteTokens)
+                                        .put("cache_read_tokens", model.cacheReadTokens)
+                                        .put("cost_dollars", model.costDollars)
+                                        .putNullable("tier", model.tier),
+                                )
+                            }
+                        },
+                    )
             } ?: JSONObject.NULL,
         )
         return root.toString()
@@ -151,11 +182,41 @@ object UsageJsonParser {
                 membershipType = subscription.nullableString("membership_type"),
                 status = subscription.nullableString("status"),
             ),
+            tokenUsage = root.optJSONObject("token_usage")?.let(::parseTokenUsage),
             fetchedAt = root.optString("fetched_at"),
             fromCache = root.optBoolean("from_cache"),
             cacheAgeSeconds = root.optInt("cache_age_seconds"),
             isLocalCache = isLocalCache,
             partialData = root.optBoolean("partial_data"),
+        )
+    }
+
+    private fun parseTokenUsage(json: JSONObject): TokenUsageBreakdown {
+        val modelsJson = json.optJSONArray("models") ?: JSONArray()
+        val models = buildList {
+            for (index in 0 until modelsJson.length()) {
+                val item = modelsJson.optJSONObject(index) ?: continue
+                val intent = item.nullableString("model_intent") ?: continue
+                add(
+                    ModelTokenUsage(
+                        modelIntent = intent,
+                        inputTokens = item.longNumber("input_tokens"),
+                        outputTokens = item.longNumber("output_tokens"),
+                        cacheWriteTokens = item.longNumber("cache_write_tokens"),
+                        cacheReadTokens = item.longNumber("cache_read_tokens"),
+                        costDollars = item.number("cost_dollars"),
+                        tier = item.nullableInt("tier"),
+                    ),
+                )
+            }
+        }
+        return TokenUsageBreakdown(
+            models = models,
+            totalInputTokens = json.longNumber("total_input_tokens"),
+            totalOutputTokens = json.longNumber("total_output_tokens"),
+            totalCacheWriteTokens = json.longNumber("total_cache_write_tokens"),
+            totalCacheReadTokens = json.longNumber("total_cache_read_tokens"),
+            totalCostDollars = json.number("total_cost_dollars"),
         )
     }
 
@@ -173,6 +234,16 @@ object UsageJsonParser {
     }
 
     private fun JSONObject.number(key: String): Double = nullableNumber(key) ?: 0.0
+
+    private fun JSONObject.longNumber(key: String): Long {
+        if (!has(key) || isNull(key)) return 0L
+        return runCatching { getLong(key) }.getOrNull()?.coerceAtLeast(0L) ?: 0L
+    }
+
+    private fun JSONObject.nullableInt(key: String): Int? {
+        if (!has(key) || isNull(key)) return null
+        return runCatching { getInt(key) }.getOrNull()
+    }
 
     private fun JSONObject.nullableNumber(key: String): Double? {
         if (!has(key) || isNull(key)) return null

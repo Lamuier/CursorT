@@ -22,11 +22,35 @@ data class CursorTOverview(
     val credits: Credits,
     val onDemand: OnDemandUsage?,
     val subscription: Subscription,
+    /** 本计费周期按模型汇总的 Token；接口失败或旧缓存缺失时为 null。 */
+    val tokenUsage: TokenUsageBreakdown? = null,
     val fetchedAt: String,
     val fromCache: Boolean,
     val cacheAgeSeconds: Int,
     val isLocalCache: Boolean = false,
     val partialData: Boolean = false,
+)
+
+/** 本周期 Token 汇总（来自 DashboardService/GetAggregatedUsageEvents）。 */
+@Immutable
+data class TokenUsageBreakdown(
+    val models: List<ModelTokenUsage>,
+    val totalInputTokens: Long,
+    val totalOutputTokens: Long,
+    val totalCacheWriteTokens: Long,
+    val totalCacheReadTokens: Long,
+    val totalCostDollars: Double,
+)
+
+@Immutable
+data class ModelTokenUsage(
+    val modelIntent: String,
+    val inputTokens: Long,
+    val outputTokens: Long,
+    val cacheWriteTokens: Long,
+    val cacheReadTokens: Long,
+    val costDollars: Double,
+    val tier: Int?,
 )
 
 @Immutable

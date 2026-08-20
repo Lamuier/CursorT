@@ -3,9 +3,11 @@ package com.lamuier.cursorT.network
 import com.lamuier.cursorT.model.BillingCycle
 import com.lamuier.cursorT.model.Credits
 import com.lamuier.cursorT.model.CursorTOverview
+import com.lamuier.cursorT.model.ModelTokenUsage
 import com.lamuier.cursorT.model.OnDemandUsage
 import com.lamuier.cursorT.model.PlanInfo
 import com.lamuier.cursorT.model.Subscription
+import com.lamuier.cursorT.model.TokenUsageBreakdown
 import com.lamuier.cursorT.model.TotalFormat
 import com.lamuier.cursorT.model.UsageMetrics
 import org.json.JSONArray
@@ -24,6 +26,7 @@ object CursorTAssembler {
         planPayload: JSONObject,
         grantsPayload: JSONObject?,
         stripePayload: JSONObject?,
+        aggregationsPayload: JSONObject?,
         partialData: Boolean,
     ): CursorTOverview {
         val plan = planPayload.optJSONObject("planInfo") ?: JSONObject()
@@ -79,10 +82,66 @@ object CursorTAssembler {
                 membershipType = stripePayload?.optNullableString("membershipType"),
                 status = stripePayload?.optNullableString("subscriptionStatus"),
             ),
+            tokenUsage = aggregationsPayload?.let(::parseTokenUsage),
             fetchedAt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date()),
             fromCache = false,
             cacheAgeSeconds = 0,
             partialData = partialData,
+        )
+    }
+
+    fun parseTokenUsage(root: JSONObject): TokenUsageBreakdown {
+        val aggregations = root.optJSONArray("aggregations") ?: JSONArray()
+        val models = buildList {
+            for (index in 0 until aggregations.length()) {
+                val item = aggregations.optJSONObject(index) ?: continue
+                val modelIntent = item.optNullableString("modelIntent")?.trim().orEmpty()
+                if (modelIntent.isEmpty()) continue
+                val input = item.tokenCount("inputTokens")
+                val output = item.tokenCount("outputTokens")
+                val cacheWrite = item.tokenCount("cacheWriteTokens")
+                val cacheRead = item.tokenCount("cacheReadTokens")
+                val costCents = item.optNumber("totalCents") ?: 0.0
+                val tier = item.optInt("tier", 0).takeIf { it > 0 }
+                if (input == 0L && output == 0L && cacheWrite == 0L && cacheRead == 0L && costCents <= 0.0) {
+                    continue
+                }
+                add(
+                    ModelTokenUsage(
+                        modelIntent = modelIntent,
+                        inputTokens = input,
+                        outputTokens = output,
+                        cacheWriteTokens = cacheWrite,
+                        cacheReadTokens = cacheRead,
+                        costDollars = centsToDollars(costCents),
+                        tier = tier,
+                    ),
+                )
+            }
+        }.sortedWith(
+            compareByDescending<ModelTokenUsage> { it.costDollars }
+                .thenByDescending { it.inputTokens + it.outputTokens }
+                .thenBy { it.modelIntent.lowercase(Locale.US) },
+        )
+
+        val totalInput = root.tokenCount("totalInputTokens").takeIf { it > 0 }
+            ?: models.sumOf { it.inputTokens }
+        val totalOutput = root.tokenCount("totalOutputTokens").takeIf { it > 0 }
+            ?: models.sumOf { it.outputTokens }
+        val totalCacheWrite = root.tokenCount("totalCacheWriteTokens").takeIf { it > 0 }
+            ?: models.sumOf { it.cacheWriteTokens }
+        val totalCacheRead = root.tokenCount("totalCacheReadTokens").takeIf { it > 0 }
+            ?: models.sumOf { it.cacheReadTokens }
+        val totalCost = root.optNumber("totalCostCents")?.let(::centsToDollars)
+            ?: models.sumOf { it.costDollars }.let(::round2)
+
+        return TokenUsageBreakdown(
+            models = models,
+            totalInputTokens = totalInput,
+            totalOutputTokens = totalOutput,
+            totalCacheWriteTokens = totalCacheWrite,
+            totalCacheReadTokens = totalCacheRead,
+            totalCostDollars = totalCost,
         )
     }
 
@@ -152,5 +211,21 @@ object CursorTAssembler {
     private fun JSONObject.optNullableString(key: String): String? {
         if (!has(key) || isNull(key)) return null
         return optString(key).takeIf { it.isNotBlank() }
+    }
+
+    /** Token 字段可能是数字或带千分位的字符串。 */
+    private fun JSONObject.tokenCount(key: String): Long {
+        if (!has(key) || isNull(key)) return 0L
+        return when (val value = opt(key)) {
+            is Number -> value.toLong().coerceAtLeast(0L)
+            is String -> value
+                .trim()
+                .replace(",", "")
+                .replace("_", "")
+                .toLongOrNull()
+                ?.coerceAtLeast(0L)
+                ?: 0L
+            else -> 0L
+        }
     }
 }

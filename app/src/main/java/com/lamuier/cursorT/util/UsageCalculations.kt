@@ -1,12 +1,14 @@
 package com.lamuier.cursorT.util
 
 import com.lamuier.cursorT.model.CursorTOverview
+import com.lamuier.cursorT.model.TokenUsageBreakdown
 import com.lamuier.cursorT.model.TotalFormat
 import java.time.Duration
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
+import java.util.Locale
 import kotlin.math.ceil
 import kotlin.math.floor
 
@@ -16,6 +18,12 @@ enum class UsageLevel {
     Critical,
     Exhausted,
 }
+
+/** 本周期按用量池拆分的 Token 费用（自有 Cursor 模型 / 第三方模型）。 */
+data class PoolSpend(
+    val ownPoolDollars: Double,
+    val thirdPartyDollars: Double,
+)
 
 data class BillingProgress(
     val totalDays: Int,
@@ -121,6 +129,48 @@ object UsageCalculations {
             }
             else -> if (compact) "$minutes 分" else "$minutes 分钟"
         }
+    }
+
+    /** Token 数量紧凑展示：≥1M 用 M，≥1K 用 K，否则原样。 */
+    fun formatTokens(value: Long): String {
+        val safe = value.coerceAtLeast(0L)
+        return when {
+            safe >= 1_000_000_000L -> String.format(Locale.US, "%.2fB", safe / 1_000_000_000.0)
+            safe >= 1_000_000L -> String.format(Locale.US, "%.2fM", safe / 1_000_000.0)
+            safe >= 10_000L -> String.format(Locale.US, "%.1fK", safe / 1_000.0)
+            safe >= 1_000L -> String.format(Locale.US, "%.2fK", safe / 1_000.0)
+            else -> safe.toString()
+        }
+    }
+
+    /**
+     * 按模型拆分本周期费用：Composer / Grok / Auto 等 Cursor 自有模型计入自有池，
+     * 其余第三方模型计入三方池。Token 明细不可用时返回 null。
+     */
+    fun poolSpend(tokenUsage: TokenUsageBreakdown?): PoolSpend? {
+        if (tokenUsage == null) return null
+        var own = 0.0
+        var thirdParty = 0.0
+        for (model in tokenUsage.models) {
+            val cost = model.costDollars.takeIf { it.isFinite() }?.coerceAtLeast(0.0) ?: 0.0
+            if (isCursorOwnedModel(model.modelIntent)) {
+                own += cost
+            } else {
+                thirdParty += cost
+            }
+        }
+        return PoolSpend(ownPoolDollars = own, thirdPartyDollars = thirdParty)
+    }
+
+    /** Cursor 自有用量池：Composer、Grok 与 Auto；其余按第三方模型计费。 */
+    fun isCursorOwnedModel(modelIntent: String): Boolean {
+        val name = modelIntent.trim().lowercase(Locale.US)
+        if (name.isEmpty()) return false
+        return name == "auto" ||
+            name.startsWith("auto-") ||
+            name.startsWith("composer") ||
+            name.startsWith("grok") ||
+            name.startsWith("cursor")
     }
 
     private fun parseDate(value: String?): Long? {

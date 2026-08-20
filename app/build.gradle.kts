@@ -23,8 +23,8 @@ android {
         applicationId = "com.lamuier.cursorT"
         minSdk = 26
         targetSdk = 37
-        versionCode = 9
-        versionName = "2.1.0"
+        versionCode = 11
+        versionName = "2.2.1"
         ndk {
             abiFilters += setOf("arm64-v8a")
         }

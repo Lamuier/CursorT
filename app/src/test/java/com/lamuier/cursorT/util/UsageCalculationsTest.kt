@@ -3,12 +3,17 @@ package com.lamuier.cursorT.util
 import com.lamuier.cursorT.model.BillingCycle
 import com.lamuier.cursorT.model.Credits
 import com.lamuier.cursorT.model.CursorTOverview
+import com.lamuier.cursorT.model.ModelTokenUsage
 import com.lamuier.cursorT.model.PlanInfo
 import com.lamuier.cursorT.model.Subscription
+import com.lamuier.cursorT.model.TokenUsageBreakdown
 import com.lamuier.cursorT.model.TotalFormat
 import com.lamuier.cursorT.model.UsageMetrics
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -121,6 +126,83 @@ class UsageCalculationsTest {
         assertEquals("4时31分", UsageCalculations.formatRemaining(4 * hour + 31 * minute, compact = true))
         assertEquals("12 分", UsageCalculations.formatRemaining(12 * minute, compact = true))
     }
+
+    @Test
+    fun formatTokens_usesCompactUnits() {
+        assertEquals("999", UsageCalculations.formatTokens(999))
+        assertEquals("1.50K", UsageCalculations.formatTokens(1500))
+        assertEquals("12.3K", UsageCalculations.formatTokens(12300))
+        assertEquals("1.25M", UsageCalculations.formatTokens(1_250_000))
+        assertEquals("0", UsageCalculations.formatTokens(-5))
+    }
+
+    @Test
+    fun isCursorOwnedModel_matchesComposerGrokAndAuto() {
+        assertTrue(UsageCalculations.isCursorOwnedModel("composer-2.5"))
+        assertTrue(UsageCalculations.isCursorOwnedModel("Composer-2.5-Fast"))
+        assertTrue(UsageCalculations.isCursorOwnedModel("grok-4.6"))
+        assertTrue(UsageCalculations.isCursorOwnedModel("Grok 4.5"))
+        assertTrue(UsageCalculations.isCursorOwnedModel("auto"))
+        assertTrue(UsageCalculations.isCursorOwnedModel("auto-cost"))
+        assertTrue(UsageCalculations.isCursorOwnedModel("cursor-small"))
+        assertFalse(UsageCalculations.isCursorOwnedModel("claude-4-sonnet"))
+        assertFalse(UsageCalculations.isCursorOwnedModel("gpt-5"))
+        assertFalse(UsageCalculations.isCursorOwnedModel("gemini-2.5-pro"))
+        assertFalse(UsageCalculations.isCursorOwnedModel(""))
+    }
+
+    @Test
+    fun poolSpend_splitsOwnAndThirdPartyCosts() {
+        val breakdown = TokenUsageBreakdown(
+            models = listOf(
+                model("composer-2.5", 8.5),
+                model("grok-4.5", 1.25),
+                model("claude-4-sonnet", 3.4),
+                model("gpt-5", 0.6),
+            ),
+            totalInputTokens = 0L,
+            totalOutputTokens = 0L,
+            totalCacheWriteTokens = 0L,
+            totalCacheReadTokens = 0L,
+            totalCostDollars = 13.75,
+        )
+        val result = UsageCalculations.poolSpend(breakdown)
+        assertNotNull(result)
+        assertEquals(9.75, result!!.ownPoolDollars, 0.001)
+        assertEquals(4.0, result.thirdPartyDollars, 0.001)
+    }
+
+    @Test
+    fun poolSpend_returnsNullWhenTokenUsageMissing() {
+        assertNull(UsageCalculations.poolSpend(null))
+    }
+
+    @Test
+    fun poolSpend_returnsZerosWhenModelsEmpty() {
+        val result = UsageCalculations.poolSpend(
+            TokenUsageBreakdown(
+                models = emptyList(),
+                totalInputTokens = 0L,
+                totalOutputTokens = 0L,
+                totalCacheWriteTokens = 0L,
+                totalCacheReadTokens = 0L,
+                totalCostDollars = 0.0,
+            ),
+        )
+        assertNotNull(result)
+        assertEquals(0.0, result!!.ownPoolDollars, 0.001)
+        assertEquals(0.0, result.thirdPartyDollars, 0.001)
+    }
+
+    private fun model(intent: String, cost: Double) = ModelTokenUsage(
+        modelIntent = intent,
+        inputTokens = 0L,
+        outputTokens = 0L,
+        cacheWriteTokens = 0L,
+        cacheReadTokens = 0L,
+        costDollars = cost,
+        tier = null,
+    )
 
     private fun overview(
         format: TotalFormat,

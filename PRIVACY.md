@@ -23,9 +23,9 @@ Cursor助手 是一款本地优先的应用：不内置任何第三方统计、�
 
 ## 数据去向
 
-- 网络请求仅指向 Cursor 官方域名：`api2.cursor.sh`、`cursor.com`、`status.cursor.com`
-- Access Token 只用于用量与任务相关接口（`api2.cursor.sh`、`cursor.com`），不会随状态页请求发送
-- 发送跟进消息时，消息正文会发往 Cursor 官方任务接口；对话内容不会上传到任何第三方
+- 网络请求仅指向 Cursor 官方域名：`api2.cursor.sh`、`api.cursor.com`、`cursor.com`、`status.cursor.com`
+- Access Token 只用于用量与任务相关接口（`api2.cursor.sh`、`api.cursor.com`、`cursor.com`），不会随状态页请求发送
+- 发送跟进或新建任务时，消息正文与仓库地址会发往 Cursor 官方任务接口；对话内容不会上传到任何第三方
 - 全部连接强制 HTTPS，禁止明文传输，拒绝重定向
 - 不向任何第三方服务、开发者个人服务器发送数据
 

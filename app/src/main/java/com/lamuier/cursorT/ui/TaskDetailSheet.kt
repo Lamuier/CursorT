@@ -16,7 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -194,7 +194,7 @@ internal fun TaskDetailSheet(
                                 EmptyConversationHint(task, uriHandler)
                             }
                         } else {
-                            items(messages, key = { it.id }) { message ->
+                            itemsIndexed(messages, key = { index, message -> "${index}-${message.id}" }) { _, message ->
                                 ConversationBubble(message)
                             }
                         }

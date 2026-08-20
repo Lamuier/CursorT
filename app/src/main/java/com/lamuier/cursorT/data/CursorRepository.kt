@@ -3,6 +3,7 @@ package com.lamuier.cursorT.data
 import android.content.Context
 import com.lamuier.cursorT.model.AgentTask
 import com.lamuier.cursorT.model.AgentTaskConversation
+import com.lamuier.cursorT.model.AgentTaskStatus
 import com.lamuier.cursorT.model.CursorAccount
 import com.lamuier.cursorT.model.CursorTasks
 import com.lamuier.cursorT.model.CursorTOverview
@@ -10,6 +11,7 @@ import com.lamuier.cursorT.network.ApiException
 import com.lamuier.cursorT.network.CursorApiClient
 import com.lamuier.cursorT.network.CursorTAssembler
 import com.lamuier.cursorT.network.TaskConversationJsonParser
+import com.lamuier.cursorT.network.TaskCreatePayload
 import com.lamuier.cursorT.network.TasksJsonParser
 import com.lamuier.cursorT.network.UsageJsonParser
 import com.lamuier.cursorT.util.AgentTaskPresentation
@@ -329,6 +331,88 @@ class CursorRepository(context: Context) {
         invalidateConversation(accountId, taskId)
     }
 
+    suspend fun createTask(
+        accountId: Int,
+        prompt: String,
+        repository: String,
+        ref: String?,
+        autoCreatePr: Boolean,
+    ): AgentTask {
+        val trimmedPrompt = prompt.trim()
+        require(trimmedPrompt.isNotEmpty()) { "请填写任务说明" }
+        require(trimmedPrompt.length <= MAX_FOLLOWUP_CHARS) { "任务说明过长，请缩短后再发送" }
+        val httpsRepo = AgentTaskPresentation.normalizeRepositoryUrl(repository)
+            ?: throw ApiException(400, "仓库地址无效，请使用 github.com 或 gitlab.com 的 https 地址")
+        val snapshotRepo = AgentTaskPresentation.snapshotRepository(httpsRepo)
+            ?: throw ApiException(400, "仓库地址无效")
+        val branch = ref?.trim()?.takeIf { it.isNotBlank() }
+        if (branch != null && !SAFE_GIT_REF.matches(branch)) {
+            throw ApiException(400, "分支名包含不支持的字符")
+        }
+        val snapshot = accountStore.snapshot(accountId)
+        if (TokenUtils.isExpired(snapshot.accessToken) || snapshot.tokenInvalid) {
+            markCredentialInvalid(snapshot)
+            throw ApiException(401, "Cursor Access Token 已过期或无效，请更新 Token")
+        }
+        val cached = cachedTasks(accountId)
+        val modelName = cached?.tasks
+            ?.firstOrNull { it.modelName?.isNotBlank() == true }
+            ?.modelName
+        val created = try {
+            val payload = api.createAgentTask(
+                accessToken = snapshot.accessToken,
+                prompt = trimmedPrompt,
+                snapshotRepo = snapshotRepo,
+                httpsRepo = httpsRepo,
+                ref = branch,
+                modelName = modelName,
+                autoCreatePr = autoCreatePr,
+            )
+            ensureCurrent(snapshot)
+            if (!accountStore.markTokenInvalid(accountId, snapshot.revision, invalid = false)) {
+                throw AccountRevisionChangedException()
+            }
+            val bcId = TaskCreatePayload.createdBcId(
+                payload,
+                payload.optString("requestedBcId"),
+            )
+            if (!AgentTaskPresentation.isSafeBcId(bcId)) {
+                throw ApiException(500, "创建成功但未返回有效的任务标识")
+            }
+            TaskConversationJsonParser.parseTask(payload, expectedId = bcId)
+                ?: AgentTask(
+                    id = bcId,
+                    name = trimmedPrompt.lineSequence().first().trim().take(80).ifBlank { "新任务" },
+                    status = AgentTaskStatus.Creating,
+                    repoUrl = snapshotRepo,
+                    branchName = branch,
+                    prUrl = null,
+                    prStatus = null,
+                    linesAdded = 0,
+                    linesRemoved = 0,
+                    filesChanged = 0,
+                    modelName = modelName,
+                    maxMode = false,
+                    createdAtMs = System.currentTimeMillis(),
+                    updatedAtMs = System.currentTimeMillis(),
+                    lastActivityMs = System.currentTimeMillis(),
+                )
+        } catch (error: ApiException) {
+            if (error.statusCode == 401 || error.statusCode == 403) {
+                if (accountStore.isCurrent(accountId, snapshot.revision)) {
+                    if (!accountStore.markTokenInvalid(accountId, snapshot.revision, invalid = true)) {
+                        throw AccountRevisionChangedException()
+                    }
+                } else {
+                    throw AccountRevisionChangedException()
+                }
+            }
+            throw error
+        }
+        invalidateTasks(accountId)
+        return created
+    }
+
     private suspend fun singleFlight(
         key: NetworkRequestKey,
         block: suspend () -> CursorTOverview,
@@ -403,9 +487,12 @@ class CursorRepository(context: Context) {
     private suspend fun extraConversationPayloads(accessToken: String, bcId: String): List<JSONObject> =
         coroutineScope {
             val jobs = listOf(
+                async { optionalConversation { api.agentTaskCloudConversationOrNull(accessToken, bcId) } },
                 async { optionalConversation { api.agentTaskConversationOrNull(accessToken, bcId) } },
                 async { optionalConversation { api.agentTaskComposerConversationOrNull(accessToken, bcId) } },
+                async { optionalConversation { api.agentTaskGetComposerOrNull(accessToken, bcId) } },
                 async { optionalConversation { api.agentTaskConversationRpcOrNull(accessToken, bcId) } },
+                async { optionalConversation { api.agentTaskComposerRpcOrNull(accessToken, bcId) } },
                 async { optionalConversation { api.agentTaskDetailRpcOrNull(accessToken, bcId) } },
             )
             jobs.mapNotNull { it.await() }
@@ -574,6 +661,7 @@ class CursorRepository(context: Context) {
         val conversationMemoryCache = mutableMapOf<ConversationKey, ConversationMemoryEntry>()
         val conversationMemoryLock = Any()
         const val MAX_FOLLOWUP_CHARS = 8_000
+        val SAFE_GIT_REF = Regex("^[A-Za-z0-9._/-]{1,200}$")
         val requestScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         val activeUsageRequests = ConcurrentHashMap<
             NetworkRequestKey,

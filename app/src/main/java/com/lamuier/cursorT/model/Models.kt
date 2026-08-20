@@ -203,6 +203,8 @@ data class AppUiState(
     val refreshingConversation: Boolean = false,
     val sendingFollowup: Boolean = false,
     val conversationError: String? = null,
+    val creatingTask: Boolean = false,
+    val createTaskError: String? = null,
 )
 
 /** Cursor 官方状态页（Statuspage）的整体指示灯。 */

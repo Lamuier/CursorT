@@ -1,5 +1,6 @@
 package com.lamuier.cursorT.util
 
+import com.lamuier.cursorT.model.AgentTask
 import com.lamuier.cursorT.model.AgentTaskPrStatus
 import com.lamuier.cursorT.model.AgentTaskStatus
 import java.net.URI
@@ -67,6 +68,49 @@ object AgentTaskPresentation {
         return "https://cursor.com/agents?id=$id"
     }
 
+    /**
+     * 将用户输入的仓库地址规范为 `https://github.com/owner/repo` 或 GitLab 等价形式。
+     * 仅允许 github.com / gitlab.com，禁止 query / fragment / userinfo。
+     */
+    fun normalizeRepositoryUrl(raw: String): String? {
+        val trimmed = raw.trim().removeSuffix(".git")
+        if (trimmed.isBlank() || trimmed.length > 400) return null
+        val withScheme = when {
+            trimmed.startsWith("https://", ignoreCase = true) -> trimmed
+            trimmed.startsWith("http://", ignoreCase = true) -> return null
+            trimmed.contains("://") -> return null
+            else -> "https://$trimmed"
+        }
+        val uri = runCatching { URI(withScheme) }.getOrNull() ?: return null
+        if (!uri.scheme.equals("https", ignoreCase = true)) return null
+        if (uri.userInfo != null || !uri.rawQuery.isNullOrBlank() || !uri.rawFragment.isNullOrBlank()) {
+            return null
+        }
+        val host = uri.host?.lowercase(Locale.US) ?: return null
+        val canonicalHost = when (host) {
+            "github.com", "www.github.com" -> "github.com"
+            "gitlab.com", "www.gitlab.com" -> "gitlab.com"
+            else -> return null
+        }
+        val segments = uri.path.orEmpty().trim('/').split('/').filter { it.isNotBlank() }
+        when (canonicalHost) {
+            "github.com" -> if (segments.size != 2) return null
+            "gitlab.com" -> if (segments.size !in 2..4) return null
+            else -> return null
+        }
+        if (segments.any { !REPO_SEGMENT.matches(it) }) return null
+        return "https://$canonicalHost/${segments.joinToString("/")}"
+    }
+
+    /** Cloud Agents 网页快照接口使用的无 scheme 仓库标识，如 `github.com/owner/repo`。 */
+    fun snapshotRepository(httpsUrl: String): String? {
+        val normalized = normalizeRepositoryUrl(httpsUrl) ?: return null
+        return normalized.removePrefix("https://")
+    }
+
+    fun suggestedRepositories(tasks: List<AgentTask>): List<String> =
+        tasks.mapNotNull { it.repoUrl?.let(::normalizeRepositoryUrl) }.distinct()
+
     fun canSendFollowup(status: AgentTaskStatus): Boolean = status != AgentTaskStatus.Expired
 
     fun sendDisabledReason(status: AgentTaskStatus): String? = when (status) {
@@ -93,6 +137,7 @@ object AgentTaskPresentation {
     private const val HOUR_MS = 3_600_000L
     private const val DAY_MS = 86_400_000L
     private val BC_ID = Regex("^bc[-_][A-Za-z0-9_-]{1,80}$")
+    private val REPO_SEGMENT = Regex("^[A-Za-z0-9._~-]+$")
     private val DATE_TIME: DateTimeFormatter =
         DateTimeFormatter.ofPattern("MM-dd HH:mm", Locale.US)
 }

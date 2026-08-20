@@ -170,6 +170,7 @@ internal fun DashboardScreen(
     onCloseTask: () -> Unit,
     onRefreshConversation: () -> Unit,
     onSendFollowup: (String) -> Unit,
+    onCreateTask: () -> Unit,
 ) {
     val account = remember(state.accounts, state.selectedAccountId) {
         state.accounts.firstOrNull { it.id == state.selectedAccountId }
@@ -314,6 +315,7 @@ internal fun DashboardScreen(
                                             error = state.tasksError,
                                             onRetry = onRefresh,
                                             onOpenTask = onOpenTask,
+                                            onCreateTask = onCreateTask,
                                         )
                                     }
                                     DashboardTab.Status -> StatusTab(
@@ -1086,9 +1088,15 @@ internal fun AdaptiveTabContent(content: @Composable ColumnScope.(compact: Boole
 }
 
 @Composable
-internal fun SectionHeading(icon: ImageVector, title: String, supporting: String? = null) {
+internal fun SectionHeading(
+    icon: ImageVector,
+    title: String,
+    supporting: String? = null,
+    modifier: Modifier = Modifier,
+    trailing: @Composable (() -> Unit)? = null,
+) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -1124,6 +1132,7 @@ internal fun SectionHeading(icon: ImageVector, title: String, supporting: String
                 )
             }
         }
+        trailing?.invoke()
     }
 }
 

@@ -62,13 +62,17 @@ Debug 默认先跑单元测试与 Lint，再产出 `app\build\outputs\apk\debug\
 ```text
 Android App（本机）
   ├─ Bearer Token  ──▶  https://api2.cursor.sh/...DashboardService/*
-  │                      https://api2.cursor.sh/...BackgroundComposerService/*（对话 / 跟进回退）
+  │                      https://api2.cursor.sh/...BackgroundComposerService/*（对话 / 跟进 / 创建回退）
   ├─ Cursor 会话    ──▶  https://cursor.com/api/auth/stripe
+  │                      https://cursor.com/api/auth/startBackgroundComposerFromSnapshot（新建任务）
   │                      https://cursor.com/api/background-composer/list（云端任务列表）
   │                      https://cursor.com/api/background-composer/get-detailed-composer（任务详情）
   │                      https://cursor.com/api/background-composer/get-conversation（对话，若可用）
   │                      https://cursor.com/api/background-composer/get-composer-conversation（对话，若可用）
   │                      https://cursor.com/api/background-composer/add-followup（发送跟进，若可用）
+  ├─ Cloud Agents API ──▶ https://api.cursor.com/v0/agents/{id}/conversation（完整对话）
+  │                      https://api.cursor.com/v0/agents（新建，若网页接口不可用）
+  │                      https://api.cursor.com/v0/agents/{id}/followup（跟进回退）
   └─ 公开状态（无 Token）──▶  https://status.cursor.com/api/v2/summary.json
                               https://status.cursor.com/api/v2/incidents.json
 ```

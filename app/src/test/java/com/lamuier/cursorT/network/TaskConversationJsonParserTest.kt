@@ -204,6 +204,103 @@ class TaskConversationJsonParserTest {
         assertEquals(AgentTaskMessageRole.User, messages.single().role)
     }
 
+    @Test
+    fun parse_scopesMessagesToMatchingComposer() {
+        val payload = JSONObject(
+            """
+            {
+              "composers": [
+                {
+                  "composer": {"bcId": "bc-other", "name": "别人的任务"},
+                  "conversationHistory": [
+                    {"type": "MESSAGE_TYPE_HUMAN", "text": "别人的提问"},
+                    {"type": "MESSAGE_TYPE_AI", "text": "别人的回复"}
+                  ]
+                },
+                {
+                  "composer": {"bcId": "bc-finished-0001", "name": "Cursor可用性状态"},
+                  "conversationHistory": [
+                    {"type": "MESSAGE_TYPE_HUMAN", "text": "只属于当前任务"}
+                  ]
+                }
+              ]
+            }
+            """.trimIndent(),
+        )
+        val messages = TaskConversationJsonParser.parseMessages(payload, taskId = "bc-finished-0001")
+        assertEquals(listOf("只属于当前任务"), messages.map { it.text })
+    }
+
+    @Test
+    fun parsePreferred_mergesOfficialConversationWithSeedHistory() {
+        val primary = JSONObject(
+            """
+            {"conversationHistory":[{"type":"MESSAGE_TYPE_HUMAN","text":"给 README 加上安装说明"}]}
+            """.trimIndent(),
+        )
+        val extra = JSONObject(resource("agent_task_conversation_v0.json"))
+        val conversation = TaskConversationJsonParser.parsePreferred(
+            primary = primary,
+            extras = listOf(extra),
+            fallbackTask = fallback,
+            accountId = 3,
+            fetchedAt = "2026-08-19 12:00:00",
+        )
+        assertEquals("给 README 加上安装说明", conversation.messages.first().text)
+        assertEquals(AgentTaskMessageRole.User, conversation.messages.first().role)
+        assertTrue(conversation.messages.any { it.role == AgentTaskMessageRole.Assistant })
+        assertTrue(conversation.messages.any { it.text.contains("已经写好 README 的安装步骤。") })
+        assertEquals(fallback.name, conversation.task.name)
+    }
+
+    @Test
+    fun parse_plainRichTextAndUniqueIds() {
+        val payload = JSONObject(
+            """
+            {
+              "conversationHistory": [
+                {"id": "same", "type": "MESSAGE_TYPE_HUMAN", "text": "第一句"},
+                {"id": "same", "type": "MESSAGE_TYPE_AI", "richText": "助手用纯文本回复，不是 Lexical。"}
+              ]
+            }
+            """.trimIndent(),
+        )
+        val messages = TaskConversationJsonParser.parseMessages(payload)
+        assertEquals(listOf("第一句", "助手用纯文本回复，不是 Lexical。"), messages.map { it.text })
+        assertEquals(2, messages.map { it.id }.toSet().size)
+    }
+
+    @Test
+    fun parsePreferred_prependsSeedWhenOfficialOmitsFirstUserTurn() {
+        val primary = JSONObject(
+            """
+            {"conversationHistory":[{"type":"MESSAGE_TYPE_HUMAN","text":"初始任务"}]}
+            """.trimIndent(),
+        )
+        val extra = JSONObject(
+            """
+            {
+              "messages": [
+                {"id": "a1", "type": "assistant_message", "text": "先处理初始任务。"},
+                {"id": "u2", "type": "user_message", "text": "继续"},
+                {"id": "a2", "type": "assistant_message", "text": "已继续。"}
+              ]
+            }
+            """.trimIndent(),
+        )
+        val conversation = TaskConversationJsonParser.parsePreferred(
+            primary = primary,
+            extras = listOf(extra),
+            fallbackTask = fallback,
+            accountId = 3,
+            fetchedAt = "2026-08-19 12:00:00",
+        )
+        assertEquals(
+            listOf("初始任务", "先处理初始任务。", "继续", "已继续。"),
+            conversation.messages.map { it.text },
+        )
+    }
+
     private fun resource(name: String): String =
         requireNotNull(javaClass.classLoader?.getResourceAsStream(name)) { "missing $name" }
             .bufferedReader()

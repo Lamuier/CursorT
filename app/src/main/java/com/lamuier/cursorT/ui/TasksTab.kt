@@ -14,10 +14,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
+import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Cached
 import androidx.compose.material.icons.outlined.CloudDone
 import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.SmartToy
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -52,6 +54,7 @@ internal fun TasksTab(
     error: String?,
     onRetry: () -> Unit,
     onOpenTask: (AgentTask) -> Unit,
+    onCreateTask: () -> Unit,
 ) {
     when {
         tasks == null && loading -> DashboardState(
@@ -66,11 +69,14 @@ internal fun TasksTab(
             description = error ?: "请检查网络后重试。",
             primaryActionLabel = "重新加载",
             onPrimaryAction = onRetry,
+            secondaryActionLabel = "新建任务",
+            onSecondaryAction = onCreateTask,
         )
         else -> TasksContent(
             tasks = tasks,
             error = error?.takeIf { !refreshing },
             onOpenTask = onOpenTask,
+            onCreateTask = onCreateTask,
         )
     }
 }
@@ -80,6 +86,7 @@ private fun TasksContent(
     tasks: CursorTasks,
     error: String?,
     onOpenTask: (AgentTask) -> Unit,
+    onCreateTask: () -> Unit,
 ) {
     val uriHandler = LocalUriHandler.current
     val activeCount = tasks.tasks.count {
@@ -93,6 +100,16 @@ private fun TasksContent(
                 "暂无任务记录"
             } else {
                 "共 ${tasks.tasks.size} 项 · $activeCount 项进行中"
+            },
+            trailing = {
+                FilledTonalButton(
+                    onClick = onCreateTask,
+                    modifier = Modifier.semantics { contentDescription = "新建任务" },
+                ) {
+                    Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.size(4.dp))
+                    Text("新建")
+                }
             },
         )
         if (error != null) {
@@ -109,7 +126,7 @@ private fun TasksContent(
                 color = MaterialTheme.colorScheme.surfaceContainerLow,
             ) {
                 Text(
-                    "暂无云端任务。在 Cursor 中启动后台智能体后，这里会显示任务进度。",
+                    "暂无云端任务。点右上角「新建」即可从本机发起后台智能体，或在 Cursor 网页启动后刷新。",
                     modifier = Modifier.padding(if (compact) 14.dp else 18.dp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

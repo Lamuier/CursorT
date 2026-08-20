@@ -4,16 +4,18 @@ import com.lamuier.cursorT.model.AgentTask
 import com.lamuier.cursorT.model.AgentTaskConversation
 import com.lamuier.cursorT.model.AgentTaskMessage
 import com.lamuier.cursorT.model.AgentTaskMessageRole
+import com.lamuier.cursorT.model.AgentTaskStatus
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.Locale
 
 /**
- * 解析云端任务对话。网页版与 Connect RPC 字段不完全稳定，
+ * 解析云端任务对话。网页版、Cloud Agents API 与 Connect RPC 字段不完全稳定，
  * 因此按多种常见形状防御式读取，无法识别的条目直接跳过。
  *
- * 详情接口常常同时带有创建时的短 `conversationHistory` 和完整 `bubbles` /
- * `followupMessages`。必须收集全部候选再挑最完整的一份，不能拿到第一个非空数组就停。
+ * 详情接口常常同时带有创建时的短 `conversationHistory` 和完整 `messages` /
+ * `bubbles` / `followupMessages`。必须收集全部候选再合并，不能拿到第一个非空数组就停。
+ * 列表里可能夹着其它任务，消息只从当前 `bcId` 对应的 composer 读取。
  */
 object TaskConversationJsonParser {
     fun parse(
@@ -23,19 +25,19 @@ object TaskConversationJsonParser {
         fetchedAt: String,
         fromCache: Boolean = false,
     ): AgentTaskConversation {
-        val parsedTask = parseTask(payload)?.takeIf { it.id == fallbackTask.id }
+        val parsedTask = parseTask(payload, expectedId = fallbackTask.id)
         return AgentTaskConversation(
             accountId = accountId,
-            task = parsedTask ?: fallbackTask,
-            messages = parseMessages(payload).take(MAX_MESSAGES),
+            task = mergeTask(parsedTask, fallbackTask),
+            messages = parseMessages(payload, taskId = fallbackTask.id).take(MAX_MESSAGES),
             fetchedAt = fetchedAt,
             fromCache = fromCache,
         )
     }
 
     /**
-     * 详情接口优先提供任务元数据；其它对话接口可能更完整。
-     * 任务字段始终取自 primary，消息取候选中最完整的一份。
+     * 详情接口优先提供任务元数据；其它对话接口（尤其是官方 conversation）可能更完整。
+     * 任务字段始终取自 primary，消息合并各候选后取最完整的一份。
      */
     fun parsePreferred(
         primary: JSONObject,
@@ -64,25 +66,98 @@ object TaskConversationJsonParser {
                 )
             }
         }
-        val best = candidates.maxBy(::score)
-        return parsedPrimary.copy(messages = best.messages)
+        return parsedPrimary.copy(messages = mergeMessageLists(candidates.map { it.messages }))
     }
 
-    fun parseTask(payload: JSONObject): AgentTask? {
-        findComposerObjects(payload).forEach { candidate ->
-            TasksJsonParser.parseComposerItem(candidate)?.let { return it }
+    private fun mergeTask(parsed: AgentTask?, fallback: AgentTask): AgentTask {
+        if (parsed == null || parsed.id != fallback.id) return fallback
+        return fallback.copy(
+            name = parsed.name.takeIf { it.isNotBlank() && it != "未命名任务" } ?: fallback.name,
+            status = parsed.status.takeUnless { it == AgentTaskStatus.Unknown } ?: fallback.status,
+            repoUrl = parsed.repoUrl ?: fallback.repoUrl,
+            branchName = parsed.branchName ?: fallback.branchName,
+            prUrl = parsed.prUrl ?: fallback.prUrl,
+            prStatus = parsed.prStatus ?: fallback.prStatus,
+            linesAdded = parsed.linesAdded.takeIf { it > 0 } ?: fallback.linesAdded,
+            linesRemoved = parsed.linesRemoved.takeIf { it > 0 } ?: fallback.linesRemoved,
+            filesChanged = parsed.filesChanged.takeIf { it > 0 } ?: fallback.filesChanged,
+            modelName = parsed.modelName ?: fallback.modelName,
+            maxMode = parsed.maxMode || fallback.maxMode,
+            createdAtMs = parsed.createdAtMs.takeIf { it > 0L } ?: fallback.createdAtMs,
+            updatedAtMs = parsed.updatedAtMs.takeIf { it > 0L } ?: fallback.updatedAtMs,
+            lastActivityMs = parsed.lastActivityMs ?: fallback.lastActivityMs,
+        )
+    }
+
+    fun parseTask(payload: JSONObject, expectedId: String? = null): AgentTask? {
+        val parsed = findComposerObjects(payload).mapNotNull(TasksJsonParser::parseComposerItem)
+        if (expectedId != null) {
+            parsed.firstOrNull { it.id == expectedId }?.let { return it }
         }
-        return TasksJsonParser.parseComposerItem(payload)
+        return parsed.firstOrNull() ?: TasksJsonParser.parseComposerItem(payload)
     }
 
-    fun parseMessages(payload: JSONObject): List<AgentTaskMessage> {
+    fun parseMessages(payload: JSONObject, taskId: String? = null): List<AgentTaskMessage> {
         val candidates = mutableListOf<List<AgentTaskMessage>>()
-        collectCandidates(payload, depth = 0, into = candidates)
+        val matching = taskId?.let { findMatchingComposer(payload, it) }
+        if (matching != null) {
+            collectCandidates(
+                node = matching,
+                depth = 0,
+                into = candidates,
+                skipComposerSiblings = true,
+            )
+            collectTopLevelArrays(payload, candidates)
+        } else {
+            collectCandidates(
+                node = payload,
+                depth = 0,
+                into = candidates,
+                skipComposerSiblings = false,
+            )
+        }
         val best = candidates.maxByOrNull(::score).orEmpty()
         return mergeConsecutiveAssistants(best).take(MAX_MESSAGES)
     }
 
     internal fun score(conversation: AgentTaskConversation): Int = score(conversation.messages)
+
+    internal fun mergeMessageLists(lists: List<List<AgentTaskMessage>>): List<AgentTaskMessage> {
+        if (lists.isEmpty()) return emptyList()
+        val ranked = lists.filter { it.isNotEmpty() }.sortedByDescending(::score)
+        if (ranked.isEmpty()) return emptyList()
+        val seen = linkedSetOf<String>()
+        val merged = mutableListOf<AgentTaskMessage>()
+        fun take(message: AgentTaskMessage): Boolean {
+            val key = dedupeKey(message)
+            if (key in seen) return false
+            seen += key
+            merged += message
+            return true
+        }
+        ranked.first().forEach { take(it) }
+        if (merged.firstOrNull()?.role != AgentTaskMessageRole.User) {
+            ranked.drop(1).mapNotNull { list ->
+                list.firstOrNull()?.takeIf { it.role == AgentTaskMessageRole.User && dedupeKey(it) !in seen }
+            }.asReversed().forEach { opener ->
+                val key = dedupeKey(opener)
+                seen += key
+                merged.add(0, opener)
+            }
+        }
+        ranked.drop(1).forEach { list ->
+            val isSeedOnly = list.size == 1 && list.first().role == AgentTaskMessageRole.User
+            if (isSeedOnly && merged.any { it.role == AgentTaskMessageRole.User }) return@forEach
+            list.forEach { take(it) }
+        }
+        return if (merged.count { it.createdAtMs != null } >= (merged.size + 1) / 2 &&
+            merged.any { it.createdAtMs != null }
+        ) {
+            merged.sortedBy { it.createdAtMs ?: Long.MAX_VALUE }
+        } else {
+            merged
+        }
+    }
 
     private fun score(messages: List<AgentTaskMessage>): Int {
         if (messages.isEmpty()) return 0
@@ -94,6 +169,9 @@ object TaskConversationJsonParser {
         return value
     }
 
+    private fun dedupeKey(message: AgentTaskMessage): String =
+        "${message.role}:${message.text.trim()}"
+
     private fun findComposerObjects(root: JSONObject): List<JSONObject> = buildList {
         root.optJSONArray("composers")?.let { array ->
             for (index in 0 until array.length()) {
@@ -104,31 +182,75 @@ object TaskConversationJsonParser {
         add(root)
     }
 
+    private fun findMatchingComposer(payload: JSONObject, taskId: String): JSONObject? {
+        payload.optJSONArray("composers")?.let { array ->
+            for (index in 0 until array.length()) {
+                val item = array.optJSONObject(index) ?: continue
+                if (composerId(item) == taskId) return item
+            }
+        }
+        payload.optJSONObject("composer")?.let { nested ->
+            if (composerId(nested) == taskId || composerId(payload) == taskId) return payload
+        }
+        if (composerId(payload) == taskId) return payload
+        return null
+    }
+
+    private fun composerId(item: JSONObject): String {
+        val nested = item.optJSONObject("composer")
+        return nested?.optString("bcId")?.ifBlank { nested.optString("id") }
+            ?.ifBlank { item.optString("bcId") }
+            ?.ifBlank { item.optString("id") }
+            .orEmpty()
+            .ifBlank { item.optString("bcId") }
+            .ifBlank { item.optString("id") }
+    }
+
+    private fun collectTopLevelArrays(
+        payload: JSONObject,
+        into: MutableList<List<AgentTaskMessage>>,
+    ) {
+        MESSAGE_ARRAY_KEYS.forEach { key ->
+            parseMessageArray(payload.optJSONArray(key)).takeIf { it.isNotEmpty() }?.let(into::add)
+        }
+        parseConversationMap(payload)?.takeIf { it.isNotEmpty() }?.let(into::add)
+    }
+
     private fun collectCandidates(
         node: JSONObject,
         depth: Int,
         into: MutableList<List<AgentTaskMessage>>,
+        skipComposerSiblings: Boolean,
     ) {
         if (depth > MAX_DEPTH || into.size >= MAX_CANDIDATES) return
         MESSAGE_ARRAY_KEYS.forEach { key ->
             parseMessageArray(node.optJSONArray(key)).takeIf { it.isNotEmpty() }?.let(into::add)
+            parseEncodedArray(node.opt(key)).takeIf { it.isNotEmpty() }?.let(into::add)
         }
         concatenatedHistory(node)?.let(into::add)
         parseConversationMap(node)?.takeIf { it.isNotEmpty() }?.let(into::add)
+        syntheticComposerMessages(node)?.let(into::add)
 
         val keys = node.keys()
         while (keys.hasNext()) {
             if (into.size >= MAX_CANDIDATES) return
             val key = keys.next()
-            node.optJSONObject(key)?.let { collectCandidates(it, depth + 1, into) }
+            node.optJSONObject(key)?.let { child ->
+                collectCandidates(child, depth + 1, into, skipComposerSiblings)
+            }
             node.optJSONArray(key)?.let { array ->
                 if (key !in MESSAGE_ARRAY_KEYS && key !in SKIP_ARRAY_KEYS) {
                     parseMessageArray(array).takeIf { it.isNotEmpty() }?.let(into::add)
                 }
-                if (key !in SKIP_ARRAY_KEYS || key == "composers") {
+                val walkChildren = when {
+                    key == "composers" -> !skipComposerSiblings
+                    key in SKIP_ARRAY_KEYS -> false
+                    else -> true
+                }
+                if (walkChildren) {
                     for (index in 0 until array.length()) {
                         array.optJSONObject(index)?.let { child ->
-                            collectCandidates(child, depth + 1, into)
+                            collectCandidates(child, depth + 1, into, skipComposerSiblings)
                         }
                     }
                 }
@@ -144,6 +266,39 @@ object TaskConversationJsonParser {
         val followupStart = followups.first()
         if (followupStart.role == seed.role && followupStart.text == seed.text) return null
         return history + followups
+    }
+
+    private fun syntheticComposerMessages(node: JSONObject): List<AgentTaskMessage>? {
+        val prompt = node.optJSONObject("prompt")?.nullableString("text")
+            ?: node.nullableString("promptText")
+            ?: node.nullableString("initialPrompt")
+        val summary = node.nullableString("summary")
+            ?: node.nullableString("resultText")
+            ?: node.nullableString("assistantSummary")
+        if (prompt.isNullOrBlank() && summary.isNullOrBlank()) return null
+        return listOfNotNull(
+            prompt?.let {
+                AgentTaskMessage(
+                    id = "prompt-seed",
+                    role = AgentTaskMessageRole.User,
+                    text = it.trim().take(MAX_MESSAGE_CHARS),
+                )
+            },
+            summary?.let {
+                AgentTaskMessage(
+                    id = "summary-seed",
+                    role = AgentTaskMessageRole.Assistant,
+                    text = it.trim().take(MAX_MESSAGE_CHARS),
+                )
+            },
+        ).takeIf { it.isNotEmpty() }
+    }
+
+    private fun parseEncodedArray(value: Any?): List<AgentTaskMessage> {
+        val raw = value as? String ?: return emptyList()
+        val trimmed = raw.trim()
+        if (!trimmed.startsWith("[")) return emptyList()
+        return parseMessageArray(runCatching { JSONArray(trimmed) }.getOrNull())
     }
 
     private fun parseMessageArray(array: JSONArray?): List<AgentTaskMessage> {
@@ -204,8 +359,8 @@ object TaskConversationJsonParser {
         if (!looksLikeMessage(item)) return null
         val text = extractText(item)?.trim()?.take(MAX_MESSAGE_CHARS) ?: return null
         if (text.isBlank()) return null
-        val id = item.optString("id").ifBlank { item.optString("bubbleId") }
-            .ifBlank { "msg-$index" }
+        val rawId = item.optString("id").ifBlank { item.optString("bubbleId") }
+        val id = if (rawId.isBlank()) "msg-$index" else "$rawId#$index"
         return AgentTaskMessage(
             id = id,
             role = parseRole(item),
@@ -262,15 +417,22 @@ object TaskConversationJsonParser {
         item.nullableString("message")?.let { return it }
         item.nullableString("promptText")?.let { return it }
         item.nullableString("responseText")?.let { return it }
+        item.optJSONObject("prompt")?.nullableString("text")?.let { return it }
         extractFromContent(item.opt("content"))?.let { return it }
         extractFromContent(item.opt("parts"))?.let { return it }
         val rich = item.opt("richText")
         when (rich) {
-            is String -> lexicalPlainText(rich)?.let { return it }
+            is String -> {
+                lexicalPlainText(rich)?.let { return it }
+                htmlOrPlain(rich)?.let { return it }
+            }
             is JSONObject -> lexicalPlainText(rich.toString())?.let { return it }
         }
         item.nullableString("assistantText")?.let { return it }
         item.nullableString("response")?.let { return it }
+        item.nullableString("markdown")?.let { return it }
+        item.nullableString("output")?.let { return it }
+        item.nullableString("finalText")?.let { return it }
         val thinking = item.opt("thinking")
         when (thinking) {
             is String -> thinking.takeIf { it.isNotBlank() }?.let { return it }
@@ -285,13 +447,15 @@ object TaskConversationJsonParser {
         is JSONArray -> {
             val joined = buildString {
                 for (index in 0 until content.length()) {
-                    val part = content.optJSONObject(index) ?: continue
-                    val piece = part.nullableString("text")
-                        ?: part.nullableString("content")
-                        ?: part.nullableString("output_text")
-                        ?: continue
+                    val part = when (val value = content.opt(index)) {
+                        is String -> value
+                        is JSONObject -> value.nullableString("text")
+                            ?: value.nullableString("content")
+                            ?: value.nullableString("output_text")
+                        else -> null
+                    } ?: continue
                     if (isNotEmpty()) append('\n')
-                    append(piece)
+                    append(part)
                 }
             }
             joined.takeIf { it.isNotBlank() }
@@ -304,6 +468,19 @@ object TaskConversationJsonParser {
         val chunks = mutableListOf<String>()
         collectLexicalText(root.optJSONObject("root") ?: root, chunks)
         return chunks.joinToString("").trim().takeIf { it.isNotBlank() }
+    }
+
+    private fun htmlOrPlain(raw: String): String? {
+        val trimmed = raw.trim()
+        if (trimmed.isEmpty()) return null
+        if (trimmed.startsWith("{") || trimmed.startsWith("[")) return null
+        val stripped = HTML_TAG.replace(trimmed, " ")
+            .replace("&nbsp;", " ")
+            .replace("&amp;", "&")
+            .replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .replace("&quot;", "\"")
+        return WHITESPACE.replace(stripped, " ").trim().takeIf { it.isNotBlank() }
     }
 
     private fun collectLexicalText(node: JSONObject, into: MutableList<String>) {
@@ -394,6 +571,8 @@ object TaskConversationJsonParser {
         "ai",
         "bubble",
     )
+    private val HTML_TAG = Regex("<[^>]+>")
+    private val WHITESPACE = Regex("\\s+")
     private const val MAX_DEPTH = 6
     private const val MAX_MESSAGES = 200
     private const val MAX_CANDIDATES = 40

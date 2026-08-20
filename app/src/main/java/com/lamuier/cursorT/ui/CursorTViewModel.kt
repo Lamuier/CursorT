@@ -86,6 +86,8 @@ class CursorTViewModel(
                 refreshingConversation = false,
                 sendingFollowup = false,
                 conversationError = null,
+                creatingTask = false,
+                createTaskError = null,
             )
         }
         refreshSelected(force = false, silent = cached != null)
@@ -304,6 +306,65 @@ class CursorTViewModel(
 
     fun clearConversationError() {
         _state.update { it.copy(conversationError = null) }
+    }
+
+    fun clearCreateTaskError() {
+        _state.update { it.copy(createTaskError = null) }
+    }
+
+    fun createTask(
+        prompt: String,
+        repositoryUrl: String,
+        ref: String?,
+        autoCreatePr: Boolean,
+        onSuccess: () -> Unit = {},
+    ) {
+        val snapshot = _state.value
+        val accountId = snapshot.selectedAccountId ?: return
+        if (snapshot.creatingTask || snapshot.submitting || snapshot.stage != AppStage.Dashboard) return
+        val trimmed = prompt.trim()
+        if (trimmed.isEmpty()) {
+            _state.update { it.copy(createTaskError = "请填写任务说明") }
+            return
+        }
+        if (trimmed.length > MAX_FOLLOWUP_CHARS) {
+            _state.update { it.copy(createTaskError = "任务说明过长，请缩短后再发送") }
+            return
+        }
+        if (AgentTaskPresentation.normalizeRepositoryUrl(repositoryUrl) == null) {
+            _state.update { it.copy(createTaskError = "仓库地址无效，请填写 github.com 或 gitlab.com 地址") }
+            return
+        }
+        _state.update { it.copy(creatingTask = true, createTaskError = null) }
+        viewModelScope.launch {
+            try {
+                val created = withContext(Dispatchers.IO) {
+                    repository.createTask(
+                        accountId = accountId,
+                        prompt = trimmed,
+                        repository = repositoryUrl,
+                        ref = ref,
+                        autoCreatePr = autoCreatePr,
+                    )
+                }
+                if (_state.value.selectedAccountId != accountId) return@launch
+                runCatching(onSuccess)
+                refreshTasks(force = true, silent = true)
+                openTask(created)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                if (_state.value.selectedAccountId == accountId) {
+                    _state.update {
+                        it.copy(createTaskError = messageFor(error, "创建任务失败"))
+                    }
+                }
+            } finally {
+                if (_state.value.selectedAccountId == accountId) {
+                    _state.update { it.copy(creatingTask = false) }
+                }
+            }
+        }
     }
 
     private suspend fun loadConversation(accountId: Int, task: AgentTask, force: Boolean) {
@@ -636,6 +697,8 @@ class CursorTViewModel(
                         refreshingConversation = false,
                         sendingFollowup = false,
                         conversationError = null,
+                        creatingTask = false,
+                        createTaskError = null,
                     )
                 }
                 runCatching(onSuccess)

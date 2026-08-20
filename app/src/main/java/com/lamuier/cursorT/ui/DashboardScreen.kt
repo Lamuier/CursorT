@@ -42,7 +42,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
 import androidx.compose.material.icons.automirrored.outlined.TrendingUp
-import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.Cached
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.CardGiftcard
@@ -51,11 +50,11 @@ import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.DataUsage
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.HealthAndSafety
+import androidx.compose.material.icons.outlined.Hub
 import androidx.compose.material.icons.outlined.Input
 import androidx.compose.material.icons.outlined.KeyOff
 import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.Output
-import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.PersonAdd
 import androidx.compose.material.icons.outlined.PieChart
 import androidx.compose.material.icons.outlined.Settings
@@ -672,16 +671,32 @@ private fun OverviewTab(usage: CursorTOverview) {
         val billing = remember(usage, nowMillis) {
             UsageCalculations.billingProgress(usage.billingCycle.start, usage.billingCycle.end, nowMillis)
         }
-        val metrics = remember(usage, limit, chartColors) {
-            val tokenUsage = usage.tokenUsage
+        val quotaTiles = remember(usage, limit, chartColors) {
+            val pools = UsageCalculations.poolSpend(usage.tokenUsage)
             listOf(
                 MetricTile(
-                    label = "套餐额度 / 已消费",
-                    value = "${limit.takeIf { it > 0.0 }?.let(::money) ?: "—"} / " +
-                        money(usage.usage.totalSpendDollars),
+                    label = "套餐额度",
+                    value = limit.takeIf { it > 0.0 }?.let(::money) ?: "—",
                     icon = Icons.Outlined.Savings,
                     accent = chartColors.chart1,
                 ),
+                MetricTile(
+                    label = "自有池消费",
+                    value = pools?.let { money(it.ownPoolDollars) } ?: "—",
+                    icon = Icons.Outlined.Layers,
+                    accent = chartColors.chart2,
+                ),
+                MetricTile(
+                    label = "三方池费用",
+                    value = pools?.let { money(it.thirdPartyDollars) } ?: "—",
+                    icon = Icons.Outlined.Hub,
+                    accent = chartColors.chart3,
+                ),
+            )
+        }
+        val tokenTiles = remember(usage, chartColors) {
+            val tokenUsage = usage.tokenUsage
+            listOf(
                 MetricTile(
                     label = "输入 Token",
                     value = tokenUsage
@@ -805,7 +820,12 @@ private fun OverviewTab(usage: CursorTOverview) {
                 OverviewCycleRow(billing = billing, planCycleEnd = usage.plan.billingCycleEnd)
             }
         }
-        MetricGrid(tiles = metrics, compact = compact)
+        Column(
+            verticalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 10.dp),
+        ) {
+            MetricRowCard(tiles = quotaTiles, compact = compact)
+            MetricRowCard(tiles = tokenTiles, compact = compact)
+        }
         FreshnessRow(usage)
         if (usage.partialData) {
             Text(
@@ -1397,80 +1417,59 @@ private fun UsageRing(
 }
 
 @Composable
-private fun MetricGrid(tiles: List<MetricTile>, compact: Boolean) {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 10.dp),
-    ) {
-        tiles.chunked(2).forEach { rowTiles ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 10.dp),
-            ) {
-                rowTiles.forEach { tile ->
-                    CompactMetric(
-                        tile = tile,
-                        modifier = Modifier.weight(1f),
-                        compact = compact,
-                    )
-                }
-                if (rowTiles.size == 1) Spacer(Modifier.weight(1f))
-            }
-        }
-    }
-}
-
-@Composable
-private fun CompactMetric(
-    tile: MetricTile,
-    modifier: Modifier = Modifier,
-    compact: Boolean,
-) {
+private fun MetricRowCard(tiles: List<MetricTile>, compact: Boolean) {
     Surface(
-        modifier = modifier,
+        modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         shadowElevation = 1.dp,
     ) {
-        Column(
+        Row(
             modifier = Modifier.padding(if (compact) 12.dp else 14.dp),
-            verticalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 12.dp),
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clip(CircleShape)
-                        .background(tile.accent.copy(alpha = 0.16f)),
-                    contentAlignment = Alignment.Center,
+            tiles.forEach { tile ->
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 8.dp),
                 ) {
-                    Icon(
-                        tile.icon,
-                        contentDescription = null,
-                        modifier = Modifier.size(14.dp),
-                        tint = tile.accent,
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clip(CircleShape)
+                                .background(tile.accent.copy(alpha = 0.16f)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                tile.icon,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp),
+                                tint = tile.accent,
+                            )
+                        }
+                        Text(
+                            tile.label,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    AnimatedValueText(
+                        value = tile.value,
+                        style = if (compact) {
+                            MaterialTheme.typography.titleMedium
+                        } else {
+                            MaterialTheme.typography.titleLarge
+                        },
+                        fontWeight = FontWeight.Bold,
                     )
                 }
-                Text(
-                    tile.label,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
             }
-            AnimatedValueText(
-                value = tile.value,
-                style = if (compact) {
-                    MaterialTheme.typography.titleMedium
-                } else {
-                    MaterialTheme.typography.titleLarge
-                },
-                fontWeight = FontWeight.Bold,
-            )
         }
     }
 }

@@ -42,7 +42,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
 import androidx.compose.material.icons.automirrored.outlined.TrendingUp
-import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.Cached
 import androidx.compose.material.icons.outlined.CalendarMonth
@@ -52,8 +51,10 @@ import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.DataUsage
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.HealthAndSafety
+import androidx.compose.material.icons.outlined.Input
 import androidx.compose.material.icons.outlined.KeyOff
 import androidx.compose.material.icons.outlined.Layers
+import androidx.compose.material.icons.outlined.Output
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.PersonAdd
 import androidx.compose.material.icons.outlined.PieChart
@@ -121,7 +122,6 @@ import com.lamuier.cursorT.model.CursorAccount
 import com.lamuier.cursorT.model.CursorTOverview
 import com.lamuier.cursorT.model.DashboardTab
 import com.lamuier.cursorT.model.ModelTokenUsage
-import com.lamuier.cursorT.model.TokenUsageBreakdown
 import com.lamuier.cursorT.ui.theme.LocalPulseChartColors
 import com.lamuier.cursorT.util.BillingProgress
 import com.lamuier.cursorT.util.UsageCalculations
@@ -673,30 +673,42 @@ private fun OverviewTab(usage: CursorTOverview) {
             UsageCalculations.billingProgress(usage.billingCycle.start, usage.billingCycle.end, nowMillis)
         }
         val metrics = remember(usage, limit, chartColors) {
+            val tokenUsage = usage.tokenUsage
             listOf(
                 MetricTile(
-                    label = "套餐额度",
-                    value = limit.takeIf { it > 0.0 }?.let(::money) ?: "—",
+                    label = "套餐额度 / 已消费",
+                    value = "${limit.takeIf { it > 0.0 }?.let(::money) ?: "—"} / " +
+                        money(usage.usage.totalSpendDollars),
                     icon = Icons.Outlined.Savings,
                     accent = chartColors.chart1,
                 ),
                 MetricTile(
-                    label = "已消费",
-                    value = money(usage.usage.totalSpendDollars),
-                    icon = Icons.AutoMirrored.Outlined.TrendingUp,
+                    label = "输入 Token",
+                    value = tokenUsage
+                        ?.let { UsageCalculations.formatTokens(it.totalInputTokens) }
+                        ?: "—",
+                    icon = Icons.Outlined.Input,
                     accent = chartColors.chart2,
                 ),
                 MetricTile(
-                    label = "剩余额度",
-                    value = money(usage.usage.remainingDollars),
-                    icon = Icons.Outlined.AccountBalanceWallet,
-                    accent = chartColors.healthy,
+                    label = "输出 Token",
+                    value = tokenUsage
+                        ?.let { UsageCalculations.formatTokens(it.totalOutputTokens) }
+                        ?: "—",
+                    icon = Icons.Outlined.Output,
+                    accent = chartColors.chart3,
                 ),
                 MetricTile(
-                    label = "Credits",
-                    value = if (usage.partialData) "—" else money(usage.credits.totalDollars),
-                    icon = Icons.Outlined.CardGiftcard,
-                    accent = chartColors.chart3,
+                    label = "缓存 Token",
+                    value = tokenUsage
+                        ?.let {
+                            UsageCalculations.formatTokens(
+                                it.totalCacheWriteTokens + it.totalCacheReadTokens,
+                            )
+                        }
+                        ?: "—",
+                    icon = Icons.Outlined.Cached,
+                    accent = chartColors.healthy,
                 ),
             )
         }
@@ -995,9 +1007,7 @@ private fun TokenUsageSection(usage: CursorTOverview, compact: Boolean) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                tokenUsage.models.isEmpty() &&
-                    tokenUsage.totalInputTokens == 0L &&
-                    tokenUsage.totalOutputTokens == 0L -> {
+                tokenUsage.models.isEmpty() -> {
                     Text(
                         text = "本周期暂无按模型 Token 记录。",
                         style = MaterialTheme.typography.bodyMedium,
@@ -1005,86 +1015,17 @@ private fun TokenUsageSection(usage: CursorTOverview, compact: Boolean) {
                     )
                 }
                 else -> {
-                    TokenTotalsGrid(tokenUsage = tokenUsage)
-                    if (tokenUsage.models.isNotEmpty()) {
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                        tokenUsage.models.forEachIndexed { index, model ->
-                            ModelTokenRow(model = model, compact = compact)
-                            if (index < tokenUsage.models.lastIndex) {
-                                HorizontalDivider(
-                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
-                                )
-                            }
+                    tokenUsage.models.forEachIndexed { index, model ->
+                        ModelTokenRow(model = model, compact = compact)
+                        if (index < tokenUsage.models.lastIndex) {
+                            HorizontalDivider(
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
+                            )
                         }
                     }
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun TokenTotalsGrid(
-    tokenUsage: TokenUsageBreakdown,
-) {
-    val cached = tokenUsage.totalCacheWriteTokens + tokenUsage.totalCacheReadTokens
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(modifier = Modifier.fillMaxWidth()) {
-            TokenStat(
-                label = "输入",
-                value = UsageCalculations.formatTokens(tokenUsage.totalInputTokens),
-                detail = "${tokenUsage.totalInputTokens} tokens",
-                modifier = Modifier.weight(1f),
-            )
-            TokenStat(
-                label = "输出",
-                value = UsageCalculations.formatTokens(tokenUsage.totalOutputTokens),
-                detail = "${tokenUsage.totalOutputTokens} tokens",
-                modifier = Modifier.weight(1f),
-            )
-        }
-        Row(modifier = Modifier.fillMaxWidth()) {
-            TokenStat(
-                label = "缓存",
-                value = UsageCalculations.formatTokens(cached),
-                detail = "写 ${tokenUsage.totalCacheWriteTokens} · 读 ${tokenUsage.totalCacheReadTokens}",
-                modifier = Modifier.weight(1f),
-            )
-            TokenStat(
-                label = "费用",
-                value = money(tokenUsage.totalCostDollars),
-                detail = "按模型合计",
-                modifier = Modifier.weight(1f),
-            )
-        }
-    }
-}
-
-@Composable
-private fun TokenStat(
-    label: String,
-    value: String,
-    detail: String,
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        modifier = modifier
-            .semantics(mergeDescendants = true) {
-                contentDescription = "$label $value，$detail"
-            }
-            .padding(horizontal = 2.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        AnimatedValueText(
-            value = value,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-        )
     }
 }
 

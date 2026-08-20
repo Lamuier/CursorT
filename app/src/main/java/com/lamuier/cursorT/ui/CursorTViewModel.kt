@@ -6,6 +6,11 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.lamuier.cursorT.data.CursorRepository
 import com.lamuier.cursorT.data.CursorStatusRepository
+import com.lamuier.cursorT.model.AgentTask
+import com.lamuier.cursorT.model.AgentTaskConversation
+import com.lamuier.cursorT.model.AgentTaskMessage
+import com.lamuier.cursorT.model.AgentTaskMessageRole
+import com.lamuier.cursorT.model.AgentTaskStatus
 import com.lamuier.cursorT.model.AppStage
 import com.lamuier.cursorT.model.AppUiState
 import com.lamuier.cursorT.model.CursorAccount
@@ -13,14 +18,19 @@ import com.lamuier.cursorT.model.CursorServiceStatus
 import com.lamuier.cursorT.model.CursorTasks
 import com.lamuier.cursorT.model.CursorTOverview
 import com.lamuier.cursorT.network.ApiException
+import com.lamuier.cursorT.network.TasksJsonParser
 import com.lamuier.cursorT.notification.CursorTNotificationCoordinator
+import com.lamuier.cursorT.util.AgentTaskPresentation
 import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -32,6 +42,8 @@ class CursorTViewModel(
     private val activeUsageRequests = mutableSetOf<UsageRequestKey>()
     private var statusRequestInFlight = false
     private var tasksRequestInFlight = false
+    private var conversationRequestInFlight = false
+    private var conversationPollJob: Job? = null
 
     private val _state = MutableStateFlow(
         AppUiState(
@@ -56,6 +68,7 @@ class CursorTViewModel(
         val selectionError = saveSelection(accountId)
         val cached = repository.cachedUsage(accountId)?.takeIf { it.accountId == accountId }
         val cachedTasks = repository.cachedTasks(accountId)?.takeIf { it.accountId == accountId }
+        conversationPollJob?.cancel()
         _state.update {
             it.copy(
                 selectedAccountId = accountId,
@@ -67,6 +80,14 @@ class CursorTViewModel(
                 refreshingTasks = false,
                 error = selectionError,
                 tasksError = null,
+                selectedTask = null,
+                conversation = null,
+                loadingConversation = false,
+                refreshingConversation = false,
+                sendingFollowup = false,
+                conversationError = null,
+                creatingTask = false,
+                createTaskError = null,
             )
         }
         refreshSelected(force = false, silent = cached != null)
@@ -108,10 +129,15 @@ class CursorTViewModel(
                     repository.fetchTasks(accountId, force)
                 }
                 if (_state.value.selectedAccountId == accountId) {
+                    val selected = _state.value.selectedTask
+                    val updatedSelected = selected?.let { current ->
+                        tasks.tasks.firstOrNull { it.id == current.id } ?: current
+                    }
                     _state.update {
                         it.copy(
                             tasks = tasks,
                             tasksError = null,
+                            selectedTask = updatedSelected,
                         )
                     }
                 }
@@ -127,6 +153,252 @@ class CursorTViewModel(
                 tasksRequestInFlight = false
                 if (_state.value.selectedAccountId == accountId) {
                     _state.update { it.copy(loadingTasks = false, refreshingTasks = false) }
+                }
+            }
+        }
+    }
+
+    fun openTask(task: AgentTask) {
+        val snapshot = _state.value
+        if (snapshot.stage != AppStage.Dashboard || snapshot.selectedAccountId == null) return
+        if (!AgentTaskPresentation.isSafeBcId(task.id)) {
+            _state.update { it.copy(tasksError = "云端任务标识无效") }
+            return
+        }
+        val reuse = snapshot.conversation?.takeIf { it.task.id == task.id }
+        conversationPollJob?.cancel()
+        _state.update {
+            it.copy(
+                selectedTask = task,
+                conversation = reuse,
+                loadingConversation = reuse == null,
+                refreshingConversation = reuse != null,
+                sendingFollowup = false,
+                conversationError = null,
+            )
+        }
+        refreshConversation(force = reuse == null, silent = reuse != null)
+        startConversationPolling()
+    }
+
+    fun closeTask() {
+        conversationPollJob?.cancel()
+        conversationPollJob = null
+        _state.update {
+            it.copy(
+                selectedTask = null,
+                conversation = null,
+                loadingConversation = false,
+                refreshingConversation = false,
+                sendingFollowup = false,
+                conversationError = null,
+            )
+        }
+    }
+
+    fun refreshConversation(force: Boolean, silent: Boolean = false) {
+        val snapshot = _state.value
+        if (snapshot.stage != AppStage.Dashboard || snapshot.submitting) return
+        val accountId = snapshot.selectedAccountId ?: return
+        val task = snapshot.selectedTask ?: return
+        if (conversationRequestInFlight) return
+        conversationRequestInFlight = true
+        if (!silent) {
+            _state.update {
+                if (it.conversation != null) {
+                    it.copy(
+                        refreshingConversation = true,
+                        loadingConversation = false,
+                        conversationError = if (force) null else it.conversationError,
+                    )
+                } else {
+                    it.copy(loadingConversation = true, refreshingConversation = false, conversationError = null)
+                }
+            }
+        }
+        viewModelScope.launch {
+            try {
+                loadConversation(accountId, task, force)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                if (_state.value.selectedTask?.id == task.id) {
+                    _state.update {
+                        it.copy(conversationError = messageFor(error, "加载对话失败"))
+                    }
+                }
+            } finally {
+                conversationRequestInFlight = false
+                if (_state.value.selectedTask?.id == task.id) {
+                    _state.update { it.copy(loadingConversation = false, refreshingConversation = false) }
+                }
+            }
+        }
+    }
+
+    fun sendFollowup(text: String) {
+        val snapshot = _state.value
+        val accountId = snapshot.selectedAccountId ?: return
+        val task = snapshot.selectedTask ?: return
+        if (snapshot.sendingFollowup || snapshot.submitting) return
+        if (!AgentTaskPresentation.canSendFollowup(task.status)) {
+            _state.update {
+                it.copy(conversationError = AgentTaskPresentation.sendDisabledReason(task.status))
+            }
+            return
+        }
+        val trimmed = text.trim()
+        if (trimmed.isEmpty()) return
+        if (trimmed.length > MAX_FOLLOWUP_CHARS) {
+            _state.update { it.copy(conversationError = "消息过长，请缩短后再发送") }
+            return
+        }
+        val pending = AgentTaskMessage(
+            id = "local-${System.currentTimeMillis()}",
+            role = AgentTaskMessageRole.User,
+            text = trimmed,
+            createdAtMs = System.currentTimeMillis(),
+            pending = true,
+        )
+        _state.update {
+            val current = it.conversation
+            it.copy(
+                sendingFollowup = true,
+                conversationError = null,
+                conversation = current?.copy(messages = current.messages + pending)
+                    ?: AgentTaskConversation(
+                        accountId = accountId,
+                        task = task,
+                        messages = listOf(pending),
+                        fetchedAt = TasksJsonParser.nowStamp(),
+                    ),
+            )
+        }
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    repository.sendFollowup(accountId, task.id, trimmed)
+                }
+                if (_state.value.selectedTask?.id == task.id) {
+                    loadConversation(accountId, _state.value.selectedTask ?: task, force = true)
+                    startConversationPolling()
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                if (_state.value.selectedTask?.id == task.id) {
+                    _state.update {
+                        it.copy(
+                            conversationError = messageFor(error, "发送失败"),
+                            conversation = it.conversation?.copy(
+                                messages = it.conversation.messages.filterNot { message -> message.pending },
+                            ),
+                        )
+                    }
+                }
+            } finally {
+                if (_state.value.selectedTask?.id == task.id) {
+                    _state.update { it.copy(sendingFollowup = false) }
+                }
+            }
+        }
+    }
+
+    fun clearConversationError() {
+        _state.update { it.copy(conversationError = null) }
+    }
+
+    fun clearCreateTaskError() {
+        _state.update { it.copy(createTaskError = null) }
+    }
+
+    fun createTask(
+        prompt: String,
+        repositoryUrl: String,
+        ref: String?,
+        autoCreatePr: Boolean,
+        onSuccess: () -> Unit = {},
+    ) {
+        val snapshot = _state.value
+        val accountId = snapshot.selectedAccountId ?: return
+        if (snapshot.creatingTask || snapshot.submitting || snapshot.stage != AppStage.Dashboard) return
+        val trimmed = prompt.trim()
+        if (trimmed.isEmpty()) {
+            _state.update { it.copy(createTaskError = "请填写任务说明") }
+            return
+        }
+        if (trimmed.length > MAX_FOLLOWUP_CHARS) {
+            _state.update { it.copy(createTaskError = "任务说明过长，请缩短后再发送") }
+            return
+        }
+        if (AgentTaskPresentation.normalizeRepositoryUrl(repositoryUrl) == null) {
+            _state.update { it.copy(createTaskError = "仓库地址无效，请填写 github.com 或 gitlab.com 地址") }
+            return
+        }
+        _state.update { it.copy(creatingTask = true, createTaskError = null) }
+        viewModelScope.launch {
+            try {
+                val created = withContext(Dispatchers.IO) {
+                    repository.createTask(
+                        accountId = accountId,
+                        prompt = trimmed,
+                        repository = repositoryUrl,
+                        ref = ref,
+                        autoCreatePr = autoCreatePr,
+                    )
+                }
+                if (_state.value.selectedAccountId != accountId) return@launch
+                runCatching(onSuccess)
+                refreshTasks(force = true, silent = true)
+                openTask(created)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                if (_state.value.selectedAccountId == accountId) {
+                    _state.update {
+                        it.copy(createTaskError = messageFor(error, "创建任务失败"))
+                    }
+                }
+            } finally {
+                if (_state.value.selectedAccountId == accountId) {
+                    _state.update { it.copy(creatingTask = false) }
+                }
+            }
+        }
+    }
+
+    private suspend fun loadConversation(accountId: Int, task: AgentTask, force: Boolean) {
+        val conversation = withContext(Dispatchers.IO) {
+            repository.fetchConversation(accountId, task, force)
+        }
+        if (_state.value.selectedTask?.id != task.id || _state.value.selectedAccountId != accountId) {
+            return
+        }
+        _state.update {
+            it.copy(
+                selectedTask = conversation.task,
+                conversation = conversation,
+                conversationError = null,
+            )
+        }
+    }
+
+    private fun startConversationPolling() {
+        conversationPollJob?.cancel()
+        conversationPollJob = viewModelScope.launch {
+            while (isActive) {
+                val state = _state.value
+                val task = state.selectedTask ?: break
+                val interval = when {
+                    state.sendingFollowup -> FOLLOWUP_POLL_MS
+                    task.status == AgentTaskStatus.Running ||
+                        task.status == AgentTaskStatus.Creating -> RUNNING_POLL_MS
+                    else -> break
+                }
+                delay(interval)
+                if (_state.value.selectedTask?.id != task.id) break
+                if (!conversationRequestInFlight) {
+                    refreshConversation(force = true, silent = true)
                 }
             }
         }
@@ -406,6 +678,7 @@ class CursorTViewModel(
                 val selectionChanged = result.selectedAccountId != previousSelected
                 val cached = if (selectionChanged) result.cachedUsage else _state.value.usage
                 val cachedTasks = if (selectionChanged) result.cachedTasks else _state.value.tasks
+                conversationPollJob?.cancel()
                 _state.update {
                     it.copy(
                         accounts = result.accounts,
@@ -418,6 +691,14 @@ class CursorTViewModel(
                         refreshingTasks = false,
                         submitting = false,
                         error = result.selectionError,
+                        selectedTask = null,
+                        conversation = null,
+                        loadingConversation = false,
+                        refreshingConversation = false,
+                        sendingFollowup = false,
+                        conversationError = null,
+                        creatingTask = false,
+                        createTaskError = null,
                     )
                 }
                 runCatching(onSuccess)
@@ -526,6 +807,12 @@ class CursorTViewModel(
         is IllegalStateException -> error.message ?: fallback
         is IOException -> "无法连接 Cursor 服务，请检查网络"
         else -> error.message?.takeIf { it.isNotBlank() } ?: fallback
+    }
+
+    private companion object {
+        const val MAX_FOLLOWUP_CHARS = 8_000
+        const val FOLLOWUP_POLL_MS = 3_000L
+        const val RUNNING_POLL_MS = 8_000L
     }
 
     private data class UsageRequestKey(

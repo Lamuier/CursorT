@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Cached
@@ -25,12 +26,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -44,7 +44,6 @@ import com.lamuier.cursorT.model.AgentTaskStatus
 import com.lamuier.cursorT.model.CursorTasks
 import com.lamuier.cursorT.ui.theme.LocalPulseChartColors
 import com.lamuier.cursorT.util.AgentTaskPresentation
-import com.lamuier.cursorT.util.CursorCustomTabs
 import java.util.Locale
 
 @Composable
@@ -54,9 +53,9 @@ internal fun TasksTab(
     refreshing: Boolean,
     error: String?,
     onRetry: () -> Unit,
-    onOpenFailed: (String) -> Unit,
+    onOpenTask: (AgentTask) -> Unit,
+    onCreateTask: () -> Unit,
 ) {
-    val openUrl = rememberOpenCursorUrl(onOpenFailed)
     when {
         tasks == null && loading -> DashboardState(
             icon = null,
@@ -71,13 +70,13 @@ internal fun TasksTab(
             primaryActionLabel = "重新加载",
             onPrimaryAction = onRetry,
             secondaryActionLabel = "新建任务",
-            onSecondaryAction = { openUrl(AgentTaskPresentation.agentsPageUrl()) },
+            onSecondaryAction = onCreateTask,
         )
         else -> TasksContent(
             tasks = tasks,
             error = error?.takeIf { !refreshing },
-            openUrl = openUrl,
-            onOpenFailed = onOpenFailed,
+            onOpenTask = onOpenTask,
+            onCreateTask = onCreateTask,
         )
     }
 }
@@ -86,9 +85,10 @@ internal fun TasksTab(
 private fun TasksContent(
     tasks: CursorTasks,
     error: String?,
-    openUrl: (String) -> Unit,
-    onOpenFailed: (String) -> Unit,
+    onOpenTask: (AgentTask) -> Unit,
+    onCreateTask: () -> Unit,
 ) {
+    val uriHandler = LocalUriHandler.current
     val activeCount = tasks.tasks.count {
         it.status == AgentTaskStatus.Running || it.status == AgentTaskStatus.Creating
     }
@@ -103,7 +103,7 @@ private fun TasksContent(
             },
             trailing = {
                 FilledTonalButton(
-                    onClick = { openUrl(AgentTaskPresentation.agentsPageUrl()) },
+                    onClick = onCreateTask,
                     modifier = Modifier.semantics { contentDescription = "新建任务" },
                 ) {
                     Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -126,19 +126,19 @@ private fun TasksContent(
                 color = MaterialTheme.colorScheme.surfaceContainerLow,
             ) {
                 Text(
-                    "暂无云端任务。点右上角「新建」会在 Chrome 中打开官方 Agents 页，可在网页创建任务或查看完整对话。",
+                    "暂无云端任务。点右上角「新建」即可从本机发起后台智能体，或在 Cursor 网页启动后刷新。",
                     modifier = Modifier.padding(if (compact) 14.dp else 18.dp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         } else {
             tasks.tasks.forEach { task ->
-                TaskCard(task, compact, openUrl, onOpenFailed)
+                TaskCard(task, compact, uriHandler, onOpenTask)
             }
         }
 
         TextButton(
-            onClick = { openUrl(AgentTaskPresentation.agentsPageUrl()) },
+            onClick = { openSafeCursorUrl(uriHandler, AgentTaskPresentation.agentsPageUrl()) },
             modifier = Modifier.fillMaxWidth(),
         ) {
             Icon(
@@ -158,8 +158,8 @@ private fun TasksContent(
 private fun TaskCard(
     task: AgentTask,
     compact: Boolean,
-    openUrl: (String) -> Unit,
-    onOpenFailed: (String) -> Unit,
+    uriHandler: UriHandler,
+    onOpenTask: (AgentTask) -> Unit,
 ) {
     val prUrl = task.prUrl?.takeIf(AgentTaskPresentation::isSafeAgentUrl)
     val statusColor = taskStatusColor(task.status)
@@ -168,16 +168,9 @@ private fun TaskCard(
             .fillMaxWidth()
             .semantics {
                 role = Role.Button
-                contentDescription = "${task.name}，${AgentTaskPresentation.statusLabel(task.status)}，在网页查看完整对话"
+                contentDescription = "${task.name}，${AgentTaskPresentation.statusLabel(task.status)}，查看对话"
             }
-            .clickable {
-                val url = AgentTaskPresentation.agentConversationUrl(task.id)
-                if (url == null) {
-                    onOpenFailed("云端任务标识无效")
-                } else {
-                    openUrl(url)
-                }
-            },
+            .clickable { onOpenTask(task) },
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         shadowElevation = 1.dp,
@@ -204,7 +197,7 @@ private fun TaskCard(
                     color = statusColor,
                 )
                 Icon(
-                    Icons.AutoMirrored.Outlined.OpenInNew,
+                    Icons.AutoMirrored.Outlined.KeyboardArrowRight,
                     contentDescription = null,
                     modifier = Modifier.size(18.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -277,7 +270,7 @@ private fun TaskCard(
                                 role = Role.Button
                                 contentDescription = "在浏览器中打开 PR"
                             }
-                            .clickable { openUrl(prUrl) },
+                            .clickable { runCatching { uriHandler.openUri(prUrl) } },
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
@@ -365,15 +358,8 @@ internal fun prStatusColor(status: AgentTaskPrStatus): Color {
     }
 }
 
-@Composable
-private fun rememberOpenCursorUrl(onOpenFailed: (String) -> Unit): (String) -> Unit {
-    val context = LocalContext.current
-    val toolbarColor = MaterialTheme.colorScheme.surface.toArgb()
-    return remember(context, toolbarColor, onOpenFailed) {
-        { url ->
-            if (!CursorCustomTabs.open(context, url, toolbarColor)) {
-                onOpenFailed("无法打开页面，请确认已安装 Chrome 或其他浏览器")
-            }
-        }
+private fun openSafeCursorUrl(uriHandler: UriHandler, url: String) {
+    if (AgentTaskPresentation.isSafeCursorUrl(url)) {
+        runCatching { uriHandler.openUri(url) }
     }
 }

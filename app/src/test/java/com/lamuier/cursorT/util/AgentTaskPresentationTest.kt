@@ -1,5 +1,6 @@
 package com.lamuier.cursorT.util
 
+import com.lamuier.cursorT.model.AgentTaskStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -49,11 +50,11 @@ class AgentTaskPresentationTest {
     }
 
     @Test
-    fun isAllowedCustomTabUrl_allowsCursorAgentsAndGithubPr() {
-        assertTrue(AgentTaskPresentation.isAllowedCustomTabUrl("https://cursor.com/agents"))
-        assertTrue(AgentTaskPresentation.isAllowedCustomTabUrl("https://cursor.com/agents?id=bc-finished-0001"))
-        assertTrue(AgentTaskPresentation.isAllowedCustomTabUrl("https://github.com/example/demo/pull/12"))
-        assertFalse(AgentTaskPresentation.isAllowedCustomTabUrl("https://evil.test/agents?id=bc-finished-0001"))
-        assertFalse(AgentTaskPresentation.isAllowedCustomTabUrl("https://github.com/example/demo/pull/12?next=https://evil.test"))
+    fun canSendFollowup_blocksExpired() {
+        assertFalse(AgentTaskPresentation.canSendFollowup(AgentTaskStatus.Expired))
+        assertTrue(AgentTaskPresentation.canSendFollowup(AgentTaskStatus.Finished))
+        assertTrue(AgentTaskPresentation.canSendFollowup(AgentTaskStatus.Running))
+        assertEquals("任务已过期，无法继续发送", AgentTaskPresentation.sendDisabledReason(AgentTaskStatus.Expired))
+        assertNull(AgentTaskPresentation.sendDisabledReason(AgentTaskStatus.Finished))
     }
 }

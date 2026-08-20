@@ -1,6 +1,7 @@
 package com.lamuier.cursorT.network
 
 import com.lamuier.cursorT.BuildConfig
+import com.lamuier.cursorT.util.AgentTaskPresentation
 import com.lamuier.cursorT.util.TokenUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -9,6 +10,7 @@ import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.Base64
 
 class ApiException(
     val statusCode: Int,
@@ -58,6 +60,245 @@ class CursorApiClient {
                 cookie = sessionCookie(accessToken),
                 jsonBody = body,
                 webContext = true,
+            ),
+        )
+    }
+
+    /** 单个云端任务详情（含可能出现的对话字段）。 */
+    suspend fun agentTaskDetail(accessToken: String, bcId: String): JSONObject = withContext(Dispatchers.IO) {
+        val id = requireBcId(bcId)
+        parseJson(
+            request(
+                url = "$CURSOR_WEB_BASE/api/background-composer/get-detailed-composer",
+                cookie = sessionCookie(accessToken),
+                jsonBody = JSONObject()
+                    .put("bcId", id)
+                    .put("n", 1)
+                    .put("includeDiff", false)
+                    .put("includeTeamWide", true)
+                    .put("includeConversation", true)
+                    .put("includeFollowups", true),
+                webContext = true,
+                kind = ApiKind.Tasks,
+                maxBytes = MAX_CONVERSATION_BYTES,
+            ),
+        )
+    }
+
+    /**
+     * 官方 Cloud Agents 对话：包含创建后的助手回复与全部跟进。
+     * 网页详情接口通常只有创建时的种子消息，因此需要这条作为主来源。
+     */
+    suspend fun agentTaskCloudConversationOrNull(accessToken: String, bcId: String): JSONObject? =
+        withContext(Dispatchers.IO) {
+            val id = requireBcId(bcId)
+            val cloudUrl = "$CURSOR_CLOUD_API/v0/agents/$id/conversation"
+            requestOptionalJson(
+                url = cloudUrl,
+                accessToken = accessToken,
+                kind = ApiKind.Tasks,
+                maxBytes = MAX_CONVERSATION_BYTES,
+            ) ?: requestOptionalJson(
+                url = cloudUrl,
+                cookie = sessionCookie(accessToken),
+                webContext = true,
+                kind = ApiKind.Tasks,
+                maxBytes = MAX_CONVERSATION_BYTES,
+            ) ?: requestOptionalJson(
+                url = cloudUrl,
+                basicAuth = accessToken,
+                kind = ApiKind.Tasks,
+                maxBytes = MAX_CONVERSATION_BYTES,
+            ) ?: requestOptionalJson(
+                url = "$CURSOR_WEB_BASE/api/v0/agents/$id/conversation",
+                cookie = sessionCookie(accessToken),
+                webContext = true,
+                kind = ApiKind.Tasks,
+                maxBytes = MAX_CONVERSATION_BYTES,
+            )
+        }
+
+    suspend fun agentTaskGetComposerOrNull(accessToken: String, bcId: String): JSONObject? =
+        withContext(Dispatchers.IO) {
+            val id = requireBcId(bcId)
+            requestOptionalJson(
+                url = "$CURSOR_WEB_BASE/api/background-composer/get-composer",
+                cookie = sessionCookie(accessToken),
+                jsonBody = JSONObject().put("bcId", id),
+                webContext = true,
+                kind = ApiKind.Tasks,
+                maxBytes = MAX_CONVERSATION_BYTES,
+            )
+        }
+
+    suspend fun agentTaskComposerRpcOrNull(accessToken: String, bcId: String): JSONObject? =
+        withContext(Dispatchers.IO) {
+            val id = requireBcId(bcId)
+            requestOptionalJson(
+                url = rpcUrl(BACKGROUND_COMPOSER_SERVICE, "GetComposer"),
+                accessToken = accessToken,
+                jsonBody = JSONObject().put("bcId", id),
+                connectProtocol = true,
+                kind = ApiKind.Tasks,
+                maxBytes = MAX_CONVERSATION_BYTES,
+            )
+        }
+    suspend fun agentTaskConversationOrNull(accessToken: String, bcId: String): JSONObject? =
+        withContext(Dispatchers.IO) {
+            val id = requireBcId(bcId)
+            requestOptionalJson(
+                url = "$CURSOR_WEB_BASE/api/background-composer/get-conversation",
+                cookie = sessionCookie(accessToken),
+                jsonBody = JSONObject().put("bcId", id),
+                webContext = true,
+                kind = ApiKind.Tasks,
+                maxBytes = MAX_CONVERSATION_BYTES,
+            )
+        }
+
+    suspend fun agentTaskComposerConversationOrNull(accessToken: String, bcId: String): JSONObject? =
+        withContext(Dispatchers.IO) {
+            val id = requireBcId(bcId)
+            requestOptionalJson(
+                url = "$CURSOR_WEB_BASE/api/background-composer/get-composer-conversation",
+                cookie = sessionCookie(accessToken),
+                jsonBody = JSONObject().put("bcId", id),
+                webContext = true,
+                kind = ApiKind.Tasks,
+                maxBytes = MAX_CONVERSATION_BYTES,
+            )
+        }
+
+    suspend fun agentTaskConversationRpcOrNull(accessToken: String, bcId: String): JSONObject? =
+        withContext(Dispatchers.IO) {
+            val id = requireBcId(bcId)
+            requestOptionalJson(
+                url = rpcUrl(BACKGROUND_COMPOSER_SERVICE, "GetComposerConversation"),
+                accessToken = accessToken,
+                jsonBody = JSONObject().put("bcId", id),
+                connectProtocol = true,
+                kind = ApiKind.Tasks,
+                maxBytes = MAX_CONVERSATION_BYTES,
+            )
+        }
+
+    suspend fun agentTaskDetailRpcOrNull(accessToken: String, bcId: String): JSONObject? =
+        withContext(Dispatchers.IO) {
+            val id = requireBcId(bcId)
+            requestOptionalJson(
+                url = rpcUrl(BACKGROUND_COMPOSER_SERVICE, "GetDetailedComposer"),
+                accessToken = accessToken,
+                jsonBody = JSONObject()
+                    .put("bcId", id)
+                    .put("n", AGENT_TASKS_PAGE_SIZE)
+                    .put("includeDiff", false),
+                connectProtocol = true,
+                kind = ApiKind.Tasks,
+                maxBytes = MAX_CONVERSATION_BYTES,
+            )
+        }
+
+    /** 向云端任务发送跟进消息。优先网页接口，再尝试官方 Cloud Agents API，最后 Connect RPC。 */
+    suspend fun addAgentFollowup(accessToken: String, bcId: String, text: String): JSONObject =
+        withContext(Dispatchers.IO) {
+            val id = requireBcId(bcId)
+            val body = followupBody(id, text)
+            val cloudBody = TaskCreatePayload.cloudFollowup(text)
+            val web = requestOrNullOn404(
+                url = "$CURSOR_WEB_BASE/api/background-composer/add-followup",
+                cookie = sessionCookie(accessToken),
+                jsonBody = body,
+                webContext = true,
+                kind = ApiKind.Tasks,
+            )
+            if (web != null) return@withContext parseJson(web)
+            val cloud = requestOrNullOnUnavailable(
+                url = "$CURSOR_CLOUD_API/v0/agents/$id/followup",
+                accessToken = accessToken,
+                jsonBody = cloudBody,
+                kind = ApiKind.Tasks,
+            ) ?: requestOrNullOnUnavailable(
+                url = "$CURSOR_CLOUD_API/v0/agents/$id/followup",
+                basicAuth = accessToken,
+                jsonBody = cloudBody,
+                kind = ApiKind.Tasks,
+            ) ?: requestOrNullOnUnavailable(
+                url = "$CURSOR_CLOUD_API/v1/agents/$id/runs",
+                accessToken = accessToken,
+                jsonBody = cloudBody,
+                kind = ApiKind.Tasks,
+            )
+            if (cloud != null) return@withContext parseJson(cloud)
+            parseJson(
+                request(
+                    url = rpcUrl(BACKGROUND_COMPOSER_SERVICE, "AddAsyncFollowupBackgroundComposer"),
+                    accessToken = accessToken,
+                    jsonBody = body,
+                    connectProtocol = true,
+                    kind = ApiKind.Tasks,
+                ),
+            )
+        }
+
+    /**
+     * 新建云端任务。优先网页版 `startBackgroundComposerFromSnapshot`（与列表同一套会话 Cookie），
+     * 缺失时回退官方 Cloud Agents API 与 Connect RPC。
+     */
+    suspend fun createAgentTask(
+        accessToken: String,
+        prompt: String,
+        snapshotRepo: String,
+        httpsRepo: String,
+        ref: String?,
+        modelName: String?,
+        autoCreatePr: Boolean,
+    ): JSONObject = withContext(Dispatchers.IO) {
+        val bcId = TaskCreatePayload.newBcId()
+        val webBody = TaskCreatePayload.webSnapshot(
+            bcId = bcId,
+            prompt = prompt,
+            snapshotRepo = snapshotRepo,
+            httpsRepo = httpsRepo,
+            ref = ref,
+            modelName = modelName,
+            autoCreatePr = autoCreatePr,
+        )
+        val web = requestOrNullOn404(
+            url = "$CURSOR_WEB_BASE/api/auth/startBackgroundComposerFromSnapshot",
+            cookie = sessionCookie(accessToken),
+            jsonBody = webBody,
+            webContext = true,
+            kind = ApiKind.Tasks,
+        )
+        if (web != null) {
+            val parsed = parseJson(web)
+            if (TaskCreatePayload.createdBcId(parsed, "") == "") parsed.put("bcId", bcId)
+            return@withContext parsed.put("requestedBcId", bcId)
+        }
+        val cloudBody = TaskCreatePayload.cloudAgent(
+            prompt = prompt,
+            httpsRepo = httpsRepo,
+            ref = ref,
+            autoCreatePr = autoCreatePr,
+        )
+        val cloud = requestOrNullOnUnavailable(
+            url = "$CURSOR_CLOUD_API/v0/agents",
+            accessToken = accessToken,
+            jsonBody = cloudBody,
+            kind = ApiKind.Tasks,
+        ) ?: requestOrNullOnUnavailable(
+            url = "$CURSOR_CLOUD_API/v0/agents",
+            basicAuth = accessToken,
+            jsonBody = cloudBody,
+            kind = ApiKind.Tasks,
+        )
+        if (cloud != null) return@withContext parseJson(cloud)
+        parseJson(
+            request(
+                url = rpcUrl(BACKGROUND_COMPOSER_SERVICE, "StartBackgroundComposerFromSnapshot"),
+                accessToken = accessToken,
+                jsonBody = webBody,
+                connectProtocol = true,
                 kind = ApiKind.Tasks,
             ),
         )
@@ -77,6 +318,7 @@ class CursorApiClient {
         url: String,
         accessToken: String? = null,
         cookie: String? = null,
+        basicAuth: String? = null,
         jsonBody: JSONObject? = null,
         connectProtocol: Boolean = false,
         webContext: Boolean = false,
@@ -96,6 +338,10 @@ class CursorApiClient {
                 connection.setRequestProperty("Referer", "$CURSOR_WEB_BASE/agents")
             }
             accessToken?.let { connection.setRequestProperty("Authorization", "Bearer $it") }
+            basicAuth?.let { token ->
+                val encoded = Base64.getEncoder().encodeToString("$token:".toByteArray(Charsets.UTF_8))
+                connection.setRequestProperty("Authorization", "Basic $encoded")
+            }
             cookie?.let { connection.setRequestProperty("Cookie", it) }
             if (connectProtocol) connection.setRequestProperty("Connect-Protocol-Version", "1")
             if (jsonBody != null) {
@@ -120,6 +366,89 @@ class CursorApiClient {
         } finally {
             connection.disconnect()
         }
+    }
+
+    private fun requestOrNullOn404(
+        url: String,
+        accessToken: String? = null,
+        cookie: String? = null,
+        basicAuth: String? = null,
+        jsonBody: JSONObject? = null,
+        connectProtocol: Boolean = false,
+        webContext: Boolean = false,
+        kind: ApiKind,
+        maxBytes: Int = MAX_RESPONSE_BYTES,
+    ): String? = try {
+        request(
+            url = url,
+            accessToken = accessToken,
+            cookie = cookie,
+            basicAuth = basicAuth,
+            jsonBody = jsonBody,
+            connectProtocol = connectProtocol,
+            webContext = webContext,
+            kind = kind,
+            maxBytes = maxBytes,
+        )
+    } catch (error: ApiException) {
+        if (error.statusCode == 404 || error.statusCode == 405) null else throw error
+    }
+
+    /** 备用官方接口：鉴权方式可能与会话 Token 不同，4xx 视为该路径不可用。 */
+    private fun requestOrNullOnUnavailable(
+        url: String,
+        accessToken: String? = null,
+        cookie: String? = null,
+        basicAuth: String? = null,
+        jsonBody: JSONObject? = null,
+        connectProtocol: Boolean = false,
+        webContext: Boolean = false,
+        kind: ApiKind,
+        maxBytes: Int = MAX_RESPONSE_BYTES,
+    ): String? = try {
+        request(
+            url = url,
+            accessToken = accessToken,
+            cookie = cookie,
+            basicAuth = basicAuth,
+            jsonBody = jsonBody,
+            connectProtocol = connectProtocol,
+            webContext = webContext,
+            kind = kind,
+            maxBytes = maxBytes,
+        )
+    } catch (error: ApiException) {
+        if (error.statusCode in OPTIONAL_HTTP) null else throw error
+    }
+
+    /** 对话补充接口：路径不稳定，4xx/501 视为不可用而不是整页失败。 */
+    private fun requestOptionalJson(
+        url: String,
+        accessToken: String? = null,
+        cookie: String? = null,
+        basicAuth: String? = null,
+        jsonBody: JSONObject? = null,
+        connectProtocol: Boolean = false,
+        webContext: Boolean = false,
+        kind: ApiKind,
+        maxBytes: Int = MAX_RESPONSE_BYTES,
+    ): JSONObject? {
+        val raw = try {
+            request(
+                url = url,
+                accessToken = accessToken,
+                cookie = cookie,
+                basicAuth = basicAuth,
+                jsonBody = jsonBody,
+                connectProtocol = connectProtocol,
+                webContext = webContext,
+                kind = kind,
+                maxBytes = maxBytes,
+            )
+        } catch (error: ApiException) {
+            if (error.statusCode in OPTIONAL_HTTP) null else throw error
+        } ?: return null
+        return runCatching { parseJson(raw) }.getOrNull()
     }
 
     private fun readBody(
@@ -172,10 +501,11 @@ class CursorApiClient {
             }
             ApiKind.Tasks -> when (status) {
                 401, 403 -> "Cursor Access Token 已过期或无效，请更新 Token"
-                404 -> "云端任务接口已发生变化，请升级应用"
+                404 -> "找不到该云端任务，或对话接口已变化"
+                409 -> "智能体正在处理上一轮对话，请稍后再发送"
                 429 -> "Cursor 请求过于频繁，请稍后重试"
                 in 500..599 -> "Cursor 服务暂时不可用（HTTP $status）"
-                else -> "无法加载云端任务（HTTP $status）"
+                else -> "无法完成云端任务操作（HTTP $status）"
             }
         }
     }
@@ -199,7 +529,7 @@ class CursorApiClient {
     private fun overflowMessage(kind: ApiKind): String = when (kind) {
         ApiKind.Status -> "Cursor 状态页响应超过 1 MiB 安全上限"
         ApiKind.Usage -> "Cursor API 响应超过 1 MiB 安全上限"
-        ApiKind.Tasks -> "云端任务响应超过 1 MiB 安全上限"
+        ApiKind.Tasks -> "云端任务对话响应超过 2 MiB 安全上限"
     }
 
     private fun sessionCookie(accessToken: String): String {
@@ -208,9 +538,26 @@ class CursorApiClient {
         return "WorkosCursorSessionToken=$userId%3A%3A$accessToken"
     }
 
+    private fun requireBcId(bcId: String): String {
+        val id = bcId.trim()
+        if (!AgentTaskPresentation.isSafeBcId(id)) {
+            throw ApiException(400, "云端任务标识无效")
+        }
+        return id
+    }
+
+    private fun followupBody(bcId: String, text: String): JSONObject = JSONObject()
+        .put("bcId", bcId)
+        .put(
+            "followupMessage",
+            JSONObject()
+                .put("text", text)
+                .put("type", "MESSAGE_TYPE_HUMAN"),
+        )
+
     private fun rpcUrl(service: String, method: String): String {
         val allowedService = when (service) {
-            DASHBOARD_SERVICE -> service
+            DASHBOARD_SERVICE, BACKGROUND_COMPOSER_SERVICE -> service
             else -> throw ApiException(400, "不支持的 Cursor 接口")
         }
         if (!RPC_METHOD.matches(method)) throw ApiException(400, "不支持的 Cursor 接口")
@@ -228,13 +575,17 @@ class CursorApiClient {
     private companion object {
         const val CURSOR_API_BASE = "https://api2.cursor.sh"
         const val CURSOR_WEB_BASE = "https://cursor.com"
+        const val CURSOR_CLOUD_API = "https://api.cursor.com"
         const val DASHBOARD_SERVICE = "aiserver.v1.DashboardService"
+        const val BACKGROUND_COMPOSER_SERVICE = "aiserver.v1.BackgroundComposerService"
         const val STATUS_SUMMARY_URL = "https://status.cursor.com/api/v2/summary.json"
         const val STATUS_INCIDENTS_URL = "https://status.cursor.com/api/v2/incidents.json"
         const val CONNECT_TIMEOUT_MS = 15_000
         const val READ_TIMEOUT_MS = 30_000
         const val MAX_RESPONSE_BYTES = 1024 * 1024
+        const val MAX_CONVERSATION_BYTES = 2 * 1024 * 1024
         const val AGENT_TASKS_PAGE_SIZE = 100
+        val OPTIONAL_HTTP = setOf(400, 401, 403, 404, 405, 415, 422, 501)
         val RPC_METHOD = Regex("^[A-Za-z][A-Za-z0-9]{1,80}$")
 
         // UA 版本号自动跟随 versionName（debug 构建带 -debug 后缀），便于服务端识别与问题排查

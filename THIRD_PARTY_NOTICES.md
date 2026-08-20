@@ -14,6 +14,7 @@ Cursor助手 本体以 [MIT 许可证](LICENSE) 开源。Release 分发的 APK �
   - `androidx.compose:*`（ui、material3、material-icons）
   - `androidx.biometric:biometric`
   - `androidx.fragment:fragment-ktx`
+  - `androidx.browser:browser`
 
 Apache License 2.0 全文：<https://www.apache.org/licenses/LICENSE-2.0>
 

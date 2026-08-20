@@ -116,7 +116,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.lamuier.cursorT.model.AgentTask
 import com.lamuier.cursorT.model.AppUiState
 import com.lamuier.cursorT.model.CursorAccount
 import com.lamuier.cursorT.model.CursorTOverview
@@ -166,12 +165,8 @@ internal fun DashboardScreen(
     onManageAccount: () -> Unit,
     onShowSettings: () -> Unit,
     onShowTokenHelp: () -> Unit,
-    onOpenTask: (AgentTask) -> Unit,
-    onCloseTask: () -> Unit,
-    onRefreshConversation: () -> Unit,
-    onSendFollowup: (String) -> Unit,
-    onCreateTask: () -> Unit,
 ) {
+    val uiScope = rememberCoroutineScope()
     val account = remember(state.accounts, state.selectedAccountId) {
         state.accounts.firstOrNull { it.id == state.selectedAccountId }
             ?: state.accounts.firstOrNull()
@@ -314,8 +309,11 @@ internal fun DashboardScreen(
                                             refreshing = state.refreshingTasks,
                                             error = state.tasksError,
                                             onRetry = onRefresh,
-                                            onOpenTask = onOpenTask,
-                                            onCreateTask = onCreateTask,
+                                            onOpenFailed = { message ->
+                                                uiScope.launch {
+                                                    snackbarHostState.showSnackbar(message)
+                                                }
+                                            },
                                         )
                                     }
                                     DashboardTab.Status -> StatusTab(
@@ -332,20 +330,6 @@ internal fun DashboardScreen(
                 }
             }
         }
-    }
-
-    state.selectedTask?.let { task ->
-        TaskDetailSheet(
-            task = task,
-            conversation = state.conversation?.takeIf { it.task.id == task.id },
-            loading = state.loadingConversation,
-            refreshing = state.refreshingConversation,
-            sending = state.sendingFollowup,
-            error = state.conversationError,
-            onDismiss = onCloseTask,
-            onRefresh = onRefreshConversation,
-            onSend = onSendFollowup,
-        )
     }
 }
 

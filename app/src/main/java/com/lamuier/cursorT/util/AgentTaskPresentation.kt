@@ -1,6 +1,5 @@
 package com.lamuier.cursorT.util
 
-import com.lamuier.cursorT.model.AgentTask
 import com.lamuier.cursorT.model.AgentTaskPrStatus
 import com.lamuier.cursorT.model.AgentTaskStatus
 import java.net.URI
@@ -108,15 +107,8 @@ object AgentTaskPresentation {
         return normalized.removePrefix("https://")
     }
 
-    fun suggestedRepositories(tasks: List<AgentTask>): List<String> =
-        tasks.mapNotNull { it.repoUrl?.let(::normalizeRepositoryUrl) }.distinct()
-
-    fun canSendFollowup(status: AgentTaskStatus): Boolean = status != AgentTaskStatus.Expired
-
-    fun sendDisabledReason(status: AgentTaskStatus): String? = when (status) {
-        AgentTaskStatus.Expired -> "任务已过期，无法继续发送"
-        else -> null
-    }
+    /** Custom Tabs 仅允许 Cursor Agents 页或已校验的 GitHub PR 链接。 */
+    fun isAllowedCustomTabUrl(url: String): Boolean = isSafeCursorUrl(url) || isSafeAgentUrl(url)
 
     /** cursor.com 官网链接（「在网页打开」入口）。允许无查询串，或仅 `id=<bcId>`。 */
     fun isSafeCursorUrl(url: String): Boolean {

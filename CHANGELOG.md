@@ -7,8 +7,8 @@
 - 新增 Grok Bot 周额度：调用 Cursor `DashboardService/GetSandUsageStatus`，在「总览」与「用量」展示本周已用百分比与重置倒计时
 - 该额度与月度 Cursor 模型 / 其他模型用量池相互独立；企业共享池、未开通或额度上限为 0 时不展示
 - 该接口失败（含 401/403）不影响花费与百分比用量；超额后仍走已有的 On-demand
-- 「用量」页新增历史 Token 汇总：可在「自然月」与「上个计费周期」之间切换；自然月支持前后翻月（最多回看 12 个月），调用 `GetAggregatedUsageEvents` 并带 `startDate` / `endDate`
-- 历史窗口只展示按模型 Token / 费用，不含当时的套餐百分比；失败不影响当前周期用量
+- 「用量」页新增历史 Token 汇总：可在「自然月」与「计费周期」之间切换，两者都支持前后翻（最多回看 12 个窗口），调用 `GetAggregatedUsageEvents` 并带 `startDate` / `endDate`
+- 历史窗口按 Token 费用估算 Cursor 模型 / 其他模型占比（非官方独立额度百分比）；官方两池百分比仍仅当前周期。失败不影响当前周期用量
 - `versionCode=12`，`versionName=2.3.0`
 
 ## 2.2.1

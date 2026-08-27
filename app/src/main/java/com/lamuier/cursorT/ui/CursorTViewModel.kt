@@ -67,36 +67,37 @@ class CursorTViewModel(
                 refreshingTasks = false,
                 error = selectionError,
                 tasksError = null,
-                extraMonthHistory = emptyMap(),
-                loadingHistoryMonth = null,
+                extraHistory = emptyMap(),
+                loadingHistoryKey = null,
             )
         }
         refreshSelected(force = false, silent = cached != null)
     }
 
-    fun loadHistoryMonth(yearMonthKey: String) {
+    fun loadHistoryWindow(
+        key: String,
+        startMs: Long,
+        endMs: Long,
+        yearMonth: String? = null,
+    ) {
         val snapshot = _state.value
         if (snapshot.stage != AppStage.Dashboard || snapshot.submitting) return
         val accountId = snapshot.selectedAccountId ?: return
-        if (yearMonthKey.isBlank()) return
-        if (snapshot.extraMonthHistory.containsKey(yearMonthKey)) return
-        if (snapshot.usage?.history?.calendarMonth?.yearMonth == yearMonthKey) return
-        if (snapshot.loadingHistoryMonth == yearMonthKey) return
-        _state.update { it.copy(loadingHistoryMonth = yearMonthKey) }
+        if (key.isBlank() || endMs < startMs) return
+        if (snapshot.extraHistory.containsKey(key)) return
+        if (yearMonth != null && snapshot.usage?.history?.calendarMonth?.yearMonth == yearMonth) return
+        if (snapshot.loadingHistoryKey == key) return
+        _state.update { it.copy(loadingHistoryKey = key) }
         viewModelScope.launch {
             try {
                 val window = withContext(Dispatchers.IO) {
-                    repository.fetchMonthHistory(accountId, yearMonthKey)
+                    repository.fetchHistoryWindow(accountId, startMs, endMs, yearMonth)
                 }
                 if (_state.value.selectedAccountId == accountId) {
                     _state.update {
                         it.copy(
-                            extraMonthHistory = it.extraMonthHistory + (yearMonthKey to window),
-                            loadingHistoryMonth = if (it.loadingHistoryMonth == yearMonthKey) {
-                                null
-                            } else {
-                                it.loadingHistoryMonth
-                            },
+                            extraHistory = it.extraHistory + (key to window),
+                            loadingHistoryKey = if (it.loadingHistoryKey == key) null else it.loadingHistoryKey,
                         )
                     }
                 }
@@ -106,11 +107,7 @@ class CursorTViewModel(
                 if (_state.value.selectedAccountId == accountId) {
                     _state.update {
                         it.copy(
-                            loadingHistoryMonth = if (it.loadingHistoryMonth == yearMonthKey) {
-                                null
-                            } else {
-                                it.loadingHistoryMonth
-                            },
+                            loadingHistoryKey = if (it.loadingHistoryKey == key) null else it.loadingHistoryKey,
                         )
                     }
                 }

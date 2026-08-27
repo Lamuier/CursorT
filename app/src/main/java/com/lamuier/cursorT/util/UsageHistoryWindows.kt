@@ -1,8 +1,12 @@
 package com.lamuier.cursorT.util
 
+import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.YearMonth
 import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
 
 data class EpochRange(
     val startMs: Long,
@@ -12,13 +16,23 @@ data class EpochRange(
 object UsageHistoryWindows {
     fun previousBillingCycle(startMs: Long?, endMs: Long?): EpochRange? {
         if (startMs == null || endMs == null) return null
-        if (endMs <= startMs) return null
-        val duration = endMs - startMs
-        val prevEnd = startMs - 1L
-        val prevStart = startMs - duration
-        if (prevEnd < prevStart) return null
-        return EpochRange(prevStart, prevEnd)
+        return billingCycleOffset(startMs, endMs, -1)
     }
+
+    /**
+     * [offset] = 0 当前周期，-1 上一周期，以此类推。
+     * 长度取自当前 [startMs, endMs)，过去周期的结束时刻为下一段开始前 1ms。
+     */
+    fun billingCycleOffset(startMs: Long, endMs: Long, offset: Int): EpochRange? {
+        if (endMs <= startMs || offset > 0) return null
+        val duration = endMs - startMs
+        val cycleStart = startMs + offset.toLong() * duration
+        val cycleEnd = if (offset == 0) endMs else cycleStart + duration - 1L
+        if (cycleEnd < cycleStart) return null
+        return EpochRange(cycleStart, cycleEnd)
+    }
+
+    fun cycleKey(startMs: Long): String = "c:$startMs"
 
     fun calendarMonth(
         yearMonth: YearMonth,
@@ -35,7 +49,7 @@ object UsageHistoryWindows {
         nowMs: Long = System.currentTimeMillis(),
         zone: ZoneId = ZoneId.systemDefault(),
     ): Pair<YearMonth, EpochRange> {
-        val month = YearMonth.from(LocalDate.ofInstant(java.time.Instant.ofEpochMilli(nowMs), zone))
+        val month = YearMonth.from(LocalDate.ofInstant(Instant.ofEpochMilli(nowMs), zone))
         return month to calendarMonth(month, nowMs, zone)
     }
 
@@ -47,6 +61,35 @@ object UsageHistoryWindows {
         val year = key.substring(0, 4).toIntOrNull() ?: return null
         val month = key.substring(5, 7).toIntOrNull() ?: return null
         return runCatching { YearMonth.of(year, month) }.getOrNull()
+    }
+
+    fun parseLocalDateTimeMs(
+        value: String?,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): Long? {
+        if (value.isNullOrBlank()) return null
+        val normalized = if (value.length == 10) {
+            value + "T00:00:00"
+        } else {
+            value.replace(' ', 'T')
+        }
+        return try {
+            LocalDateTime.parse(normalized, DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                .atZone(zone)
+                .toInstant()
+                .toEpochMilli()
+        } catch (_: DateTimeParseException) {
+            null
+        }
+    }
+
+    fun formatRange(
+        range: EpochRange,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): Pair<String, String> {
+        val fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(zone)
+        return fmt.format(Instant.ofEpochMilli(range.startMs)) to
+            fmt.format(Instant.ofEpochMilli(range.endMs))
     }
 
     fun parseEpochMillis(value: Any?): Long? {

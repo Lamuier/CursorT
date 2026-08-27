@@ -170,6 +170,10 @@ class UsageCalculationsTest {
         assertNotNull(result)
         assertEquals(9.75, result!!.ownPoolDollars, 0.001)
         assertEquals(4.0, result.thirdPartyDollars, 0.001)
+        val percents = UsageCalculations.poolPercents(breakdown)
+        assertNotNull(percents)
+        assertEquals(9.75 / 13.75 * 100.0, percents!!.ownPercent, 0.001)
+        assertEquals(4.0 / 13.75 * 100.0, percents.thirdPartyPercent, 0.001)
     }
 
     @Test

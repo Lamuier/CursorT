@@ -355,27 +355,29 @@ class CursorRepository(context: Context) {
         )
     }
 
-    suspend fun fetchMonthHistory(accountId: Int, yearMonthKey: String): UsageWindow {
+    suspend fun fetchHistoryWindow(
+        accountId: Int,
+        startMs: Long,
+        endMs: Long,
+        yearMonth: String? = null,
+    ): UsageWindow {
         val snapshot = accountStore.snapshot(accountId)
-        val yearMonth = UsageHistoryWindows.parseYearMonth(yearMonthKey)
-            ?: throw ApiException(400, "无效的自然月")
-        val range = UsageHistoryWindows.calendarMonth(yearMonth)
         val payload = optionalPayload(authenticationFailureIsFatal = false) {
             api.connectRpc(
                 snapshot.accessToken,
                 "GetAggregatedUsageEvents",
-                aggregationsRangeBody(range.startMs, range.endMs),
+                aggregationsRangeBody(startMs, endMs),
             )
         }
         return CursorTAssembler.usageWindow(
-            startMs = range.startMs,
-            endMs = range.endMs,
+            startMs = startMs,
+            endMs = endMs,
             payload = payload.payload,
-            yearMonth = yearMonthKey,
+            yearMonth = yearMonth,
         ) ?: UsageWindow(
             start = null,
             end = null,
-            yearMonth = yearMonthKey,
+            yearMonth = yearMonth,
             tokenUsage = null,
         )
     }

@@ -88,6 +88,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -177,7 +178,7 @@ internal fun DashboardScreen(
     state: AppUiState,
     snackbarHostState: SnackbarHostState,
     tabOrder: List<DashboardTab>,
-    onLoadHistoryMonth: (String) -> Unit,
+    onLoadHistoryWindow: (String, Long, Long, String?) -> Unit,
     onRefresh: () -> Unit,
     onManageAccount: () -> Unit,
     onShowSettings: () -> Unit,
@@ -324,9 +325,9 @@ internal fun DashboardScreen(
                                     ) {
                                         UsageTab(
                                             usage = it,
-                                            extraMonths = state.extraMonthHistory,
-                                            loadingMonthKey = state.loadingHistoryMonth,
-                                            onLoadHistoryMonth = onLoadHistoryMonth,
+                                            extraHistory = state.extraHistory,
+                                            loadingHistoryKey = state.loadingHistoryKey,
+                                            onLoadHistoryWindow = onLoadHistoryWindow,
                                         )
                                     }
                                     DashboardTab.Billing -> UsageDependentTab(
@@ -964,14 +965,14 @@ private fun FreshnessRow(usage: CursorTOverview) {
     }
 }
 
-private enum class HistoryQueryMode { CalendarMonth, PreviousCycle }
+private enum class HistoryQueryMode { CalendarMonth, BillingCycle }
 
 @Composable
 private fun UsageTab(
     usage: CursorTOverview,
-    extraMonths: Map<String, UsageWindow>,
-    loadingMonthKey: String?,
-    onLoadHistoryMonth: (String) -> Unit,
+    extraHistory: Map<String, UsageWindow>,
+    loadingHistoryKey: String?,
+    onLoadHistoryWindow: (String, Long, Long, String?) -> Unit,
 ) {
     AdaptiveTabContent { compact ->
         val chartColors = LocalPulseChartColors.current
@@ -1084,9 +1085,9 @@ private fun UsageTab(
         TokenUsageSection(usage = usage, compact = compact)
         HistoryUsageSection(
             usage = usage,
-            extraMonths = extraMonths,
-            loadingMonthKey = loadingMonthKey,
-            onLoadHistoryMonth = onLoadHistoryMonth,
+            extraHistory = extraHistory,
+            loadingHistoryKey = loadingHistoryKey,
+            onLoadHistoryWindow = onLoadHistoryWindow,
             compact = compact,
         )
     }
@@ -1144,41 +1145,74 @@ private fun TokenUsageSection(usage: CursorTOverview, compact: Boolean) {
 @Composable
 private fun HistoryUsageSection(
     usage: CursorTOverview,
-    extraMonths: Map<String, UsageWindow>,
-    loadingMonthKey: String?,
-    onLoadHistoryMonth: (String) -> Unit,
+    extraHistory: Map<String, UsageWindow>,
+    loadingHistoryKey: String?,
+    onLoadHistoryWindow: (String, Long, Long, String?) -> Unit,
     compact: Boolean,
 ) {
+    val chartColors = LocalPulseChartColors.current
     val zone = remember { ZoneId.systemDefault() }
     val nowMonth = remember { YearMonth.now(zone) }
     var mode by remember { mutableStateOf(HistoryQueryMode.CalendarMonth) }
     var selectedMonth by remember { mutableStateOf(nowMonth) }
-    val selectedKey = UsageHistoryWindows.yearMonthKey(selectedMonth)
-    LaunchedEffect(selectedKey, mode, usage.accountId) {
-        if (mode != HistoryQueryMode.CalendarMonth) return@LaunchedEffect
-        val prefetched = usage.history?.calendarMonth?.yearMonth
-        if (selectedKey != prefetched && extraMonths[selectedKey] == null) {
-            onLoadHistoryMonth(selectedKey)
+    var cycleOffset by remember { mutableIntStateOf(-1) }
+    val selectedMonthKey = UsageHistoryWindows.yearMonthKey(selectedMonth)
+    val cycleStartMs = remember(usage.billingCycle.start) {
+        UsageHistoryWindows.parseLocalDateTimeMs(usage.billingCycle.start, zone)
+    }
+    val cycleEndMs = remember(usage.billingCycle.end) {
+        UsageHistoryWindows.parseLocalDateTimeMs(usage.billingCycle.end, zone)
+    }
+    val selectedCycleRange = remember(cycleStartMs, cycleEndMs, cycleOffset) {
+        if (cycleStartMs == null || cycleEndMs == null) {
+            null
+        } else {
+            UsageHistoryWindows.billingCycleOffset(cycleStartMs, cycleEndMs, cycleOffset)
         }
     }
+    val selectedCycleKey = selectedCycleRange?.let { UsageHistoryWindows.cycleKey(it.startMs) }
+    LaunchedEffect(selectedMonthKey, mode, usage.accountId) {
+        if (mode != HistoryQueryMode.CalendarMonth) return@LaunchedEffect
+        val monthRange = UsageHistoryWindows.calendarMonth(selectedMonth)
+        if (usage.history?.calendarMonth?.yearMonth != selectedMonthKey &&
+            extraHistory[selectedMonthKey] == null
+        ) {
+            onLoadHistoryWindow(selectedMonthKey, monthRange.startMs, monthRange.endMs, selectedMonthKey)
+        }
+    }
+    LaunchedEffect(selectedCycleKey, mode, usage.accountId) {
+        if (mode != HistoryQueryMode.BillingCycle) return@LaunchedEffect
+        val range = selectedCycleRange ?: return@LaunchedEffect
+        val key = selectedCycleKey ?: return@LaunchedEffect
+        if (cycleOffset == -1 && usage.history?.previousCycle != null) return@LaunchedEffect
+        if (extraHistory[key] == null) {
+            onLoadHistoryWindow(key, range.startMs, range.endMs, null)
+        }
+    }
+    val extraCycle = selectedCycleKey?.let { extraHistory[it] }
     val window = when (mode) {
-        HistoryQueryMode.PreviousCycle -> usage.history?.previousCycle
+        HistoryQueryMode.BillingCycle -> {
+            if (cycleOffset == -1) extraCycle ?: usage.history?.previousCycle else extraCycle
+        }
         HistoryQueryMode.CalendarMonth -> {
-            if (usage.history?.calendarMonth?.yearMonth == selectedKey) {
+            if (usage.history?.calendarMonth?.yearMonth == selectedMonthKey) {
                 usage.history?.calendarMonth
             } else {
-                extraMonths[selectedKey]
+                extraHistory[selectedMonthKey]
             }
         }
     }
-    val loading = mode == HistoryQueryMode.CalendarMonth &&
-        loadingMonthKey == selectedKey &&
-        window == null
-    val earliest = nowMonth.minusMonths(12)
+    val loadingKey = when (mode) {
+        HistoryQueryMode.CalendarMonth -> selectedMonthKey
+        HistoryQueryMode.BillingCycle -> selectedCycleKey
+    }
+    val loading = loadingHistoryKey == loadingKey && window == null
+    val earliestMonth = nowMonth.minusMonths(12)
+    val pools = remember(window?.tokenUsage) { UsageCalculations.poolPercents(window?.tokenUsage) }
     SectionHeading(
         icon = Icons.Outlined.History,
         title = "历史用量",
-        supporting = "按模型 Token 汇总，不含套餐百分比",
+        supporting = "官方两池百分比只返回当前周期；历史按 Token 费用估算占比",
     )
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -1193,7 +1227,7 @@ private fun HistoryUsageSection(
             SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                 val options = listOf(
                     HistoryQueryMode.CalendarMonth to "自然月",
-                    HistoryQueryMode.PreviousCycle to "上个计费周期",
+                    HistoryQueryMode.BillingCycle to "计费周期",
                 )
                 options.forEachIndexed { index, (value, label) ->
                     SegmentedButton(
@@ -1212,7 +1246,7 @@ private fun HistoryUsageSection(
                 ) {
                     IconButton(
                         onClick = { selectedMonth = selectedMonth.minusMonths(1) },
-                        enabled = selectedMonth.isAfter(earliest),
+                        enabled = selectedMonth.isAfter(earliestMonth),
                     ) {
                         Icon(Icons.Outlined.ChevronLeft, contentDescription = "上一个月")
                     }
@@ -1231,17 +1265,40 @@ private fun HistoryUsageSection(
                     }
                 }
             } else {
-                Text(
-                    text = listOfNotNull(window?.start, window?.end).joinToString(" → ")
-                        .ifBlank { "上一个计费周期" },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                val labels = selectedCycleRange?.let { UsageHistoryWindows.formatRange(it, zone) }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton(
+                        onClick = { cycleOffset -= 1 },
+                        enabled = selectedCycleRange != null && cycleOffset > -12,
+                    ) {
+                        Icon(Icons.Outlined.ChevronLeft, contentDescription = "上一个计费周期")
+                    }
+                    Text(
+                        text = if (labels != null) {
+                            "${labels.first} → ${labels.second}"
+                        } else {
+                            "计费周期未知"
+                        },
+                        modifier = Modifier.weight(1f),
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    IconButton(
+                        onClick = { cycleOffset += 1 },
+                        enabled = cycleOffset < -1,
+                    ) {
+                        Icon(Icons.Outlined.ChevronRight, contentDescription = "下一个计费周期")
+                    }
+                }
             }
             when {
                 loading -> {
                     Text(
-                        "正在加载该窗口的 Token 汇总…",
+                        "正在加载该窗口的用量…",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -1253,15 +1310,28 @@ private fun HistoryUsageSection(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                window.tokenUsage!!.models.isEmpty() -> {
-                    Text(
-                        "该窗口暂无按模型 Token 记录。",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
                 else -> {
                     val tokenUsage = window.tokenUsage!!
+                    if (pools != null) {
+                        HorizontalUsageChart(
+                            label = "Cursor 模型",
+                            percent = pools.ownPercent,
+                            color = chartColors.chart1,
+                            caption = "费用 ${money(pools.ownPoolDollars)}，占该窗口 Token 费用",
+                        )
+                        HorizontalUsageChart(
+                            label = "其他模型",
+                            percent = pools.thirdPartyPercent,
+                            color = chartColors.chart2,
+                            caption = "费用 ${money(pools.thirdPartyDollars)}，占该窗口 Token 费用",
+                        )
+                    } else {
+                        Text(
+                            "该窗口暂无足够费用数据估算用量池占比。",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                     Text(
                         buildString {
                             append("入 ${UsageCalculations.formatTokens(tokenUsage.totalInputTokens)}")
@@ -1275,12 +1345,14 @@ private fun HistoryUsageSection(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    tokenUsage.models.forEachIndexed { index, model ->
-                        ModelTokenRow(model = model, compact = compact)
-                        if (index < tokenUsage.models.lastIndex) {
-                            HorizontalDivider(
-                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
-                            )
+                    if (tokenUsage.models.isNotEmpty()) {
+                        tokenUsage.models.forEachIndexed { index, model ->
+                            ModelTokenRow(model = model, compact = compact)
+                            if (index < tokenUsage.models.lastIndex) {
+                                HorizontalDivider(
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
+                                )
+                            }
                         }
                     }
                 }

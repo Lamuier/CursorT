@@ -67,9 +67,52 @@ class CursorTViewModel(
                 refreshingTasks = false,
                 error = selectionError,
                 tasksError = null,
+                extraHistory = emptyMap(),
+                loadingHistoryKey = null,
             )
         }
         refreshSelected(force = false, silent = cached != null)
+    }
+
+    fun loadHistoryWindow(
+        key: String,
+        startMs: Long,
+        endMs: Long,
+        yearMonth: String? = null,
+    ) {
+        val snapshot = _state.value
+        if (snapshot.stage != AppStage.Dashboard || snapshot.submitting) return
+        val accountId = snapshot.selectedAccountId ?: return
+        if (key.isBlank() || endMs < startMs) return
+        if (snapshot.extraHistory.containsKey(key)) return
+        if (yearMonth != null && snapshot.usage?.history?.calendarMonth?.yearMonth == yearMonth) return
+        if (snapshot.loadingHistoryKey == key) return
+        _state.update { it.copy(loadingHistoryKey = key) }
+        viewModelScope.launch {
+            try {
+                val window = withContext(Dispatchers.IO) {
+                    repository.fetchHistoryWindow(accountId, startMs, endMs, yearMonth)
+                }
+                if (_state.value.selectedAccountId == accountId) {
+                    _state.update {
+                        it.copy(
+                            extraHistory = it.extraHistory + (key to window),
+                            loadingHistoryKey = if (it.loadingHistoryKey == key) null else it.loadingHistoryKey,
+                        )
+                    }
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                if (_state.value.selectedAccountId == accountId) {
+                    _state.update {
+                        it.copy(
+                            loadingHistoryKey = if (it.loadingHistoryKey == key) null else it.loadingHistoryKey,
+                        )
+                    }
+                }
+            }
+        }
     }
 
     fun refreshSelected(

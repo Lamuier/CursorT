@@ -8,8 +8,10 @@ import com.lamuier.cursorT.network.ApiException
 import com.lamuier.cursorT.network.CursorApiClient
 import com.lamuier.cursorT.network.CursorTAssembler
 import com.lamuier.cursorT.network.TasksJsonParser
+import com.lamuier.cursorT.model.UsageWindow
 import com.lamuier.cursorT.network.UsageJsonParser
 import com.lamuier.cursorT.util.TokenUtils
+import com.lamuier.cursorT.util.UsageHistoryWindows
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -285,26 +287,105 @@ class CursorRepository(context: Context) {
                 api.connectRpc(snapshot.accessToken, "GetAggregatedUsageEvents")
             }
         }
+        val grokBot = async {
+            // Grok Bot 周额度独立于月度用量池：401/403 不得拖垮整次刷新。
+            optionalPayload(authenticationFailureIsFatal = false) {
+                api.connectRpc(snapshot.accessToken, "GetSandUsageStatus")
+            }
+        }
         val stripe = async {
             // Stripe is supplementary. Its cookie contract may fail independently
             // even while the primary Bearer endpoints still accept the token.
             optionalPayload(authenticationFailureIsFatal = false) { api.stripe(snapshot.accessToken) }
         }
 
+        val periodUsage = period.await()
+        val prevRange = UsageHistoryWindows.previousBillingCycle(
+            UsageHistoryWindows.parseEpochMillis(periodUsage.opt("billingCycleStart")),
+            UsageHistoryWindows.parseEpochMillis(periodUsage.opt("billingCycleEnd")),
+        )
+        val (monthKeyYm, monthRange) = UsageHistoryWindows.currentCalendarMonth()
+        val previousCycle = async {
+            if (prevRange == null) {
+                OptionalPayload(payload = null, partial = true)
+            } else {
+                optionalPayload(authenticationFailureIsFatal = false) {
+                    api.connectRpc(
+                        snapshot.accessToken,
+                        "GetAggregatedUsageEvents",
+                        aggregationsRangeBody(prevRange.startMs, prevRange.endMs),
+                    )
+                }
+            }
+        }
+        val calendarMonth = async {
+            optionalPayload(authenticationFailureIsFatal = false) {
+                api.connectRpc(
+                    snapshot.accessToken,
+                    "GetAggregatedUsageEvents",
+                    aggregationsRangeBody(monthRange.startMs, monthRange.endMs),
+                )
+            }
+        }
+
         val grantsResult = grants.await()
         val aggregationsResult = aggregations.await()
+        val grokBotResult = grokBot.await()
         val stripeResult = stripe.await()
+        val previousCycleResult = previousCycle.await()
+        val calendarMonthResult = calendarMonth.await()
         CursorTAssembler.assemble(
             accountId = snapshot.id,
             alias = snapshot.alias,
-            periodUsage = period.await(),
+            periodUsage = periodUsage,
             planPayload = plan.await(),
             grantsPayload = grantsResult.payload,
             stripePayload = stripeResult.payload,
             aggregationsPayload = aggregationsResult.payload,
-            partialData = grantsResult.partial || stripeResult.partial || aggregationsResult.partial,
+            grokBotPayload = grokBotResult.payload,
+            previousCyclePayload = previousCycleResult.payload,
+            previousCycleStartMs = prevRange?.startMs,
+            previousCycleEndMs = prevRange?.endMs,
+            calendarMonthPayload = calendarMonthResult.payload,
+            calendarMonthStartMs = monthRange.startMs,
+            calendarMonthEndMs = monthRange.endMs,
+            calendarMonthKey = UsageHistoryWindows.yearMonthKey(monthKeyYm),
+            partialData = grantsResult.partial || stripeResult.partial ||
+                aggregationsResult.partial || grokBotResult.partial,
         )
     }
+
+    suspend fun fetchHistoryWindow(
+        accountId: Int,
+        startMs: Long,
+        endMs: Long,
+        yearMonth: String? = null,
+    ): UsageWindow {
+        val snapshot = accountStore.snapshot(accountId)
+        val payload = optionalPayload(authenticationFailureIsFatal = false) {
+            api.connectRpc(
+                snapshot.accessToken,
+                "GetAggregatedUsageEvents",
+                aggregationsRangeBody(startMs, endMs),
+            )
+        }
+        return CursorTAssembler.usageWindow(
+            startMs = startMs,
+            endMs = endMs,
+            payload = payload.payload,
+            yearMonth = yearMonth,
+        ) ?: UsageWindow(
+            start = null,
+            end = null,
+            yearMonth = yearMonth,
+            tokenUsage = null,
+        )
+    }
+
+    private fun aggregationsRangeBody(startMs: Long, endMs: Long): JSONObject =
+        JSONObject()
+            .put("startDate", startMs.toString())
+            .put("endDate", endMs.toString())
 
     private suspend fun optionalPayload(
         authenticationFailureIsFatal: Boolean,

@@ -44,6 +44,9 @@ import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
 import androidx.compose.material.icons.automirrored.outlined.TrendingUp
 import androidx.compose.material.icons.outlined.Cached
 import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.ChevronLeft
+import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.CardGiftcard
 import androidx.compose.material.icons.outlined.CloudDone
 import androidx.compose.material.icons.outlined.CloudOff
@@ -70,6 +73,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
@@ -82,6 +88,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -113,6 +120,7 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -121,15 +129,20 @@ import com.lamuier.cursorT.model.CursorAccount
 import com.lamuier.cursorT.model.CursorTOverview
 import com.lamuier.cursorT.model.DashboardTab
 import com.lamuier.cursorT.model.ModelTokenUsage
+import com.lamuier.cursorT.model.TokenUsageBreakdown
+import com.lamuier.cursorT.model.UsageWindow
 import com.lamuier.cursorT.ui.theme.LocalPulseChartColors
 import com.lamuier.cursorT.util.BillingProgress
 import com.lamuier.cursorT.util.UsageCalculations
+import com.lamuier.cursorT.util.UsageHistoryWindows
 import com.lamuier.cursorT.util.UsageLevel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import java.util.Locale
 import kotlinx.coroutines.delay
+import java.time.YearMonth
+import java.time.ZoneId
 import kotlinx.coroutines.launch
 
 /** 周期倒计时/百分比的本地走动间隔（仅重算时间，不触发网络请求）。 */
@@ -165,6 +178,7 @@ internal fun DashboardScreen(
     state: AppUiState,
     snackbarHostState: SnackbarHostState,
     tabOrder: List<DashboardTab>,
+    onLoadHistoryWindow: (String, Long, Long, String?) -> Unit,
     onRefresh: () -> Unit,
     onManageAccount: () -> Unit,
     onShowSettings: () -> Unit,
@@ -308,7 +322,14 @@ internal fun DashboardScreen(
                                         onRefresh = onRefresh,
                                         onManageAccount = onManageAccount,
                                         onShowTokenHelp = onShowTokenHelp,
-                                    ) { UsageTab(it) }
+                                    ) {
+                                        UsageTab(
+                                            usage = it,
+                                            extraHistory = state.extraHistory,
+                                            loadingHistoryKey = state.loadingHistoryKey,
+                                            onLoadHistoryWindow = onLoadHistoryWindow,
+                                        )
+                                    }
                                     DashboardTab.Billing -> UsageDependentTab(
                                         state = state,
                                         onRefresh = onRefresh,
@@ -826,6 +847,31 @@ private fun OverviewTab(usage: CursorTOverview) {
             MetricRowCard(tiles = quotaTiles, compact = compact)
             MetricRowCard(tiles = tokenTiles, compact = compact)
         }
+        usage.grokBot?.let { grok ->
+            val grokProgress = remember(grok, nowMillis) {
+                UsageCalculations.billingProgress(grok.periodStart, grok.resetsAt, nowMillis)
+            }
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                shadowElevation = 1.dp,
+            ) {
+                Column(
+                    modifier = Modifier.padding(if (compact) 14.dp else 18.dp),
+                    verticalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 10.dp),
+                ) {
+                    HorizontalUsageChart(
+                        label = "Grok Bot 本周",
+                        percent = grok.percentUsed,
+                        color = chartColors.chart3,
+                        caption = grokProgress?.let {
+                            "每周独立额度，${UsageCalculations.formatRemaining(it.remainingMillis)} 后重置"
+                        } ?: "每周独立额度，不计入月度用量池",
+                    )
+                }
+            }
+        }
         FreshnessRow(usage)
         if (usage.partialData) {
             Text(
@@ -919,8 +965,15 @@ private fun FreshnessRow(usage: CursorTOverview) {
     }
 }
 
+private enum class HistoryQueryMode { CalendarMonth, BillingCycle }
+
 @Composable
-private fun UsageTab(usage: CursorTOverview) {
+private fun UsageTab(
+    usage: CursorTOverview,
+    extraHistory: Map<String, UsageWindow>,
+    loadingHistoryKey: String?,
+    onLoadHistoryWindow: (String, Long, Long, String?) -> Unit,
+) {
     AdaptiveTabContent { compact ->
         val chartColors = LocalPulseChartColors.current
         val segments = remember(usage, chartColors) {
@@ -961,6 +1014,38 @@ private fun UsageTab(usage: CursorTOverview) {
             }
         }
 
+        usage.grokBot?.let { grok ->
+            val nowMillis = rememberNowMillis()
+            val grokProgress = remember(grok, nowMillis) {
+                UsageCalculations.billingProgress(grok.periodStart, grok.resetsAt, nowMillis)
+            }
+            SectionHeading(
+                icon = Icons.Outlined.SmartToy,
+                title = "Grok Bot",
+                supporting = grokProgress?.let {
+                    "每周独立额度，${UsageCalculations.formatRemaining(it.remainingMillis)} 后重置"
+                } ?: "每周独立额度，不计入上方月度用量池",
+            )
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                shadowElevation = 1.dp,
+            ) {
+                Column(
+                    modifier = Modifier.padding(if (compact) 14.dp else 18.dp),
+                    verticalArrangement = Arrangement.spacedBy(if (compact) 12.dp else 16.dp),
+                ) {
+                    HorizontalUsageChart(
+                        label = "本周用量",
+                        percent = grok.percentUsed,
+                        color = chartColors.chart3,
+                        caption = "超额后走已有的 On-demand 用量",
+                    )
+                }
+            }
+        }
+
         SectionHeading(
             icon = Icons.Outlined.PieChart,
             title = "额度构成",
@@ -998,6 +1083,13 @@ private fun UsageTab(usage: CursorTOverview) {
         }
 
         TokenUsageSection(usage = usage, compact = compact)
+        HistoryUsageSection(
+            usage = usage,
+            extraHistory = extraHistory,
+            loadingHistoryKey = loadingHistoryKey,
+            onLoadHistoryWindow = onLoadHistoryWindow,
+            compact = compact,
+        )
     }
 }
 
@@ -1041,6 +1133,226 @@ private fun TokenUsageSection(usage: CursorTOverview, compact: Boolean) {
                             HorizontalDivider(
                                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
                             )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun HistoryUsageSection(
+    usage: CursorTOverview,
+    extraHistory: Map<String, UsageWindow>,
+    loadingHistoryKey: String?,
+    onLoadHistoryWindow: (String, Long, Long, String?) -> Unit,
+    compact: Boolean,
+) {
+    val chartColors = LocalPulseChartColors.current
+    val zone = remember { ZoneId.systemDefault() }
+    val nowMonth = remember { YearMonth.now(zone) }
+    var mode by remember { mutableStateOf(HistoryQueryMode.CalendarMonth) }
+    var selectedMonth by remember { mutableStateOf(nowMonth) }
+    var cycleOffset by remember { mutableIntStateOf(-1) }
+    val selectedMonthKey = UsageHistoryWindows.yearMonthKey(selectedMonth)
+    val cycleStartMs = remember(usage.billingCycle.start) {
+        UsageHistoryWindows.parseLocalDateTimeMs(usage.billingCycle.start, zone)
+    }
+    val cycleEndMs = remember(usage.billingCycle.end) {
+        UsageHistoryWindows.parseLocalDateTimeMs(usage.billingCycle.end, zone)
+    }
+    val selectedCycleRange = remember(cycleStartMs, cycleEndMs, cycleOffset) {
+        if (cycleStartMs == null || cycleEndMs == null) {
+            null
+        } else {
+            UsageHistoryWindows.billingCycleOffset(cycleStartMs, cycleEndMs, cycleOffset)
+        }
+    }
+    val selectedCycleKey = selectedCycleRange?.let { UsageHistoryWindows.cycleKey(it.startMs) }
+    LaunchedEffect(selectedMonthKey, mode, usage.accountId) {
+        if (mode != HistoryQueryMode.CalendarMonth) return@LaunchedEffect
+        val monthRange = UsageHistoryWindows.calendarMonth(selectedMonth)
+        if (usage.history?.calendarMonth?.yearMonth != selectedMonthKey &&
+            extraHistory[selectedMonthKey] == null
+        ) {
+            onLoadHistoryWindow(selectedMonthKey, monthRange.startMs, monthRange.endMs, selectedMonthKey)
+        }
+    }
+    LaunchedEffect(selectedCycleKey, mode, usage.accountId) {
+        if (mode != HistoryQueryMode.BillingCycle) return@LaunchedEffect
+        val range = selectedCycleRange ?: return@LaunchedEffect
+        val key = selectedCycleKey ?: return@LaunchedEffect
+        if (cycleOffset == -1 && usage.history?.previousCycle != null) return@LaunchedEffect
+        if (extraHistory[key] == null) {
+            onLoadHistoryWindow(key, range.startMs, range.endMs, null)
+        }
+    }
+    val extraCycle = selectedCycleKey?.let { extraHistory[it] }
+    val window = when (mode) {
+        HistoryQueryMode.BillingCycle -> {
+            if (cycleOffset == -1) extraCycle ?: usage.history?.previousCycle else extraCycle
+        }
+        HistoryQueryMode.CalendarMonth -> {
+            if (usage.history?.calendarMonth?.yearMonth == selectedMonthKey) {
+                usage.history?.calendarMonth
+            } else {
+                extraHistory[selectedMonthKey]
+            }
+        }
+    }
+    val loadingKey = when (mode) {
+        HistoryQueryMode.CalendarMonth -> selectedMonthKey
+        HistoryQueryMode.BillingCycle -> selectedCycleKey
+    }
+    val loading = loadingHistoryKey == loadingKey && window == null
+    val earliestMonth = nowMonth.minusMonths(12)
+    val pools = remember(window?.tokenUsage) { UsageCalculations.poolPercents(window?.tokenUsage) }
+    SectionHeading(
+        icon = Icons.Outlined.History,
+        title = "历史用量",
+        supporting = "官方两池百分比只返回当前周期；历史按 Token 费用估算占比",
+    )
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        shadowElevation = 1.dp,
+    ) {
+        Column(
+            modifier = Modifier.padding(if (compact) 14.dp else 18.dp),
+            verticalArrangement = Arrangement.spacedBy(if (compact) 10.dp else 12.dp),
+        ) {
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                val options = listOf(
+                    HistoryQueryMode.CalendarMonth to "自然月",
+                    HistoryQueryMode.BillingCycle to "计费周期",
+                )
+                options.forEachIndexed { index, (value, label) ->
+                    SegmentedButton(
+                        selected = mode == value,
+                        onClick = { mode = value },
+                        shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
+                    ) {
+                        Text(label)
+                    }
+                }
+            }
+            if (mode == HistoryQueryMode.CalendarMonth) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton(
+                        onClick = { selectedMonth = selectedMonth.minusMonths(1) },
+                        enabled = selectedMonth.isAfter(earliestMonth),
+                    ) {
+                        Icon(Icons.Outlined.ChevronLeft, contentDescription = "上一个月")
+                    }
+                    Text(
+                        "${selectedMonth.year}年${selectedMonth.monthValue}月",
+                        modifier = Modifier.weight(1f),
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    IconButton(
+                        onClick = { selectedMonth = selectedMonth.plusMonths(1) },
+                        enabled = selectedMonth.isBefore(nowMonth),
+                    ) {
+                        Icon(Icons.Outlined.ChevronRight, contentDescription = "下一个月")
+                    }
+                }
+            } else {
+                val labels = selectedCycleRange?.let { UsageHistoryWindows.formatRange(it, zone) }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton(
+                        onClick = { cycleOffset -= 1 },
+                        enabled = selectedCycleRange != null && cycleOffset > -12,
+                    ) {
+                        Icon(Icons.Outlined.ChevronLeft, contentDescription = "上一个计费周期")
+                    }
+                    Text(
+                        text = if (labels != null) {
+                            "${labels.first} → ${labels.second}"
+                        } else {
+                            "计费周期未知"
+                        },
+                        modifier = Modifier.weight(1f),
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    IconButton(
+                        onClick = { cycleOffset += 1 },
+                        enabled = cycleOffset < -1,
+                    ) {
+                        Icon(Icons.Outlined.ChevronRight, contentDescription = "下一个计费周期")
+                    }
+                }
+            }
+            when {
+                loading -> {
+                    Text(
+                        "正在加载该窗口的用量…",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                window?.tokenUsage == null -> {
+                    Text(
+                        "该窗口暂无 Token 明细。",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                else -> {
+                    val tokenUsage = window.tokenUsage!!
+                    if (pools != null) {
+                        HorizontalUsageChart(
+                            label = "Cursor 模型",
+                            percent = pools.ownPercent,
+                            color = chartColors.chart1,
+                            caption = "费用 ${money(pools.ownPoolDollars)}，占该窗口 Token 费用",
+                        )
+                        HorizontalUsageChart(
+                            label = "其他模型",
+                            percent = pools.thirdPartyPercent,
+                            color = chartColors.chart2,
+                            caption = "费用 ${money(pools.thirdPartyDollars)}，占该窗口 Token 费用",
+                        )
+                    } else {
+                        Text(
+                            "该窗口暂无足够费用数据估算用量池占比。",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Text(
+                        buildString {
+                            append("入 ${UsageCalculations.formatTokens(tokenUsage.totalInputTokens)}")
+                            append(" · 出 ${UsageCalculations.formatTokens(tokenUsage.totalOutputTokens)}")
+                            val cached = tokenUsage.totalCacheWriteTokens + tokenUsage.totalCacheReadTokens
+                            if (cached > 0L) {
+                                append(" · 缓存 ${UsageCalculations.formatTokens(cached)}")
+                            }
+                            append(" · ${money(tokenUsage.totalCostDollars)}")
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    if (tokenUsage.models.isNotEmpty()) {
+                        tokenUsage.models.forEachIndexed { index, model ->
+                            ModelTokenRow(model = model, compact = compact)
+                            if (index < tokenUsage.models.lastIndex) {
+                                HorizontalDivider(
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
+                                )
+                            }
                         }
                     }
                 }

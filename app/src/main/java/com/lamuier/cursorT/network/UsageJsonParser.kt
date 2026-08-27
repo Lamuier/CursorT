@@ -2,6 +2,7 @@ package com.lamuier.cursorT.network
 
 import com.lamuier.cursorT.model.BillingCycle
 import com.lamuier.cursorT.model.Credits
+import com.lamuier.cursorT.model.GrokBotUsage
 import com.lamuier.cursorT.model.CursorAccount
 import com.lamuier.cursorT.model.CursorTOverview
 import com.lamuier.cursorT.model.ModelTokenUsage
@@ -9,6 +10,8 @@ import com.lamuier.cursorT.model.OnDemandUsage
 import com.lamuier.cursorT.model.PlanInfo
 import com.lamuier.cursorT.model.Subscription
 import com.lamuier.cursorT.model.TokenUsageBreakdown
+import com.lamuier.cursorT.model.UsageHistory
+import com.lamuier.cursorT.model.UsageWindow
 import com.lamuier.cursorT.model.TotalFormat
 import com.lamuier.cursorT.model.UsageMetrics
 import org.json.JSONArray
@@ -108,6 +111,23 @@ object UsageJsonParser {
                     )
             } ?: JSONObject.NULL,
         )
+        root.put(
+            "grok_bot",
+            usage.grokBot?.let {
+                JSONObject()
+                    .put("percent_used", it.percentUsed)
+                    .putNullable("period_start", it.periodStart)
+                    .putNullable("resets_at", it.resetsAt)
+            } ?: JSONObject.NULL,
+        )
+        root.put(
+            "history",
+            usage.history?.let { history ->
+                JSONObject()
+                    .put("previous_cycle", history.previousCycle?.let(::windowJson) ?: JSONObject.NULL)
+                    .put("calendar_month", history.calendarMonth?.let(::windowJson) ?: JSONObject.NULL)
+            } ?: JSONObject.NULL,
+        )
         return root.toString()
     }
 
@@ -183,11 +203,67 @@ object UsageJsonParser {
                 status = subscription.nullableString("status"),
             ),
             tokenUsage = root.optJSONObject("token_usage")?.let(::parseTokenUsage),
+            grokBot = root.optJSONObject("grok_bot")?.let(::parseGrokBot),
+            history = root.optJSONObject("history")?.let(::parseHistory),
             fetchedAt = root.optString("fetched_at"),
             fromCache = root.optBoolean("from_cache"),
             cacheAgeSeconds = root.optInt("cache_age_seconds"),
             isLocalCache = isLocalCache,
             partialData = root.optBoolean("partial_data"),
+        )
+    }
+
+    private fun parseHistory(json: JSONObject): UsageHistory = UsageHistory(
+        previousCycle = json.optJSONObject("previous_cycle")?.let(::parseWindow),
+        calendarMonth = json.optJSONObject("calendar_month")?.let(::parseWindow),
+    )
+
+    private fun parseWindow(json: JSONObject): UsageWindow = UsageWindow(
+        start = json.nullableString("start"),
+        end = json.nullableString("end"),
+        yearMonth = json.nullableString("year_month"),
+        tokenUsage = json.optJSONObject("token_usage")?.let(::parseTokenUsage),
+    )
+
+    private fun windowJson(window: UsageWindow): JSONObject = JSONObject()
+        .putNullable("start", window.start)
+        .putNullable("end", window.end)
+        .putNullable("year_month", window.yearMonth)
+        .put(
+            "token_usage",
+            window.tokenUsage?.let(::tokenUsageJson) ?: JSONObject.NULL,
+        )
+
+    private fun tokenUsageJson(breakdown: TokenUsageBreakdown): JSONObject = JSONObject()
+        .put("total_input_tokens", breakdown.totalInputTokens)
+        .put("total_output_tokens", breakdown.totalOutputTokens)
+        .put("total_cache_write_tokens", breakdown.totalCacheWriteTokens)
+        .put("total_cache_read_tokens", breakdown.totalCacheReadTokens)
+        .put("total_cost_dollars", breakdown.totalCostDollars)
+        .put(
+            "models",
+            JSONArray().also { array ->
+                breakdown.models.forEach { model ->
+                    array.put(
+                        JSONObject()
+                            .put("model_intent", model.modelIntent)
+                            .put("input_tokens", model.inputTokens)
+                            .put("output_tokens", model.outputTokens)
+                            .put("cache_write_tokens", model.cacheWriteTokens)
+                            .put("cache_read_tokens", model.cacheReadTokens)
+                            .put("cost_dollars", model.costDollars)
+                            .putNullable("tier", model.tier),
+                    )
+                }
+            },
+        )
+
+    private fun parseGrokBot(json: JSONObject): GrokBotUsage? {
+        val percent = json.nullableNumber("percent_used") ?: return null
+        return GrokBotUsage(
+            percentUsed = percent,
+            periodStart = json.nullableString("period_start"),
+            resetsAt = json.nullableString("resets_at"),
         )
     }
 

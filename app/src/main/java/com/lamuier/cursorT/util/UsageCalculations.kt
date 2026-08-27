@@ -25,6 +25,14 @@ data class PoolSpend(
     val thirdPartyDollars: Double,
 )
 
+/** 历史窗口里官方两池百分比不可用时，用 Token 费用占比近似。 */
+data class PoolPercents(
+    val ownPercent: Double,
+    val thirdPartyPercent: Double,
+    val ownPoolDollars: Double,
+    val thirdPartyDollars: Double,
+)
+
 data class BillingProgress(
     val totalDays: Int,
     val elapsedDays: Int,
@@ -160,6 +168,18 @@ object UsageCalculations {
             }
         }
         return PoolSpend(ownPoolDollars = own, thirdPartyDollars = thirdParty)
+    }
+
+    fun poolPercents(tokenUsage: TokenUsageBreakdown?): PoolPercents? {
+        val spend = poolSpend(tokenUsage) ?: return null
+        val total = spend.ownPoolDollars + spend.thirdPartyDollars
+        if (total <= 0.0) return null
+        return PoolPercents(
+            ownPercent = spend.ownPoolDollars / total * 100.0,
+            thirdPartyPercent = spend.thirdPartyDollars / total * 100.0,
+            ownPoolDollars = spend.ownPoolDollars,
+            thirdPartyDollars = spend.thirdPartyDollars,
+        )
     }
 
     /** Cursor 自有用量池：Composer、Grok 与 Auto；其余按第三方模型计费。 */

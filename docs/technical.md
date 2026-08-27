@@ -12,7 +12,7 @@
 | 构建 | Android Gradle Plugin 9.2.1 · Gradle 9.5.1 |
 | 平台 | `compileSdk` / `targetSdk` = 37 · `minSdk` = 26（Android 8.0） |
 | 包名 | `com.lamuier.cursorT` |
-| 版本 | `versionCode` = 11 · `versionName` = 2.2.1 |
+| 版本 | `versionCode` = 12 · `versionName` = 2.3.0 |
 | 体积 | Release 开启 R8 混淆与资源压缩，仅引入 AndroidX（含 Browser Custom Tabs）与 Biometric，无第三方网络 / 依赖注入框架 |
 
 ## 构建与发布
@@ -55,7 +55,7 @@ Debug 默认先跑单元测试与 Lint，再产出 `app\build\outputs\apk\debug\
 .\build.ps1 -Release
 ```
 
-默认不做 clean（避免 Windows 上 `app\build` 被占用导致失败）；需要干净构建加 `-Clean`，联网拉依赖加 `-Online`，跳过测试 / Lint 加 `-SkipChecks`。脚本会校验签名证书、zipalign、包名、版本、权限与 Manifest，输出 `dist\CursorT-v2.2.1-release.apk`。
+默认不做 clean（避免 Windows 上 `app\build` 被占用导致失败）；需要干净构建加 `-Clean`，联网拉依赖加 `-Online`，跳过测试 / Lint 加 `-SkipChecks`。脚本会校验签名证书、zipalign、包名、版本、权限与 Manifest，输出 `dist\CursorT-v2.3.0-release.apk`。
 
 ### 数据安全实现要点
 
@@ -64,7 +64,8 @@ Android App（本机）
   ├─ Bearer Token  ──▶  https://api2.cursor.sh/...DashboardService/*
   │                      GetCurrentPeriodUsage / GetPlanInfo /
   │                      GetUsageLimitStatusAndActiveGrants /
-  │                      GetAggregatedUsageEvents（按模型 Token 汇总）
+  │                      GetAggregatedUsageEvents（按模型 Token 汇总；可带 startDate/endDate 查历史）
+  │                      GetSandUsageStatus（Grok Bot 每周独立额度）
   ├─ Cursor 会话    ──▶  https://cursor.com/api/auth/stripe
   │                      https://cursor.com/api/background-composer/list（云端任务列表）
   ├─ Chrome Custom Tabs ──▶ https://cursor.com/agents?id=<bcId>（完整对话，走浏览器 Cookie）

@@ -2,6 +2,7 @@ package com.lamuier.cursorT.network
 
 import com.lamuier.cursorT.model.BillingCycle
 import com.lamuier.cursorT.model.Credits
+import com.lamuier.cursorT.model.GrokBotUsage
 import com.lamuier.cursorT.model.CursorTOverview
 import com.lamuier.cursorT.model.ModelTokenUsage
 import com.lamuier.cursorT.model.OnDemandUsage
@@ -27,6 +28,7 @@ object CursorTAssembler {
         grantsPayload: JSONObject?,
         stripePayload: JSONObject?,
         aggregationsPayload: JSONObject?,
+        grokBotPayload: JSONObject? = null,
         partialData: Boolean,
     ): CursorTOverview {
         val plan = planPayload.optJSONObject("planInfo") ?: JSONObject()
@@ -83,11 +85,25 @@ object CursorTAssembler {
                 status = stripePayload?.optNullableString("subscriptionStatus"),
             ),
             tokenUsage = aggregationsPayload?.let(::parseTokenUsage),
+            grokBot = grokBotPayload?.let(::parseGrokBotUsage),
             fetchedAt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date()),
             fromCache = false,
             cacheAgeSeconds = 0,
             partialData = partialData,
         )
+    }
+
+    fun parseGrokBotUsage(root: JSONObject): GrokBotUsage? {
+        val candidates = buildList {
+            add(root)
+            listOf("sandUsage", "usageStatus", "status", "data").forEach { key ->
+                root.optJSONObject(key)?.let(::add)
+            }
+        }
+        for (obj in candidates) {
+            parseGrokBotUsageObject(obj)?.let { return it }
+        }
+        return null
     }
 
     fun parseTokenUsage(root: JSONObject): TokenUsageBreakdown {
@@ -190,9 +206,77 @@ object CursorTAssembler {
         return max
     }
 
+    private fun parseGrokBotUsageObject(obj: JSONObject): GrokBotUsage? {
+        if (obj.optBoolean("usesPooledEnterpriseAllowance", false)) return null
+        if (obj.has("hasNonZeroIncludedLimit") && !obj.optBoolean("hasNonZeroIncludedLimit")) return null
+        if (obj.optBoolean("includedLimitZero", false)) return null
+        val percent = obj.optFinite("usagePercent")
+            ?: obj.optFinite("percentUsed")
+            ?: grokBotPercentFromLimit(obj)
+            ?: return null
+        return GrokBotUsage(
+            percentUsed = round2(percent.coerceAtLeast(0.0)),
+            periodStart = timestampToLocalTime(
+                firstPresent(obj, "currentPeriodStart", "periodStart", "startTimestampUtc"),
+            ),
+            resetsAt = timestampToLocalTime(
+                firstPresent(obj, "nextResetTimestampUtc", "resetsAt", "periodEnd", "currentPeriodEnd"),
+            ),
+        )
+    }
+
+    private fun grokBotPercentFromLimit(obj: JSONObject): Double? {
+        val used = obj.optFinite("used") ?: obj.optFinite("includedUsed")
+        val limit = obj.optFinite("includedLimit") ?: obj.optFinite("limit")
+        if (used == null || limit == null || limit <= 0.0) return null
+        return (used / limit) * 100.0
+    }
+
+    private fun firstPresent(obj: JSONObject, vararg keys: String): Any? {
+        for (key in keys) {
+            if (obj.has(key) && !obj.isNull(key)) return obj.opt(key)
+        }
+        return null
+    }
+
+    private fun timestampToLocalTime(value: Any?): String? {
+        when (value) {
+            null, JSONObject.NULL -> return null
+            is Number -> {
+                val raw = value.toLong()
+                val millis = if (kotlin.math.abs(raw) < 1_000_000_000_000L) raw * 1000L else raw
+                return formatMillis(millis)
+            }
+            is JSONObject -> {
+                val seconds = value.optNumber("seconds") ?: value.optNumber("epochSeconds")
+                if (seconds != null) return formatMillis((seconds * 1000.0).toLong())
+            }
+            is String -> {
+                value.toLongOrNull()?.let { raw ->
+                    val millis = if (kotlin.math.abs(raw) < 1_000_000_000_000L) raw * 1000L else raw
+                    return formatMillis(millis)
+                }
+                return isoToLocalTime(value)
+            }
+        }
+        return millisecondsToLocalTime(value)
+    }
+
+    private fun isoToLocalTime(text: String): String? {
+        val trimmed = text.trim()
+        if (trimmed.isEmpty()) return null
+        val instant = runCatching { java.time.Instant.parse(trimmed) }.getOrNull()
+            ?: runCatching { java.time.OffsetDateTime.parse(trimmed).toInstant() }.getOrNull()
+            ?: return null
+        return formatMillis(instant.toEpochMilli())
+    }
+
+    private fun formatMillis(milliseconds: Long): String =
+        SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(milliseconds))
+
     private fun millisecondsToLocalTime(value: Any?): String? {
         val milliseconds = value?.toString()?.toLongOrNull() ?: return null
-        return SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(milliseconds))
+        return formatMillis(milliseconds)
     }
 
     private fun centsToDollars(cents: Double?): Double = round2((cents ?: 0.0) / 100.0)

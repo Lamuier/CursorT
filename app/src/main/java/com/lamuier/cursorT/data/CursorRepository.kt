@@ -285,6 +285,12 @@ class CursorRepository(context: Context) {
                 api.connectRpc(snapshot.accessToken, "GetAggregatedUsageEvents")
             }
         }
+        val grokBot = async {
+            // Grok Bot 周额度独立于月度用量池：401/403 不得拖垮整次刷新。
+            optionalPayload(authenticationFailureIsFatal = false) {
+                api.connectRpc(snapshot.accessToken, "GetSandUsageStatus")
+            }
+        }
         val stripe = async {
             // Stripe is supplementary. Its cookie contract may fail independently
             // even while the primary Bearer endpoints still accept the token.
@@ -293,6 +299,7 @@ class CursorRepository(context: Context) {
 
         val grantsResult = grants.await()
         val aggregationsResult = aggregations.await()
+        val grokBotResult = grokBot.await()
         val stripeResult = stripe.await()
         CursorTAssembler.assemble(
             accountId = snapshot.id,
@@ -302,7 +309,9 @@ class CursorRepository(context: Context) {
             grantsPayload = grantsResult.payload,
             stripePayload = stripeResult.payload,
             aggregationsPayload = aggregationsResult.payload,
-            partialData = grantsResult.partial || stripeResult.partial || aggregationsResult.partial,
+            grokBotPayload = grokBotResult.payload,
+            partialData = grantsResult.partial || stripeResult.partial ||
+                aggregationsResult.partial || grokBotResult.partial,
         )
     }
 

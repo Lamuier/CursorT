@@ -2,6 +2,7 @@ package com.lamuier.cursorT.network
 
 import com.lamuier.cursorT.model.BillingCycle
 import com.lamuier.cursorT.model.Credits
+import com.lamuier.cursorT.model.GrokBotUsage
 import com.lamuier.cursorT.model.CursorAccount
 import com.lamuier.cursorT.model.CursorTOverview
 import com.lamuier.cursorT.model.ModelTokenUsage
@@ -108,6 +109,15 @@ object UsageJsonParser {
                     )
             } ?: JSONObject.NULL,
         )
+        root.put(
+            "grok_bot",
+            usage.grokBot?.let {
+                JSONObject()
+                    .put("percent_used", it.percentUsed)
+                    .putNullable("period_start", it.periodStart)
+                    .putNullable("resets_at", it.resetsAt)
+            } ?: JSONObject.NULL,
+        )
         return root.toString()
     }
 
@@ -183,11 +193,21 @@ object UsageJsonParser {
                 status = subscription.nullableString("status"),
             ),
             tokenUsage = root.optJSONObject("token_usage")?.let(::parseTokenUsage),
+            grokBot = root.optJSONObject("grok_bot")?.let(::parseGrokBot),
             fetchedAt = root.optString("fetched_at"),
             fromCache = root.optBoolean("from_cache"),
             cacheAgeSeconds = root.optInt("cache_age_seconds"),
             isLocalCache = isLocalCache,
             partialData = root.optBoolean("partial_data"),
+        )
+    }
+
+    private fun parseGrokBot(json: JSONObject): GrokBotUsage? {
+        val percent = json.nullableNumber("percent_used") ?: return null
+        return GrokBotUsage(
+            percentUsed = percent,
+            periodStart = json.nullableString("period_start"),
+            resetsAt = json.nullableString("resets_at"),
         )
     }
 

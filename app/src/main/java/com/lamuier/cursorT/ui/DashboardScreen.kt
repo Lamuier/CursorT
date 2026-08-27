@@ -826,6 +826,31 @@ private fun OverviewTab(usage: CursorTOverview) {
             MetricRowCard(tiles = quotaTiles, compact = compact)
             MetricRowCard(tiles = tokenTiles, compact = compact)
         }
+        usage.grokBot?.let { grok ->
+            val grokProgress = remember(grok, nowMillis) {
+                UsageCalculations.billingProgress(grok.periodStart, grok.resetsAt, nowMillis)
+            }
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                shadowElevation = 1.dp,
+            ) {
+                Column(
+                    modifier = Modifier.padding(if (compact) 14.dp else 18.dp),
+                    verticalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 10.dp),
+                ) {
+                    HorizontalUsageChart(
+                        label = "Grok Bot 本周",
+                        percent = grok.percentUsed,
+                        color = chartColors.chart3,
+                        caption = grokProgress?.let {
+                            "每周独立额度，${UsageCalculations.formatRemaining(it.remainingMillis)} 后重置"
+                        } ?: "每周独立额度，不计入月度用量池",
+                    )
+                }
+            }
+        }
         FreshnessRow(usage)
         if (usage.partialData) {
             Text(
@@ -958,6 +983,38 @@ private fun UsageTab(usage: CursorTOverview) {
                     color = chartColors.chart2,
                     caption = "第三方模型，按模型的 API 价格计费",
                 )
+            }
+        }
+
+        usage.grokBot?.let { grok ->
+            val nowMillis = rememberNowMillis()
+            val grokProgress = remember(grok, nowMillis) {
+                UsageCalculations.billingProgress(grok.periodStart, grok.resetsAt, nowMillis)
+            }
+            SectionHeading(
+                icon = Icons.Outlined.SmartToy,
+                title = "Grok Bot",
+                supporting = grokProgress?.let {
+                    "每周独立额度，${UsageCalculations.formatRemaining(it.remainingMillis)} 后重置"
+                } ?: "每周独立额度，不计入上方月度用量池",
+            )
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                shadowElevation = 1.dp,
+            ) {
+                Column(
+                    modifier = Modifier.padding(if (compact) 14.dp else 18.dp),
+                    verticalArrangement = Arrangement.spacedBy(if (compact) 12.dp else 16.dp),
+                ) {
+                    HorizontalUsageChart(
+                        label = "本周用量",
+                        percent = grok.percentUsed,
+                        color = chartColors.chart3,
+                        caption = "超额后走已有的 On-demand 用量",
+                    )
+                }
             }
         }
 

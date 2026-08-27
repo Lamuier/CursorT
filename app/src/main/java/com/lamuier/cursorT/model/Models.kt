@@ -24,6 +24,8 @@ data class CursorTOverview(
     val subscription: Subscription,
     /** 本计费周期按模型汇总的 Token；接口失败或旧缓存缺失时为 null。 */
     val tokenUsage: TokenUsageBreakdown? = null,
+    /** Grok Bot 每周独立额度；无开通、企业共享池或接口失败时为 null。 */
+    val grokBot: GrokBotUsage? = null,
     val fetchedAt: String,
     val fromCache: Boolean,
     val cacheAgeSeconds: Int,
@@ -92,6 +94,13 @@ data class Credits(
     val totalDollars: Double,
     val grantTotalDollars: Double,
     val stripeBalanceDollars: Double,
+)
+
+@Immutable
+data class GrokBotUsage(
+    val percentUsed: Double,
+    val periodStart: String?,
+    val resetsAt: String?,
 )
 
 @Immutable

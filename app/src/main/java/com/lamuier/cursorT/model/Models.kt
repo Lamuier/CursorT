@@ -26,6 +26,8 @@ data class CursorTOverview(
     val tokenUsage: TokenUsageBreakdown? = null,
     /** Grok Bot 每周独立额度；无开通、企业共享池或接口失败时为 null。 */
     val grokBot: GrokBotUsage? = null,
+    /** 自然月 / 上个计费周期的 Token 汇总；接口失败时窗口仍在、明细为 null。 */
+    val history: UsageHistory? = null,
     val fetchedAt: String,
     val fromCache: Boolean,
     val cacheAgeSeconds: Int,
@@ -101,6 +103,20 @@ data class GrokBotUsage(
     val percentUsed: Double,
     val periodStart: String?,
     val resetsAt: String?,
+)
+
+@Immutable
+data class UsageHistory(
+    val previousCycle: UsageWindow?,
+    val calendarMonth: UsageWindow?,
+)
+
+@Immutable
+data class UsageWindow(
+    val start: String?,
+    val end: String?,
+    val yearMonth: String? = null,
+    val tokenUsage: TokenUsageBreakdown?,
 )
 
 @Immutable
@@ -206,6 +222,8 @@ data class AppUiState(
     val error: String? = null,
     val tasksError: String? = null,
     val statusError: String? = null,
+    val extraMonthHistory: Map<String, UsageWindow> = emptyMap(),
+    val loadingHistoryMonth: String? = null,
 )
 
 /** Cursor 官方状态页（Statuspage）的整体指示灯。 */

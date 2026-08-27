@@ -64,7 +64,7 @@ Android App（本机）
   ├─ Bearer Token  ──▶  https://api2.cursor.sh/...DashboardService/*
   │                      GetCurrentPeriodUsage / GetPlanInfo /
   │                      GetUsageLimitStatusAndActiveGrants /
-  │                      GetAggregatedUsageEvents（按模型 Token 汇总）
+  │                      GetAggregatedUsageEvents（按模型 Token 汇总；可带 startDate/endDate 查历史）
   │                      GetSandUsageStatus（Grok Bot 每周独立额度）
   ├─ Cursor 会话    ──▶  https://cursor.com/api/auth/stripe
   │                      https://cursor.com/api/background-composer/list（云端任务列表）

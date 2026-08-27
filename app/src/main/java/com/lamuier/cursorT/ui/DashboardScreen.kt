@@ -44,6 +44,9 @@ import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
 import androidx.compose.material.icons.automirrored.outlined.TrendingUp
 import androidx.compose.material.icons.outlined.Cached
 import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.ChevronLeft
+import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.CardGiftcard
 import androidx.compose.material.icons.outlined.CloudDone
 import androidx.compose.material.icons.outlined.CloudOff
@@ -70,6 +73,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
@@ -113,6 +119,7 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -121,15 +128,20 @@ import com.lamuier.cursorT.model.CursorAccount
 import com.lamuier.cursorT.model.CursorTOverview
 import com.lamuier.cursorT.model.DashboardTab
 import com.lamuier.cursorT.model.ModelTokenUsage
+import com.lamuier.cursorT.model.TokenUsageBreakdown
+import com.lamuier.cursorT.model.UsageWindow
 import com.lamuier.cursorT.ui.theme.LocalPulseChartColors
 import com.lamuier.cursorT.util.BillingProgress
 import com.lamuier.cursorT.util.UsageCalculations
+import com.lamuier.cursorT.util.UsageHistoryWindows
 import com.lamuier.cursorT.util.UsageLevel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import java.util.Locale
 import kotlinx.coroutines.delay
+import java.time.YearMonth
+import java.time.ZoneId
 import kotlinx.coroutines.launch
 
 /** 周期倒计时/百分比的本地走动间隔（仅重算时间，不触发网络请求）。 */
@@ -165,6 +177,7 @@ internal fun DashboardScreen(
     state: AppUiState,
     snackbarHostState: SnackbarHostState,
     tabOrder: List<DashboardTab>,
+    onLoadHistoryMonth: (String) -> Unit,
     onRefresh: () -> Unit,
     onManageAccount: () -> Unit,
     onShowSettings: () -> Unit,
@@ -308,7 +321,14 @@ internal fun DashboardScreen(
                                         onRefresh = onRefresh,
                                         onManageAccount = onManageAccount,
                                         onShowTokenHelp = onShowTokenHelp,
-                                    ) { UsageTab(it) }
+                                    ) {
+                                        UsageTab(
+                                            usage = it,
+                                            extraMonths = state.extraMonthHistory,
+                                            loadingMonthKey = state.loadingHistoryMonth,
+                                            onLoadHistoryMonth = onLoadHistoryMonth,
+                                        )
+                                    }
                                     DashboardTab.Billing -> UsageDependentTab(
                                         state = state,
                                         onRefresh = onRefresh,
@@ -944,8 +964,15 @@ private fun FreshnessRow(usage: CursorTOverview) {
     }
 }
 
+private enum class HistoryQueryMode { CalendarMonth, PreviousCycle }
+
 @Composable
-private fun UsageTab(usage: CursorTOverview) {
+private fun UsageTab(
+    usage: CursorTOverview,
+    extraMonths: Map<String, UsageWindow>,
+    loadingMonthKey: String?,
+    onLoadHistoryMonth: (String) -> Unit,
+) {
     AdaptiveTabContent { compact ->
         val chartColors = LocalPulseChartColors.current
         val segments = remember(usage, chartColors) {
@@ -1055,6 +1082,13 @@ private fun UsageTab(usage: CursorTOverview) {
         }
 
         TokenUsageSection(usage = usage, compact = compact)
+        HistoryUsageSection(
+            usage = usage,
+            extraMonths = extraMonths,
+            loadingMonthKey = loadingMonthKey,
+            onLoadHistoryMonth = onLoadHistoryMonth,
+            compact = compact,
+        )
     }
 }
 
@@ -1092,6 +1126,155 @@ private fun TokenUsageSection(usage: CursorTOverview, compact: Boolean) {
                     )
                 }
                 else -> {
+                    tokenUsage.models.forEachIndexed { index, model ->
+                        ModelTokenRow(model = model, compact = compact)
+                        if (index < tokenUsage.models.lastIndex) {
+                            HorizontalDivider(
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun HistoryUsageSection(
+    usage: CursorTOverview,
+    extraMonths: Map<String, UsageWindow>,
+    loadingMonthKey: String?,
+    onLoadHistoryMonth: (String) -> Unit,
+    compact: Boolean,
+) {
+    val zone = remember { ZoneId.systemDefault() }
+    val nowMonth = remember { YearMonth.now(zone) }
+    var mode by remember { mutableStateOf(HistoryQueryMode.CalendarMonth) }
+    var selectedMonth by remember { mutableStateOf(nowMonth) }
+    val selectedKey = UsageHistoryWindows.yearMonthKey(selectedMonth)
+    LaunchedEffect(selectedKey, mode, usage.accountId) {
+        if (mode != HistoryQueryMode.CalendarMonth) return@LaunchedEffect
+        val prefetched = usage.history?.calendarMonth?.yearMonth
+        if (selectedKey != prefetched && extraMonths[selectedKey] == null) {
+            onLoadHistoryMonth(selectedKey)
+        }
+    }
+    val window = when (mode) {
+        HistoryQueryMode.PreviousCycle -> usage.history?.previousCycle
+        HistoryQueryMode.CalendarMonth -> {
+            if (usage.history?.calendarMonth?.yearMonth == selectedKey) {
+                usage.history?.calendarMonth
+            } else {
+                extraMonths[selectedKey]
+            }
+        }
+    }
+    val loading = mode == HistoryQueryMode.CalendarMonth &&
+        loadingMonthKey == selectedKey &&
+        window == null
+    val earliest = nowMonth.minusMonths(12)
+    SectionHeading(
+        icon = Icons.Outlined.History,
+        title = "历史用量",
+        supporting = "按模型 Token 汇总，不含套餐百分比",
+    )
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        shadowElevation = 1.dp,
+    ) {
+        Column(
+            modifier = Modifier.padding(if (compact) 14.dp else 18.dp),
+            verticalArrangement = Arrangement.spacedBy(if (compact) 10.dp else 12.dp),
+        ) {
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                val options = listOf(
+                    HistoryQueryMode.CalendarMonth to "自然月",
+                    HistoryQueryMode.PreviousCycle to "上个计费周期",
+                )
+                options.forEachIndexed { index, (value, label) ->
+                    SegmentedButton(
+                        selected = mode == value,
+                        onClick = { mode = value },
+                        shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
+                    ) {
+                        Text(label)
+                    }
+                }
+            }
+            if (mode == HistoryQueryMode.CalendarMonth) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton(
+                        onClick = { selectedMonth = selectedMonth.minusMonths(1) },
+                        enabled = selectedMonth.isAfter(earliest),
+                    ) {
+                        Icon(Icons.Outlined.ChevronLeft, contentDescription = "上一个月")
+                    }
+                    Text(
+                        "${selectedMonth.year}年${selectedMonth.monthValue}月",
+                        modifier = Modifier.weight(1f),
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    IconButton(
+                        onClick = { selectedMonth = selectedMonth.plusMonths(1) },
+                        enabled = selectedMonth.isBefore(nowMonth),
+                    ) {
+                        Icon(Icons.Outlined.ChevronRight, contentDescription = "下一个月")
+                    }
+                }
+            } else {
+                Text(
+                    text = listOfNotNull(window?.start, window?.end).joinToString(" → ")
+                        .ifBlank { "上一个计费周期" },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            when {
+                loading -> {
+                    Text(
+                        "正在加载该窗口的 Token 汇总…",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                window?.tokenUsage == null -> {
+                    Text(
+                        "该窗口暂无 Token 明细。",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                window.tokenUsage!!.models.isEmpty() -> {
+                    Text(
+                        "该窗口暂无按模型 Token 记录。",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                else -> {
+                    val tokenUsage = window.tokenUsage!!
+                    Text(
+                        buildString {
+                            append("入 ${UsageCalculations.formatTokens(tokenUsage.totalInputTokens)}")
+                            append(" · 出 ${UsageCalculations.formatTokens(tokenUsage.totalOutputTokens)}")
+                            val cached = tokenUsage.totalCacheWriteTokens + tokenUsage.totalCacheReadTokens
+                            if (cached > 0L) {
+                                append(" · 缓存 ${UsageCalculations.formatTokens(cached)}")
+                            }
+                            append(" · ${money(tokenUsage.totalCostDollars)}")
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                     tokenUsage.models.forEachIndexed { index, model ->
                         ModelTokenRow(model = model, compact = compact)
                         if (index < tokenUsage.models.lastIndex) {

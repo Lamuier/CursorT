@@ -9,6 +9,8 @@ import com.lamuier.cursorT.model.OnDemandUsage
 import com.lamuier.cursorT.model.PlanInfo
 import com.lamuier.cursorT.model.Subscription
 import com.lamuier.cursorT.model.TokenUsageBreakdown
+import com.lamuier.cursorT.model.UsageHistory
+import com.lamuier.cursorT.model.UsageWindow
 import com.lamuier.cursorT.model.TotalFormat
 import com.lamuier.cursorT.model.UsageMetrics
 import org.json.JSONArray
@@ -29,6 +31,13 @@ object CursorTAssembler {
         stripePayload: JSONObject?,
         aggregationsPayload: JSONObject?,
         grokBotPayload: JSONObject? = null,
+        previousCyclePayload: JSONObject? = null,
+        previousCycleStartMs: Long? = null,
+        previousCycleEndMs: Long? = null,
+        calendarMonthPayload: JSONObject? = null,
+        calendarMonthStartMs: Long? = null,
+        calendarMonthEndMs: Long? = null,
+        calendarMonthKey: String? = null,
         partialData: Boolean,
     ): CursorTOverview {
         val plan = planPayload.optJSONObject("planInfo") ?: JSONObject()
@@ -86,10 +95,34 @@ object CursorTAssembler {
             ),
             tokenUsage = aggregationsPayload?.let(::parseTokenUsage),
             grokBot = grokBotPayload?.let(::parseGrokBotUsage),
+            history = UsageHistory(
+                previousCycle = usageWindow(previousCycleStartMs, previousCycleEndMs, previousCyclePayload),
+                calendarMonth = usageWindow(
+                    calendarMonthStartMs,
+                    calendarMonthEndMs,
+                    calendarMonthPayload,
+                    calendarMonthKey,
+                ),
+            ),
             fetchedAt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date()),
             fromCache = false,
             cacheAgeSeconds = 0,
             partialData = partialData,
+        )
+    }
+
+    fun usageWindow(
+        startMs: Long?,
+        endMs: Long?,
+        payload: JSONObject?,
+        yearMonth: String? = null,
+    ): UsageWindow? {
+        if (startMs == null && endMs == null && payload == null) return null
+        return UsageWindow(
+            start = startMs?.let(::formatMillis),
+            end = endMs?.let(::formatMillis),
+            yearMonth = yearMonth,
+            tokenUsage = payload?.let(::parseTokenUsage),
         )
     }
 

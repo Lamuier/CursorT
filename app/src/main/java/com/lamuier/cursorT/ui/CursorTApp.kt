@@ -237,6 +237,7 @@ fun CursorTApp(
             state = state,
             snackbarHostState = snackbarHostState,
             tabOrder = tabOrder,
+            onLoadHistoryMonth = viewModel::loadHistoryMonth,
             onRefresh = { viewModel.refreshSelected(force = true, silent = true) },
             onManageAccount = { manageAccount = true },
             onShowSettings = { showSettings = true },

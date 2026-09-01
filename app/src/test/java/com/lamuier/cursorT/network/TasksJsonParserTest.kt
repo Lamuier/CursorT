@@ -11,14 +11,14 @@ import org.junit.Test
 
 class TasksJsonParserTest {
     @Test
-    fun parse_mapsStatusesAndSortsByUpdateDesc() {
+    fun parse_mapsStatusesAndSortsByLatestTimeDesc() {
         val tasks = TasksJsonParser.parse(
             payload = JSONObject(resource("agent_tasks_list.json")),
             accountId = 3,
             fetchedAt = "2026-08-19 12:00:00",
         )
         assertEquals(3, tasks.accountId)
-        // 缺少 bcId 的条目被跳过；按 updatedAtMs 降序。
+        // 缺少 bcId 的条目被跳过；按最近活动 / 更新 / 创建时间降序。
         assertEquals(listOf("bc-running-0002", "bc-finished-0001"), tasks.tasks.map { it.id })
 
         val running = tasks.tasks.first()
@@ -57,6 +57,47 @@ class TasksJsonParserTest {
         )
         val tasks = TasksJsonParser.parse(payload, accountId = 1)
         assertEquals(AgentTaskStatus.Unknown, tasks.tasks.single().status)
+    }
+
+    @Test
+    fun parse_sortsByLatestActivityEvenWhenUpdatedAtIsOlder() {
+        val payload = JSONObject(
+            """
+            {
+              "composers": [
+                {
+                  "bcId": "bc-old-update",
+                  "name": "更新时间较新但无活动",
+                  "status": "finished",
+                  "createdAtMs": 1000,
+                  "updatedAtMs": 2000
+                },
+                {
+                  "bcId": "bc-new-activity",
+                  "name": "最近有消息活动",
+                  "status": "running",
+                  "createdAtMs": 1000,
+                  "updatedAtMs": 1500,
+                  "lastMessageActivityAtMs": 3000
+                },
+                {
+                  "bcId": "bc-only-created",
+                  "name": "只有创建时间",
+                  "status": "creating",
+                  "createdAtMs": 2500
+                }
+              ]
+            }
+            """.trimIndent(),
+        )
+        val tasks = TasksJsonParser.parse(payload, accountId = 1)
+        assertEquals(
+            listOf("bc-new-activity", "bc-only-created", "bc-old-update"),
+            tasks.tasks.map { it.id },
+        )
+        assertEquals(3000L, tasks.tasks[0].latestTimeMs)
+        assertEquals(2500L, tasks.tasks[1].latestTimeMs)
+        assertEquals(2000L, tasks.tasks[2].latestTimeMs)
     }
 
     @Test

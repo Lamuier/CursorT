@@ -1,6 +1,7 @@
 package com.lamuier.cursorT.util
 
 import com.lamuier.cursorT.model.AgentTaskPrStatus
+import com.lamuier.cursorT.model.AgentTaskSource
 import com.lamuier.cursorT.model.AgentTaskStatus
 import java.net.URI
 import java.time.Instant
@@ -24,6 +25,45 @@ object AgentTaskPresentation {
         AgentTaskPrStatus.Merged -> "PR 已合并"
         AgentTaskPrStatus.Closed -> "PR 已关闭"
         AgentTaskPrStatus.Unknown -> "PR"
+    }
+
+    fun sourceLabel(source: AgentTaskSource): String = when (source) {
+        AgentTaskSource.Website -> "网页"
+        AgentTaskSource.Editor -> "编辑器"
+        AgentTaskSource.Slack -> "Slack"
+        AgentTaskSource.Linear -> "Linear"
+        AgentTaskSource.Ios -> "移动端"
+        AgentTaskSource.Api -> "API"
+        AgentTaskSource.GitHub -> "GitHub"
+        AgentTaskSource.Cli -> "CLI"
+        AgentTaskSource.GitHubCi -> "GitHub CI"
+        AgentTaskSource.GitLab -> "GitLab"
+        AgentTaskSource.EnvSetup -> "环境配置"
+        AgentTaskSource.Grind -> "Grind"
+        AgentTaskSource.Bugbot -> "Bugbot"
+        AgentTaskSource.Automations -> "自动化"
+        AgentTaskSource.Sdk -> "SDK"
+        AgentTaskSource.GrokBot -> "Grok Bot"
+        AgentTaskSource.Unknown -> "其他来源"
+    }
+
+    /** `github.com/owner/repo` / 带协议的 URL → `owner/repo`。 */
+    fun repoDisplayName(repoUrl: String?): String? {
+        val raw = repoUrl?.trim()?.takeIf { it.isNotBlank() } ?: return null
+        val trimmed = raw
+            .removePrefix("https://")
+            .removePrefix("http://")
+            .removePrefix("www.")
+            .removeSuffix(".git")
+            .trimEnd('/')
+        val withoutHost = when {
+            trimmed.startsWith("github.com/", ignoreCase = true) ->
+                trimmed.substringAfter('/')
+            trimmed.startsWith("gitlab.com/", ignoreCase = true) ->
+                trimmed.substringAfter('/')
+            else -> trimmed
+        }
+        return withoutHost.ifBlank { trimmed }
     }
 
     /** "cursor-grok-4.6-high" → "grok-4.6-high"；Max 模式追加标记。 */

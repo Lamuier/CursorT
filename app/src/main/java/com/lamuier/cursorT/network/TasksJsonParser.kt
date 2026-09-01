@@ -2,6 +2,7 @@ package com.lamuier.cursorT.network
 
 import com.lamuier.cursorT.model.AgentTask
 import com.lamuier.cursorT.model.AgentTaskPrStatus
+import com.lamuier.cursorT.model.AgentTaskSource
 import com.lamuier.cursorT.model.AgentTaskStatus
 import com.lamuier.cursorT.model.CursorTasks
 import org.json.JSONArray
@@ -87,6 +88,30 @@ object TasksJsonParser {
         }
     }
 
+    fun parseSource(raw: String?): AgentTaskSource {
+        val token = normalize(raw)?.removePrefix(SOURCE_PREFIX) ?: return AgentTaskSource.Unknown
+        return when (token) {
+            "website", "web" -> AgentTaskSource.Website
+            "editor", "ide", "desktop" -> AgentTaskSource.Editor
+            "slack" -> AgentTaskSource.Slack
+            "linear" -> AgentTaskSource.Linear
+            "ios_app", "ios", "android_app", "mobile" -> AgentTaskSource.Ios
+            "api" -> AgentTaskSource.Api
+            "github" -> AgentTaskSource.GitHub
+            "cli" -> AgentTaskSource.Cli
+            "github_ci_autofix", "github_ci", "ci_autofix" -> AgentTaskSource.GitHubCi
+            "gitlab" -> AgentTaskSource.GitLab
+            "environment_setup_web", "environment_setup" -> AgentTaskSource.EnvSetup
+            "grind_web", "grind" -> AgentTaskSource.Grind
+            "bugbot_autofix", "bugbot" -> AgentTaskSource.Bugbot
+            "automations", "automation" -> AgentTaskSource.Automations
+            "sdk" -> AgentTaskSource.Sdk
+            "grok_bot", "grokbot", "grok", "sand" -> AgentTaskSource.GrokBot
+            "unspecified" -> AgentTaskSource.Unknown
+            else -> AgentTaskSource.Unknown
+        }
+    }
+
     private fun parseTasksArray(array: JSONArray?): List<AgentTask> {
         if (array == null) return emptyList()
         return buildList(array.length()) {
@@ -122,6 +147,7 @@ object TasksJsonParser {
             updatedAtMs = item.optLong("updatedAtMs", 0L),
             lastActivityMs = item.nullableLong("lastMessageActivityAtMs")
                 ?: item.nullableLong("lastActivityMs"),
+            source = parseSource(item.nullableString("source")),
         )
     }
 
@@ -141,6 +167,7 @@ object TasksJsonParser {
         .put("createdAtMs", task.createdAtMs)
         .put("updatedAtMs", task.updatedAtMs)
         .put("lastActivityMs", task.lastActivityMs ?: JSONObject.NULL)
+        .put("source", sourceWireName(task.source))
 
     private fun statusWireName(status: AgentTaskStatus): String = when (status) {
         AgentTaskStatus.Creating -> "creating"
@@ -159,6 +186,26 @@ object TasksJsonParser {
         AgentTaskPrStatus.Unknown -> "unknown"
     }
 
+    private fun sourceWireName(source: AgentTaskSource): String = when (source) {
+        AgentTaskSource.Website -> "website"
+        AgentTaskSource.Editor -> "editor"
+        AgentTaskSource.Slack -> "slack"
+        AgentTaskSource.Linear -> "linear"
+        AgentTaskSource.Ios -> "ios_app"
+        AgentTaskSource.Api -> "api"
+        AgentTaskSource.GitHub -> "github"
+        AgentTaskSource.Cli -> "cli"
+        AgentTaskSource.GitHubCi -> "github_ci_autofix"
+        AgentTaskSource.GitLab -> "gitlab"
+        AgentTaskSource.EnvSetup -> "environment_setup_web"
+        AgentTaskSource.Grind -> "grind_web"
+        AgentTaskSource.Bugbot -> "bugbot_autofix"
+        AgentTaskSource.Automations -> "automations"
+        AgentTaskSource.Sdk -> "sdk"
+        AgentTaskSource.GrokBot -> "grok_bot"
+        AgentTaskSource.Unknown -> "unknown"
+    }
+
     private fun normalize(raw: String?): String? =
         raw?.trim()?.takeIf { it.isNotBlank() }?.lowercase(Locale.US)
 
@@ -174,4 +221,5 @@ object TasksJsonParser {
 
     private const val STATUS_PREFIX = "background_composer_status_"
     private const val PR_PREFIX = "pr_status_"
+    private const val SOURCE_PREFIX = "background_composer_source_"
 }

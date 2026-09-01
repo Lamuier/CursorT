@@ -9,7 +9,7 @@
       "hasStartedVm": true,
       "repoUrl": "github.com/example/demo",
       "status": "BACKGROUND_COMPOSER_STATUS_FINISHED",
-      "source": "BACKGROUND_COMPOSER_SOURCE_WEBSITE",
+      "source": "BACKGROUND_COMPOSER_SOURCE_GROK_BOT",
       "updatedAtMs": 1787147261056,
       "prUrl": "https://github.com/example/demo/pull/1",
       "isPrMerged": true,

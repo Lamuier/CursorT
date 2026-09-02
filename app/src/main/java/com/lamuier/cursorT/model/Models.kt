@@ -178,7 +178,11 @@ data class AgentTask(
     val createdAtMs: Long,
     val updatedAtMs: Long,
     val lastActivityMs: Long?,
-)
+) {
+    /** 列表排序与相对时间展示共用：取最近一次活动 / 更新 / 创建时间。 */
+    val latestTimeMs: Long
+        get() = maxOf(lastActivityMs ?: 0L, updatedAtMs, createdAtMs)
+}
 
 @Immutable
 data class CursorTasks(

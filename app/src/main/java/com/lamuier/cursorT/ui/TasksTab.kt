@@ -85,17 +85,20 @@ private fun TasksContent(
     openUrl: (String) -> Unit,
     onOpenFailed: (String) -> Unit,
 ) {
-    val activeCount = tasks.tasks.count {
+    val orderedTasks = remember(tasks.tasks) {
+        tasks.tasks.sortedByDescending { it.latestTimeMs }
+    }
+    val activeCount = orderedTasks.count {
         it.status == AgentTaskStatus.Running || it.status == AgentTaskStatus.Creating
     }
     AdaptiveTabContent { compact ->
         SectionHeading(
             icon = Icons.Outlined.SmartToy,
             title = "云端任务",
-            supporting = if (tasks.tasks.isEmpty()) {
+            supporting = if (orderedTasks.isEmpty()) {
                 "暂无任务记录"
             } else {
-                "共 ${tasks.tasks.size} 项 · $activeCount 项进行中"
+                "共 ${orderedTasks.size} 项 · $activeCount 项进行中"
             },
         )
         if (error != null) {
@@ -105,7 +108,7 @@ private fun TasksContent(
                 color = MaterialTheme.colorScheme.error,
             )
         }
-        if (tasks.tasks.isEmpty()) {
+        if (orderedTasks.isEmpty()) {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = MaterialTheme.shapes.large,
@@ -118,7 +121,7 @@ private fun TasksContent(
                 )
             }
         } else {
-            tasks.tasks.forEach { task ->
+            orderedTasks.forEach { task ->
                 TaskCard(task, compact, openUrl, onOpenFailed)
             }
         }
@@ -245,9 +248,7 @@ private fun TaskCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                val activity = AgentTaskPresentation.formatRelative(
-                    task.lastActivityMs ?: task.updatedAtMs,
-                )
+                val activity = AgentTaskPresentation.formatRelative(task.latestTimeMs)
                 activity?.let {
                     Text(
                         it,

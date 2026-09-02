@@ -1,6 +1,7 @@
 package com.lamuier.cursorT.network
 
 import com.lamuier.cursorT.model.AgentTaskPrStatus
+import com.lamuier.cursorT.model.AgentTaskSource
 import com.lamuier.cursorT.model.AgentTaskStatus
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
@@ -40,6 +41,8 @@ class TasksJsonParserTest {
         assertEquals("cursor-grok-4.6-high", finished.modelName)
         assertTrue(finished.maxMode)
         assertEquals(1787144151489L, finished.lastActivityMs)
+        assertEquals(AgentTaskSource.GrokBot, finished.source)
+        assertEquals(AgentTaskSource.Website, running.source)
     }
 
     @Test
@@ -108,6 +111,11 @@ class TasksJsonParserTest {
         assertEquals(AgentTaskPrStatus.Merged, TasksJsonParser.parsePrStatus("PR_STATUS_MERGED"))
         assertEquals(AgentTaskPrStatus.Open, TasksJsonParser.parsePrStatus("open"))
         assertNull(TasksJsonParser.parsePrStatus(null))
+        assertEquals(AgentTaskSource.GrokBot, TasksJsonParser.parseSource("BACKGROUND_COMPOSER_SOURCE_GROK_BOT"))
+        assertEquals(AgentTaskSource.Website, TasksJsonParser.parseSource("website"))
+        assertEquals(AgentTaskSource.Sdk, TasksJsonParser.parseSource("sdk"))
+        assertEquals(AgentTaskSource.Unknown, TasksJsonParser.parseSource(null))
+        assertEquals(AgentTaskSource.Unknown, TasksJsonParser.parseSource("BACKGROUND_COMPOSER_SOURCE_WHATEVER"))
     }
 
     @Test
@@ -126,6 +134,18 @@ class TasksJsonParserTest {
         assertTrue(restored.fromCache)
         assertEquals(42, restored.cacheAgeSeconds)
         assertEquals(parsed.tasks, restored.tasks)
+        assertEquals(AgentTaskSource.GrokBot, restored.tasks.single { it.id == "bc-finished-0001" }.source)
+    }
+
+    @Test
+    fun parse_missingSource_defaultsToUnknown() {
+        val payload = JSONObject(
+            """
+            {"composers":[{"bcId":"bc-x","name":"t","status":"finished"}]}
+            """.trimIndent(),
+        )
+        val tasks = TasksJsonParser.parse(payload, accountId = 1)
+        assertEquals(AgentTaskSource.Unknown, tasks.tasks.single().source)
     }
 
     private fun resource(name: String): String =

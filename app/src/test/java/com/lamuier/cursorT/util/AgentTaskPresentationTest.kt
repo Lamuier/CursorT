@@ -1,5 +1,6 @@
 package com.lamuier.cursorT.util
 
+import com.lamuier.cursorT.model.AgentTaskSource
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -35,5 +36,21 @@ class AgentTaskPresentationTest {
         assertTrue(AgentTaskPresentation.isAllowedCustomTabUrl("https://github.com/example/demo/pull/12"))
         assertFalse(AgentTaskPresentation.isAllowedCustomTabUrl("https://evil.test/agents?id=bc-finished-0001"))
         assertFalse(AgentTaskPresentation.isAllowedCustomTabUrl("https://github.com/example/demo/pull/12?next=https://evil.test"))
+    }
+
+    @Test
+    fun sourceLabel_coversGrokBotAndWebsite() {
+        assertEquals("Grok Bot", AgentTaskPresentation.sourceLabel(AgentTaskSource.GrokBot))
+        assertEquals("网页", AgentTaskPresentation.sourceLabel(AgentTaskSource.Website))
+        assertEquals("其他来源", AgentTaskPresentation.sourceLabel(AgentTaskSource.Unknown))
+    }
+
+    @Test
+    fun repoDisplayName_stripsHostAndGitSuffix() {
+        assertEquals("example/demo", AgentTaskPresentation.repoDisplayName("github.com/example/demo"))
+        assertEquals("example/demo", AgentTaskPresentation.repoDisplayName("https://github.com/example/demo.git"))
+        assertEquals("acme/app", AgentTaskPresentation.repoDisplayName("https://gitlab.com/acme/app"))
+        assertNull(AgentTaskPresentation.repoDisplayName("  "))
+        assertNull(AgentTaskPresentation.repoDisplayName(null))
     }
 }

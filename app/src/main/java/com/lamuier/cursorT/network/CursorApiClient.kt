@@ -4,6 +4,7 @@ import com.lamuier.cursorT.BuildConfig
 import com.lamuier.cursorT.util.TokenUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
@@ -52,6 +53,8 @@ class CursorApiClient {
             .put("include_status", true)
             .put("include_archived", false)
             .put("should_include_collaborators", true)
+            // 官网默认隐藏 API / SDK / Grok Bot；显式列入全部已知来源，避免漏掉 Grok Bot 发起的云端任务。
+            .put("include_sources", JSONArray(AGENT_TASK_SOURCES))
         parseJson(
             request(
                 url = "$CURSOR_WEB_BASE/api/background-composer/list",
@@ -236,6 +239,24 @@ class CursorApiClient {
         const val MAX_RESPONSE_BYTES = 1024 * 1024
         const val AGENT_TASKS_PAGE_SIZE = 100
         val RPC_METHOD = Regex("^[A-Za-z][A-Za-z0-9]{1,80}$")
+        val AGENT_TASK_SOURCES = listOf(
+            "BACKGROUND_COMPOSER_SOURCE_EDITOR",
+            "BACKGROUND_COMPOSER_SOURCE_SLACK",
+            "BACKGROUND_COMPOSER_SOURCE_WEBSITE",
+            "BACKGROUND_COMPOSER_SOURCE_LINEAR",
+            "BACKGROUND_COMPOSER_SOURCE_IOS_APP",
+            "BACKGROUND_COMPOSER_SOURCE_API",
+            "BACKGROUND_COMPOSER_SOURCE_GITHUB",
+            "BACKGROUND_COMPOSER_SOURCE_CLI",
+            "BACKGROUND_COMPOSER_SOURCE_GITHUB_CI_AUTOFIX",
+            "BACKGROUND_COMPOSER_SOURCE_GITLAB",
+            "BACKGROUND_COMPOSER_SOURCE_ENVIRONMENT_SETUP_WEB",
+            "BACKGROUND_COMPOSER_SOURCE_GRIND_WEB",
+            "BACKGROUND_COMPOSER_SOURCE_BUGBOT_AUTOFIX",
+            "BACKGROUND_COMPOSER_SOURCE_AUTOMATIONS",
+            "BACKGROUND_COMPOSER_SOURCE_SDK",
+            "BACKGROUND_COMPOSER_SOURCE_GROK_BOT",
+        )
 
         // UA 版本号自动跟随 versionName（debug 构建带 -debug 后缀），便于服务端识别与问题排查
         val USER_AGENT = "CursorTAndroid/${BuildConfig.VERSION_NAME}"

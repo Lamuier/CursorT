@@ -161,6 +161,44 @@ enum class AgentTaskPrStatus {
     Unknown,
 }
 
+/**
+ * 云端任务的发起来源。对应 `BACKGROUND_COMPOSER_SOURCE_*`；
+ * 官网默认会隐藏 API / SDK / Grok Bot 等来源，本应用按来源分组展示。
+ */
+enum class AgentTaskSource {
+    Website,
+    Editor,
+    Slack,
+    Linear,
+    Ios,
+    Api,
+    GitHub,
+    Cli,
+    GitHubCi,
+    GitLab,
+    EnvSetup,
+    Grind,
+    Bugbot,
+    Automations,
+    Sdk,
+    GrokBot,
+    Unknown,
+}
+
+/** 任务页列表分组方式，保存在本机。 */
+enum class TaskGroupMode(val storageKey: String, val label: String) {
+    Repository("repository", "仓库"),
+    Status("status", "状态"),
+    Recency("recency", "时间"),
+    Source("source", "来源");
+
+    companion object {
+        fun fromStorage(value: String?): TaskGroupMode =
+            entries.firstOrNull { it.storageKey.equals(value?.trim(), ignoreCase = true) }
+                ?: Repository
+    }
+}
+
 @Immutable
 data class AgentTask(
     val id: String,
@@ -178,6 +216,7 @@ data class AgentTask(
     val createdAtMs: Long,
     val updatedAtMs: Long,
     val lastActivityMs: Long?,
+    val source: AgentTaskSource = AgentTaskSource.Unknown,
 ) {
     /** 列表排序与相对时间展示共用：取最近一次活动 / 更新 / 创建时间。 */
     val latestTimeMs: Long

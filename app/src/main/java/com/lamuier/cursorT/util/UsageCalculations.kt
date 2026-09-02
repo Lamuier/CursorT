@@ -54,11 +54,20 @@ object UsageCalculations {
         }.coerceAtLeast(0.0)
     }
 
-    fun level(percent: Double): UsageLevel = when {
-        percent >= 100.0 -> UsageLevel.Exhausted
-        percent >= 90.0 -> UsageLevel.Critical
-        percent >= 70.0 -> UsageLevel.Warning
-        else -> UsageLevel.Healthy
+    /**
+     * 用量档位：≥100% 已用尽、≥90% 即将用尽、≥80% 请关注用量（与通知阈值对齐）。
+     * 未到 80% 时，若用量百分比仍高于计费周期进度，同样视为请关注用量。
+     */
+    fun level(percent: Double, cyclePercent: Double? = null): UsageLevel {
+        val usage = percent.takeIf { it.isFinite() }?.coerceAtLeast(0.0) ?: 0.0
+        val cycle = cyclePercent?.takeIf { it.isFinite() }?.coerceIn(0.0, 100.0)
+        return when {
+            usage >= 100.0 -> UsageLevel.Exhausted
+            usage >= 90.0 -> UsageLevel.Critical
+            usage >= 80.0 -> UsageLevel.Warning
+            cycle != null && usage > cycle -> UsageLevel.Warning
+            else -> UsageLevel.Healthy
+        }
     }
 
     fun billingProgress(

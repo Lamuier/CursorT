@@ -4,6 +4,14 @@
 
 The Chinese [CHANGELOG.md](CHANGELOG.md) is canonical.
 
+## 2.5.1
+
+> Version: 2.5.0 → 2.5.1. This release adjusts existing usage-level thresholds and warning conditions. No new capability and no breaking change, so a patch bump under SemVer.
+
+- “Watch usage” now starts at 80% to match notification alerts
+- The same warning also appears when usage percent is ahead of billing-cycle progress (90% / 100% remain “almost out” / “exhausted”)
+- `versionCode=15`, `versionName=2.5.1`
+
 ## 2.5.0
 
 > Version: 2.4.0 → 2.5.0. This release adds a display time zone and English UI. Backward-compatible user-visible capability, so a minor version bump under SemVer.

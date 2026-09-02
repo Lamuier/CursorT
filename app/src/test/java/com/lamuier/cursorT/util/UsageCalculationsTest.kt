@@ -37,9 +37,25 @@ class UsageCalculationsTest {
 
     @Test
     fun thresholdsMatchPulse() {
-        assertEquals(UsageLevel.Healthy, UsageCalculations.level(69.99))
-        assertEquals(UsageLevel.Warning, UsageCalculations.level(70.0))
+        assertEquals(UsageLevel.Healthy, UsageCalculations.level(79.99))
+        assertEquals(UsageLevel.Healthy, UsageCalculations.level(70.0))
+        assertEquals(UsageLevel.Warning, UsageCalculations.level(80.0))
         assertEquals(UsageLevel.Critical, UsageCalculations.level(90.0))
+    }
+
+    @Test
+    fun warningWhenUsageOutpacesBillingCycle() {
+        assertEquals(UsageLevel.Warning, UsageCalculations.level(35.0, cyclePercent = 20.0))
+        assertEquals(UsageLevel.Healthy, UsageCalculations.level(35.0, cyclePercent = 35.0))
+        assertEquals(UsageLevel.Healthy, UsageCalculations.level(35.0, cyclePercent = 50.0))
+        assertEquals(UsageLevel.Healthy, UsageCalculations.level(35.0, cyclePercent = null))
+    }
+
+    @Test
+    fun cyclePaceDoesNotOverrideHigherLevels() {
+        assertEquals(UsageLevel.Warning, UsageCalculations.level(80.0, cyclePercent = 95.0))
+        assertEquals(UsageLevel.Critical, UsageCalculations.level(90.0, cyclePercent = 10.0))
+        assertEquals(UsageLevel.Exhausted, UsageCalculations.level(100.0, cyclePercent = 10.0))
     }
 
     @Test

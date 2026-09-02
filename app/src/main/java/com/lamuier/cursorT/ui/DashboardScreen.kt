@@ -695,7 +695,6 @@ private fun OverviewTab(usage: CursorTOverview) {
                 UsageCalculations.usagePercent(usage)
             }
         }
-        val level = remember(percent) { UsageCalculations.level(percent) }
         val percentKnown = !usage.isTeam || limit > 0.0
         val nowMillis = rememberNowMillis()
         val zone = LocalDisplayZone.current
@@ -706,6 +705,9 @@ private fun OverviewTab(usage: CursorTOverview) {
                 nowMillis,
                 displayZone = zone,
             )
+        }
+        val level = remember(percent, billing?.percent) {
+            UsageCalculations.level(percent, billing?.percent?.toDouble())
         }
         val planQuotaLabel = stringResource(R.string.label_plan_quota)
         val ownPoolLabel = stringResource(R.string.label_own_pool_spend)

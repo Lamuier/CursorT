@@ -38,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -47,6 +48,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.lamuier.cursorT.R
 import com.lamuier.cursorT.data.DashboardPreferences
 import com.lamuier.cursorT.model.AgentTask
 import com.lamuier.cursorT.model.AgentTaskPrStatus
@@ -75,15 +77,15 @@ internal fun TasksTab(
     when {
         tasks == null && loading -> DashboardState(
             icon = null,
-            title = "正在获取云端任务",
-            description = "正在连接 Cursor 官方接口…",
+            title = stringResource(R.string.tasks_loading_title),
+            description = stringResource(R.string.tasks_loading_body),
             loading = true,
         )
         tasks == null -> DashboardState(
             icon = Icons.Outlined.CloudOff,
-            title = "暂时无法显示任务",
-            description = error ?: "请检查网络后重试。",
-            primaryActionLabel = "重新加载",
+            title = stringResource(R.string.tasks_unavailable_title),
+            description = error ?: stringResource(R.string.network_retry_hint),
+            primaryActionLabel = stringResource(R.string.action_reload),
             onPrimaryAction = onRetry,
         )
         else -> TasksContent(
@@ -107,28 +109,27 @@ private fun TasksContent(
     val preferences = remember { DashboardPreferences.get(context) }
     val groupMode by preferences.taskGroupMode.collectAsStateWithLifecycle()
     val zone = LocalDisplayZone.current
+    val resources = context.resources
     val visibleTasks = remember(tasks.tasks) { AgentTaskGrouping.visibleTasks(tasks.tasks) }
     val hiddenMergedCount = tasks.tasks.size - visibleTasks.size
     val activeCount = visibleTasks.count {
         it.status == AgentTaskStatus.Running || it.status == AgentTaskStatus.Creating
     }
     val grokBotCount = visibleTasks.count { it.source == AgentTaskSource.GrokBot }
-    val groups = remember(visibleTasks, groupMode, zone) {
-        AgentTaskGrouping.groups(visibleTasks, groupMode, zone = zone)
+    val groups = remember(visibleTasks, groupMode, zone, resources) {
+        AgentTaskGrouping.groups(visibleTasks, groupMode, zone = zone, resources = resources)
     }
     var collapsed by remember(groupMode, tasks.accountId) { mutableStateOf(emptySet<String>()) }
     AdaptiveTabContent { compact ->
         SectionHeading(
             icon = Icons.Outlined.SmartToy,
-            title = "云端任务",
+            title = stringResource(R.string.tasks_heading),
             supporting = when {
-                tasks.tasks.isEmpty() -> "暂无任务记录"
-                visibleTasks.isEmpty() -> "已合并的分支已从列表移除（$hiddenMergedCount 项）"
-                else -> buildString {
-                    append("共 ${visibleTasks.size} 项 · $activeCount 项进行中")
-                    if (grokBotCount > 0) append(" · $grokBotCount 项来自 Grok Bot")
-                    if (hiddenMergedCount > 0) append(" · 已移除 $hiddenMergedCount 项已合并")
-                }
+                tasks.tasks.isEmpty() -> stringResource(R.string.tasks_empty_records)
+                visibleTasks.isEmpty() -> stringResource(R.string.tasks_hidden_merged_only, hiddenMergedCount)
+                else -> stringResource(R.string.tasks_summary, visibleTasks.size, activeCount) +
+                    (if (grokBotCount > 0) stringResource(R.string.tasks_summary_grok, grokBotCount) else "") +
+                    (if (hiddenMergedCount > 0) stringResource(R.string.tasks_summary_hidden, hiddenMergedCount) else "")
             },
         )
         if (error != null) {
@@ -146,9 +147,9 @@ private fun TasksContent(
             ) {
                 Text(
                     if (hiddenMergedCount > 0) {
-                        "已合并分支的任务已从列表移除。可在网页打开 Cursor Agents 查看完整记录。"
+                        stringResource(R.string.tasks_empty_all_merged)
                     } else {
-                        "暂无云端任务。可在 Cursor 网页或 Grok Bot 启动后台智能体后下拉刷新；点击任务会用 Chrome 打开官方对话页。"
+                        stringResource(R.string.tasks_empty_none)
                     },
                     modifier = Modifier.padding(if (compact) 14.dp else 18.dp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -166,7 +167,7 @@ private fun TasksContent(
                         ),
                         icon = {},
                     ) {
-                        Text(mode.label, maxLines = 1)
+                        Text(stringResource(mode.labelRes), maxLines = 1)
                     }
                 }
             }
@@ -211,7 +212,7 @@ private fun TasksContent(
                 modifier = Modifier.size(16.dp),
             )
             Spacer(Modifier.size(6.dp))
-            Text("在网页打开 Cursor Agents")
+            Text(stringResource(R.string.tasks_open_agents))
         }
         TasksFreshnessRow(tasks)
     }
@@ -225,11 +226,17 @@ private fun TaskGroupHeader(
     expanded: Boolean,
     onToggle: () -> Unit,
 ) {
-    val supporting = buildString {
-        append("$count 项")
-        if (activeCount > 0) append(" · $activeCount 项进行中")
+    val groupCount = stringResource(R.string.tasks_group_count, count)
+    val supporting = if (activeCount > 0) {
+        groupCount + stringResource(R.string.tasks_group_active, activeCount)
+    } else {
+        groupCount
     }
-    val description = if (expanded) "收起 $title，$supporting" else "展开 $title，$supporting"
+    val description = stringResource(
+        if (expanded) R.string.tasks_collapse_group else R.string.tasks_expand_group,
+        title,
+        supporting,
+    )
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -273,6 +280,10 @@ private fun TaskCard(
     openUrl: (String) -> Unit,
     onOpenFailed: (String) -> Unit,
 ) {
+    val resources = LocalContext.current.resources
+    val displayName = task.name.ifBlank { stringResource(R.string.task_untitled) }
+    val statusLabel = AgentTaskPresentation.statusLabel(task.status, resources)
+    val conversationA11y = stringResource(R.string.tasks_open_conversation_a11y, displayName, statusLabel)
     val prUrl = task.prUrl?.takeIf(AgentTaskPresentation::isSafeAgentUrl)
     val statusColor = taskStatusColor(task.status)
     Surface(
@@ -280,12 +291,12 @@ private fun TaskCard(
             .fillMaxWidth()
             .semantics {
                 role = Role.Button
-                contentDescription = "${task.name}，${AgentTaskPresentation.statusLabel(task.status)}，在网页查看完整对话"
+                contentDescription = conversationA11y
             }
             .clickable {
                 val url = AgentTaskPresentation.agentConversationUrl(task.id)
                 if (url == null) {
-                    onOpenFailed("云端任务标识无效")
+                    onOpenFailed(resources.getString(R.string.tasks_invalid_id))
                 } else {
                     openUrl(url)
                 }
@@ -304,7 +315,7 @@ private fun TaskCard(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Text(
-                    task.name,
+                    displayName,
                     modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
@@ -312,7 +323,7 @@ private fun TaskCard(
                     overflow = TextOverflow.Ellipsis,
                 )
                 TaskChip(
-                    label = AgentTaskPresentation.statusLabel(task.status),
+                    label = statusLabel,
                     color = statusColor,
                 )
                 Icon(
@@ -341,7 +352,7 @@ private fun TaskCard(
             ) {
                 if (task.source != AgentTaskSource.Unknown) {
                     TaskChip(
-                        label = AgentTaskPresentation.sourceLabel(task.source),
+                        label = AgentTaskPresentation.sourceLabel(task.source, resources),
                         color = if (task.source == AgentTaskSource.GrokBot) {
                             MaterialTheme.colorScheme.primary
                         } else {
@@ -351,7 +362,7 @@ private fun TaskCard(
                 }
                 task.prStatus?.let { prStatus ->
                     TaskChip(
-                        label = AgentTaskPresentation.prStatusLabel(prStatus),
+                        label = AgentTaskPresentation.prStatusLabel(prStatus, resources),
                         color = prStatusColor(prStatus),
                     )
                 }
@@ -368,7 +379,7 @@ private fun TaskCard(
                 }
                 if (task.filesChanged > 0) {
                     TaskChip(
-                        label = "${task.filesChanged} 个文件",
+                        label = stringResource(R.string.tasks_files_changed, task.filesChanged),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
@@ -384,6 +395,7 @@ private fun TaskCard(
                 val activity = AgentTaskPresentation.formatRelative(
                     task.latestTimeMs,
                     zone = LocalDisplayZone.current,
+                    resources = resources,
                 )
                 activity?.let {
                     Text(
@@ -393,12 +405,13 @@ private fun TaskCard(
                     )
                 }
                 if (prUrl != null) {
+                    val openPrDescription = stringResource(R.string.tasks_open_pr)
                     Spacer(Modifier.weight(1f))
                     Row(
                         modifier = Modifier
                             .semantics {
                                 role = Role.Button
-                                contentDescription = "在浏览器中打开 PR"
+                                contentDescription = openPrDescription
                             }
                             .clickable { openUrl(prUrl) },
                         verticalAlignment = Alignment.CenterVertically,
@@ -411,7 +424,7 @@ private fun TaskCard(
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         Text(
-                            "查看 PR",
+                            stringResource(R.string.tasks_view_pr),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -452,11 +465,11 @@ private fun TasksFreshnessRow(tasks: CursorTasks) {
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Text(
-            buildString {
-                append(if (tasks.fromCache) "缓存数据" else "已更新")
-                stamp?.let { append(" · $it") }
-                append(" · 下拉可刷新")
-            },
+            listOfNotNull(
+                stringResource(if (tasks.fromCache) R.string.freshness_cached else R.string.freshness_updated),
+                stamp,
+                stringResource(R.string.freshness_pull_hint),
+            ).joinToString(" · "),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -495,7 +508,7 @@ private fun rememberOpenCursorUrl(onOpenFailed: (String) -> Unit): (String) -> U
     return remember(context, toolbarColor, onOpenFailed) {
         { url ->
             if (!CursorCustomTabs.open(context, url, toolbarColor)) {
-                onOpenFailed("无法打开页面，请确认已安装 Chrome 或其他浏览器")
+                onOpenFailed(context.getString(R.string.tasks_open_page_failed))
             }
         }
     }

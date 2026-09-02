@@ -1,6 +1,8 @@
 package com.lamuier.cursorT.model
 
+import androidx.annotation.StringRes
 import androidx.compose.runtime.Immutable
+import com.lamuier.cursorT.R
 
 @Immutable
 data class CursorAccount(
@@ -186,11 +188,11 @@ enum class AgentTaskSource {
 }
 
 /** 任务页列表分组方式，保存在本机。 */
-enum class TaskGroupMode(val storageKey: String, val label: String) {
-    Repository("repository", "仓库"),
-    Status("status", "状态"),
-    Recency("recency", "时间"),
-    Source("source", "来源");
+enum class TaskGroupMode(val storageKey: String, @StringRes val labelRes: Int) {
+    Repository("repository", R.string.task_group_repository),
+    Status("status", R.string.task_group_status),
+    Recency("recency", R.string.task_group_recency),
+    Source("source", R.string.task_group_source);
 
     companion object {
         fun fromStorage(value: String?): TaskGroupMode =

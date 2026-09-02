@@ -7,6 +7,8 @@ import androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
+import com.lamuier.cursorT.R
+import com.lamuier.cursorT.util.AppLocale
 
 object DeviceCredentialGate {
     private const val AUTHENTICATORS = BIOMETRIC_STRONG or DEVICE_CREDENTIAL
@@ -21,15 +23,15 @@ object DeviceCredentialGate {
 
     fun availabilityMessage(activity: FragmentActivity): String {
         return when (BiometricManager.from(activity).canAuthenticate(AUTHENTICATORS)) {
-            BiometricManager.BIOMETRIC_SUCCESS -> "可用"
+            BiometricManager.BIOMETRIC_SUCCESS -> AppLocale.string(activity, R.string.auth_available)
             BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED ->
-                "请先在系统设置中添加指纹、面部或锁屏密码/图案"
+                AppLocale.string(activity, R.string.auth_enroll)
             BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE,
             BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE ->
-                "当前设备无法进行生物识别或锁屏验证"
+                AppLocale.string(activity, R.string.auth_no_hardware)
             BiometricManager.BIOMETRIC_ERROR_SECURITY_UPDATE_REQUIRED ->
-                "系统安全状态异常，暂时无法验证"
-            else -> "当前无法验证设备身份"
+                AppLocale.string(activity, R.string.auth_security_update)
+            else -> AppLocale.string(activity, R.string.auth_unavailable)
         }
     }
 
@@ -60,7 +62,7 @@ object DeviceCredentialGate {
                         BiometricPrompt.ERROR_USER_CANCELED,
                         BiometricPrompt.ERROR_NEGATIVE_BUTTON,
                         BiometricPrompt.ERROR_CANCELED -> onCanceled()
-                        else -> onError(errString.toString().ifBlank { "验证失败" })
+                        else -> onError(errString.toString().ifBlank { AppLocale.string(activity, R.string.auth_failed) })
                     }
                 }
 

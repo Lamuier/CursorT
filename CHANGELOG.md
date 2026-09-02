@@ -1,9 +1,16 @@
 # Changelog
 
-## 未归档
+**中文** | [English](CHANGELOG.en.md)
+
+## 2.5.0
+
+> 版本判定：2.4.0 → 2.5.0。本版新增展示时区与英文界面，属向后兼容的新用户可见能力，按 SemVer 定次版本。
 
 - 设置可切换展示时区（默认跟随系统）；界面上的绝对时间均带 GMT 偏移，并按所选时区换算
 - 「任务」页不再展示已合并分支（`prStatus=merged` 或 `isPrMerged`）
+- 应用支持英文界面：默认资源为简体中文；可在设置中选择跟随系统 / 简体中文 / English。系统语言为英文时跟随系统显示英文，其余回退中文
+- 仓库文档增加英文版（`README.en.md`、`PRIVACY.en.md`、`CHANGELOG.en.md`、`docs/technical.en.md`），中文文档仍为主文档
+- `versionCode=14`，`versionName=2.5.0`
 
 ## 2.4.0
 

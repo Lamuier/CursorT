@@ -3,12 +3,14 @@ package com.lamuier.cursorT.data
 import android.content.Context
 import com.lamuier.cursorT.model.DashboardTab
 import com.lamuier.cursorT.model.TaskGroupMode
+import com.lamuier.cursorT.util.AppLanguage
+import com.lamuier.cursorT.util.AppLocale
 import com.lamuier.cursorT.util.DisplayTimeZones
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/** 主界面功能页签顺序、任务分组方式与展示时区，保存在本机 SharedPreferences。 */
+/** 主界面功能页签顺序、任务分组方式、展示时区与界面语言，保存在本机 SharedPreferences。 */
 class DashboardPreferences(context: Context) {
     private val preferences = context.applicationContext
         .getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
@@ -21,6 +23,9 @@ class DashboardPreferences(context: Context) {
 
     private val _timeZoneId = MutableStateFlow(readTimeZoneId())
     val timeZoneId: StateFlow<String> = _timeZoneId.asStateFlow()
+
+    private val _language = MutableStateFlow(readLanguage())
+    val language: StateFlow<AppLanguage> = _language.asStateFlow()
 
     fun read(): List<DashboardTab> =
         DashboardTab.resolveOrder(preferences.getString(KEY_TAB_ORDER, null))
@@ -53,8 +58,16 @@ class DashboardPreferences(context: Context) {
         _timeZoneId.value = stored
     }
 
+    fun readLanguage(): AppLanguage =
+        AppLanguage.fromStorage(preferences.getString(AppLocale.KEY_LANGUAGE, null))
+
+    fun setLanguage(language: AppLanguage) {
+        preferences.edit().putString(AppLocale.KEY_LANGUAGE, language.storageKey).apply()
+        _language.value = language
+    }
+
     companion object {
-        private const val PREFERENCES_NAME = "cursor_pulse_dashboard_v1"
+        private const val PREFERENCES_NAME = AppLocale.PREFERENCES_NAME
         private const val KEY_TAB_ORDER = "tab_order"
         private const val KEY_TASK_GROUP_MODE = "task_group_mode"
         private const val KEY_TIME_ZONE = "time_zone"

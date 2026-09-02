@@ -24,6 +24,7 @@ import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.KeyboardArrowUp
+import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.LightMode
 import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.Schedule
@@ -56,6 +57,7 @@ import com.lamuier.cursorT.data.ThemeSettings
 import com.lamuier.cursorT.model.DashboardTab
 import com.lamuier.cursorT.ui.theme.ColorPalette
 import com.lamuier.cursorT.ui.theme.ThemeMode
+import com.lamuier.cursorT.util.AppLanguage
 import com.lamuier.cursorT.util.DisplayTime
 import com.lamuier.cursorT.util.DisplayTimeZones
 import java.time.Instant
@@ -70,6 +72,8 @@ internal fun SettingsSheet(
     onPaletteChange: (ColorPalette) -> Unit,
     timeZoneId: String,
     onTimeZoneChange: (String) -> Unit,
+    language: AppLanguage,
+    onLanguageChange: (AppLanguage) -> Unit,
     onLiveUpdatesToggle: (Boolean) -> Unit,
     onThresholdRemindersToggle: (Boolean) -> Unit,
     percentDisplayMode: PercentDisplayMode,
@@ -107,7 +111,7 @@ internal fun SettingsSheet(
                     )
                 }
                 IconButton(onClick = onDismiss) {
-                    Icon(Icons.Default.Close, contentDescription = "关闭设置")
+                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.close_settings))
                 }
             }
 
@@ -128,7 +132,7 @@ internal fun SettingsSheet(
                         label = stringResource(R.string.theme_mode_system),
                         icon = Icons.Outlined.PhoneAndroid,
                         selected = settings.themeMode == ThemeMode.System,
-                        description = "跟随系统深浅色",
+                        description = stringResource(R.string.theme_mode_system_description),
                         onClick = { onThemeModeChange(ThemeMode.System) },
                     )
                     ThemeModeOption(
@@ -136,7 +140,7 @@ internal fun SettingsSheet(
                         label = stringResource(R.string.theme_mode_light),
                         icon = Icons.Outlined.LightMode,
                         selected = settings.themeMode == ThemeMode.Light,
-                        description = "始终使用浅色",
+                        description = stringResource(R.string.theme_mode_light_description),
                         onClick = { onThemeModeChange(ThemeMode.Light) },
                     )
                     ThemeModeOption(
@@ -144,7 +148,7 @@ internal fun SettingsSheet(
                         label = stringResource(R.string.theme_mode_dark),
                         icon = Icons.Outlined.DarkMode,
                         selected = settings.themeMode == ThemeMode.Dark,
-                        description = "始终使用深色",
+                        description = stringResource(R.string.theme_mode_dark_description),
                         onClick = { onThemeModeChange(ThemeMode.Dark) },
                     )
                 }
@@ -157,9 +161,9 @@ internal fun SettingsSheet(
                             enabled = enabled,
                             supporting = when {
                                 palette == ColorPalette.System && !systemPaletteAvailable ->
-                                    "需要 Android 12 及以上"
+                                    stringResource(R.string.palette_dynamic_need_android12)
                                 palette == ColorPalette.System ->
-                                    "跟随壁纸动态配色"
+                                    stringResource(R.string.palette_dynamic_follow_wallpaper)
                                 else -> null
                             },
                             onClick = {
@@ -167,6 +171,24 @@ internal fun SettingsSheet(
                             },
                         )
                     }
+                }
+            }
+
+            HorizontalDivider()
+
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                SectionTitle(stringResource(R.string.language_section_title))
+                Text(
+                    stringResource(R.string.language_section_description),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                AppLanguage.entries.forEach { option ->
+                    LanguageOption(
+                        option = option,
+                        selected = language == option,
+                        onClick = { onLanguageChange(option) },
+                    )
                 }
             }
 
@@ -298,8 +320,9 @@ private fun TabOrderRow(
     onMoveUp: () -> Unit,
     onMoveDown: () -> Unit,
 ) {
-    val moveUpDescription = stringResource(R.string.tab_order_move_up, tab.label)
-    val moveDownDescription = stringResource(R.string.tab_order_move_down, tab.label)
+    val tabLabel = stringResource(tab.labelRes)
+    val moveUpDescription = stringResource(R.string.tab_order_move_up, tabLabel)
+    val moveDownDescription = stringResource(R.string.tab_order_move_down, tabLabel)
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.medium,
@@ -320,7 +343,7 @@ private fun TabOrderRow(
                 color = MaterialTheme.colorScheme.primary,
             )
             Text(
-                tab.label,
+                tabLabel,
                 modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
@@ -525,10 +548,11 @@ private fun TimeZoneOption(
     selected: Boolean,
     onClick: () -> Unit,
 ) {
+    val label = stringResource(option.labelRes)
     val zone = DisplayTimeZones.resolve(option.id)
     val offset = DisplayTime.offsetLabel(zone)
     val supporting = if (option.id == DisplayTimeZones.SYSTEM_ID) {
-        "设备当前 $offset"
+        stringResource(R.string.timezone_device_offset, offset)
     } else {
         offset
     }
@@ -543,7 +567,7 @@ private fun TimeZoneOption(
             .semantics {
                 role = Role.RadioButton
                 this.selected = selected
-                contentDescription = "${option.label}，$supporting"
+                contentDescription = "$label，$supporting"
             }
             .clip(MaterialTheme.shapes.medium)
             .clickable(onClick = onClick),
@@ -571,7 +595,7 @@ private fun TimeZoneOption(
             )
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    option.label,
+                    label,
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -584,7 +608,69 @@ private fun TimeZoneOption(
             }
             if (selected) {
                 Text(
-                    "已选",
+                    stringResource(R.string.selected),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LanguageOption(
+    option: AppLanguage,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val label = stringResource(option.labelRes)
+    val border = if (selected) {
+        BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+    } else {
+        BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    }
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics {
+                role = Role.RadioButton
+                this.selected = selected
+                contentDescription = label
+            }
+            .clip(MaterialTheme.shapes.medium)
+            .clickable(onClick = onClick),
+        shape = MaterialTheme.shapes.medium,
+        color = if (selected) {
+            MaterialTheme.colorScheme.surfaceContainerHigh
+        } else {
+            MaterialTheme.colorScheme.surfaceContainerLow
+        },
+        border = border,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Icon(
+                Icons.Outlined.Language,
+                contentDescription = null,
+                tint = if (selected) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            )
+            Text(
+                label,
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+            if (selected) {
+                Text(
+                    stringResource(R.string.selected),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.SemiBold,
@@ -663,6 +749,14 @@ private fun PaletteOption(
     supporting: String?,
     onClick: () -> Unit,
 ) {
+    val paletteName = stringResource(palette.displayNameRes)
+    val unavailable = stringResource(R.string.palette_unavailable)
+    val optionDescription = stringResource(R.string.palette_option_description, paletteName)
+    val paletteDescription = buildString {
+        append(optionDescription)
+        if (supporting != null) append(" · $supporting")
+        if (!enabled) append(" · $unavailable")
+    }
     val border = when {
         selected -> BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
         else -> BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
@@ -673,11 +767,7 @@ private fun PaletteOption(
             .semantics {
                 role = Role.RadioButton
                 this.selected = selected
-                contentDescription = buildString {
-                    append("色板 ${palette.displayName}")
-                    if (supporting != null) append("，$supporting")
-                    if (!enabled) append("，不可用")
-                }
+                contentDescription = paletteDescription
             }
             .clip(MaterialTheme.shapes.medium)
             .clickable(enabled = enabled, onClick = onClick),
@@ -712,7 +802,7 @@ private fun PaletteOption(
             )
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    palette.displayName,
+                    paletteName,
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -729,7 +819,7 @@ private fun PaletteOption(
             }
             if (selected) {
                 Text(
-                    "已选",
+                    stringResource(R.string.selected),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.SemiBold,

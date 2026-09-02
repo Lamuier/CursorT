@@ -2,6 +2,8 @@
 
 > 在手机上随时查看 Cursor 订阅用量——无需第三方服务端，数据只留在你自己的设备里。
 
+**中文** | [English](README.en.md)
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 ![Platform](https://img.shields.io/badge/Platform-Android%208.0%2B-green.svg)
 
@@ -38,7 +40,7 @@ Cursor助手 是一款原生 Android 应用。你只需在应用内填入本机�
 
 - 启动与回到前台自动刷新，前台每 5 分钟静默同步，也支持手动刷新。
 - 仅 64 位；前台自动适配高刷新率屏幕，离开后释放。
-- 浅色 / 深色跟随系统，支持无障碍与大屏布局；主界面功能页签顺序与时间展示时区可在设置中调整。
+- 浅色 / 深色跟随系统，支持无障碍与大屏布局；主界面功能页签顺序、时间展示时区与界面语言可在设置中调整。默认简体中文；跟随系统时，英文系统显示英文，其余回退中文。
 - 内置 Windows 平台 Token 获取引导。
 
 ---
@@ -49,7 +51,7 @@ Cursor助手 是一款原生 Android 应用。你只需在应用内填入本机�
 - **本地加密保存**：账号与 Token 经系统密钥库加密后保存在你的设备，不进入备份、不通过明文传输。
 - **最小收集**：仅缓存解析后的用量数字与任务摘要，不保存任何原始响应；任务对话在官方网页中查看，应用不拉取聊天内容。
 
-完整说明见 [PRIVACY.md](PRIVACY.md)，第三方开源组件声明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+完整说明见 [PRIVACY.md](PRIVACY.md)（[English](PRIVACY.en.md)），第三方开源组件声明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
 > ⚠️ Cursor 用量接口没有公开的稳定性承诺，接口变动时应用可能需要更新。
 
@@ -80,4 +82,4 @@ python -c 'import os,sqlite3,json; from pathlib import Path; p=Path(os.environ["
 
 ---
 
-*开发者与构建说明请见 [docs/technical.md](docs/technical.md)。*
+*开发者与构建说明请见 [docs/technical.md](docs/technical.md)（[English](docs/technical.en.md)）。*

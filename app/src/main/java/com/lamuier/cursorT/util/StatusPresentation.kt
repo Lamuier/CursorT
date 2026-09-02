@@ -1,5 +1,7 @@
 package com.lamuier.cursorT.util
 
+import android.content.res.Resources
+import com.lamuier.cursorT.R
 import com.lamuier.cursorT.model.ComponentStatus
 import com.lamuier.cursorT.model.StatusIndicator
 import java.net.URI
@@ -7,51 +9,74 @@ import java.time.ZoneId
 import java.util.Locale
 
 object StatusPresentation {
-    fun indicatorLabel(indicator: StatusIndicator): String = when (indicator) {
-        StatusIndicator.None -> "全部系统正常"
-        StatusIndicator.Minor -> "部分性能下降"
-        StatusIndicator.Major -> "部分服务中断"
-        StatusIndicator.Critical -> "严重故障"
-        StatusIndicator.Maintenance -> "计划维护中"
+    fun indicatorLabel(indicator: StatusIndicator, resources: Resources? = null): String {
+        val id = when (indicator) {
+            StatusIndicator.None -> R.string.status_indicator_none
+            StatusIndicator.Minor -> R.string.status_indicator_minor
+            StatusIndicator.Major -> R.string.status_indicator_major
+            StatusIndicator.Critical -> R.string.status_indicator_critical
+            StatusIndicator.Maintenance -> R.string.status_indicator_maintenance
+        }
+        return resources?.getString(id) ?: fallbackZh(id)
     }
 
-    fun compactIndicatorLabel(indicator: StatusIndicator): String = when (indicator) {
-        StatusIndicator.None -> "全部正常"
-        StatusIndicator.Minor -> "性能下降"
-        StatusIndicator.Major -> "部分中断"
-        StatusIndicator.Critical -> "严重故障"
-        StatusIndicator.Maintenance -> "维护中"
+    fun compactIndicatorLabel(indicator: StatusIndicator, resources: Resources? = null): String {
+        val id = when (indicator) {
+            StatusIndicator.None -> R.string.status_indicator_none_compact
+            StatusIndicator.Minor -> R.string.status_indicator_minor_compact
+            StatusIndicator.Major -> R.string.status_indicator_major_compact
+            StatusIndicator.Critical -> R.string.status_indicator_critical_compact
+            StatusIndicator.Maintenance -> R.string.status_indicator_maintenance_compact
+        }
+        return resources?.getString(id) ?: fallbackZh(id)
     }
 
-    fun componentLabel(status: ComponentStatus): String = when (status) {
-        ComponentStatus.Operational -> "正常"
-        ComponentStatus.DegradedPerformance -> "性能下降"
-        ComponentStatus.PartialOutage -> "部分中断"
-        ComponentStatus.MajorOutage -> "严重中断"
-        ComponentStatus.UnderMaintenance -> "维护中"
-        ComponentStatus.Unknown -> "未知"
+    fun componentLabel(status: ComponentStatus, resources: Resources? = null): String {
+        val id = when (status) {
+            ComponentStatus.Operational -> R.string.status_component_operational
+            ComponentStatus.DegradedPerformance -> R.string.status_component_degraded
+            ComponentStatus.PartialOutage -> R.string.status_component_partial_outage
+            ComponentStatus.MajorOutage -> R.string.status_component_major_outage
+            ComponentStatus.UnderMaintenance -> R.string.status_component_maintenance
+            ComponentStatus.Unknown -> R.string.status_component_unknown
+        }
+        return resources?.getString(id) ?: fallbackZh(id)
     }
 
-    fun incidentStatusLabel(status: String): String = when (status.lowercase(Locale.US)) {
-        "investigating" -> "调查中"
-        "identified" -> "已定位"
-        "monitoring" -> "观察中"
-        "resolved" -> "已恢复"
-        "postmortem" -> "事后分析"
-        "scheduled" -> "已计划"
-        "in_progress" -> "进行中"
-        "verifying" -> "验证中"
-        "completed" -> "已完成"
-        else -> status.ifBlank { "更新" }
+    fun incidentStatusLabel(status: String, resources: Resources? = null): String {
+        val id = when (status.lowercase(Locale.US)) {
+            "investigating" -> R.string.status_incident_investigating
+            "identified" -> R.string.status_incident_identified
+            "monitoring" -> R.string.status_incident_monitoring
+            "resolved" -> R.string.status_incident_resolved
+            "postmortem" -> R.string.status_incident_postmortem
+            "scheduled" -> R.string.status_incident_scheduled
+            "in_progress" -> R.string.status_incident_in_progress
+            "verifying" -> R.string.status_incident_verifying
+            "completed" -> R.string.status_incident_completed
+            else -> null
+        }
+        return when {
+            id != null -> resources?.getString(id) ?: fallbackZh(id)
+            status.isNotBlank() -> status
+            else -> resources?.getString(R.string.status_incident_update) ?: "更新"
+        }
     }
 
-    fun impactLabel(impact: String): String = when (impact.lowercase(Locale.US)) {
-        "none" -> "无影响"
-        "minor" -> "轻微"
-        "major" -> "较大"
-        "critical" -> "严重"
-        "maintenance" -> "维护"
-        else -> impact.ifBlank { "未知" }
+    fun impactLabel(impact: String, resources: Resources? = null): String {
+        val id = when (impact.lowercase(Locale.US)) {
+            "none" -> R.string.status_impact_none
+            "minor" -> R.string.status_impact_minor
+            "major" -> R.string.status_impact_major
+            "critical" -> R.string.status_impact_critical
+            "maintenance" -> R.string.status_impact_maintenance
+            else -> null
+        }
+        return when {
+            id != null -> resources?.getString(id) ?: fallbackZh(id)
+            impact.isNotBlank() -> impact
+            else -> resources?.getString(R.string.status_impact_unknown) ?: "未知"
+        }
     }
 
     fun formatInstant(iso: String?, zoneId: ZoneId = ZoneId.systemDefault()): String? =
@@ -75,4 +100,38 @@ object StatusPresentation {
     }
 
     private val INCIDENT_ID = Regex("^[A-Za-z0-9_-]+$")
+
+    private fun fallbackZh(id: Int): String = when (id) {
+        R.string.status_indicator_none -> "全部系统正常"
+        R.string.status_indicator_minor -> "部分性能下降"
+        R.string.status_indicator_major -> "部分服务中断"
+        R.string.status_indicator_critical -> "严重故障"
+        R.string.status_indicator_maintenance -> "计划维护中"
+        R.string.status_indicator_none_compact -> "全部正常"
+        R.string.status_indicator_minor_compact -> "性能下降"
+        R.string.status_indicator_major_compact -> "部分中断"
+        R.string.status_indicator_critical_compact -> "严重故障"
+        R.string.status_indicator_maintenance_compact -> "维护中"
+        R.string.status_component_operational -> "正常"
+        R.string.status_component_degraded -> "性能下降"
+        R.string.status_component_partial_outage -> "部分中断"
+        R.string.status_component_major_outage -> "严重中断"
+        R.string.status_component_maintenance -> "维护中"
+        R.string.status_component_unknown -> "未知"
+        R.string.status_incident_investigating -> "调查中"
+        R.string.status_incident_identified -> "已定位"
+        R.string.status_incident_monitoring -> "观察中"
+        R.string.status_incident_resolved -> "已恢复"
+        R.string.status_incident_postmortem -> "事后分析"
+        R.string.status_incident_scheduled -> "已计划"
+        R.string.status_incident_in_progress -> "进行中"
+        R.string.status_incident_verifying -> "验证中"
+        R.string.status_incident_completed -> "已完成"
+        R.string.status_impact_none -> "无影响"
+        R.string.status_impact_minor -> "轻微"
+        R.string.status_impact_major -> "较大"
+        R.string.status_impact_critical -> "严重"
+        R.string.status_impact_maintenance -> "维护"
+        else -> ""
+    }
 }

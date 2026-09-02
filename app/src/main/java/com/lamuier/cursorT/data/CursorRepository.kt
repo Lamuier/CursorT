@@ -1,6 +1,7 @@
 package com.lamuier.cursorT.data
 
 import android.content.Context
+import com.lamuier.cursorT.R
 import com.lamuier.cursorT.model.CursorAccount
 import com.lamuier.cursorT.model.CursorTasks
 import com.lamuier.cursorT.model.CursorTOverview
@@ -10,6 +11,7 @@ import com.lamuier.cursorT.network.CursorTAssembler
 import com.lamuier.cursorT.network.TasksJsonParser
 import com.lamuier.cursorT.model.UsageWindow
 import com.lamuier.cursorT.network.UsageJsonParser
+import com.lamuier.cursorT.util.AppLocale
 import com.lamuier.cursorT.util.TokenUtils
 import com.lamuier.cursorT.util.UsageHistoryWindows
 import java.util.concurrent.ConcurrentHashMap
@@ -27,10 +29,11 @@ import java.io.IOException
 class AccountRevisionChangedException : IOException("Cursor 账号已发生变化，已忽略旧请求结果")
 
 class CursorRepository(context: Context) {
-    private val api = CursorApiClient()
-    private val accountStore = EncryptedAccountStore(context.applicationContext)
-    private val usageCache = UsageCacheStore(context.applicationContext)
-    private val tasksCache = TasksCacheStore(context.applicationContext)
+    private val appContext = context.applicationContext
+    private val api = CursorApiClient(appContext)
+    private val accountStore = EncryptedAccountStore(appContext)
+    private val usageCache = UsageCacheStore(appContext)
+    private val tasksCache = TasksCacheStore(appContext)
 
     init {
         clearMigratedAccountUsageCaches()
@@ -49,7 +52,7 @@ class CursorRepository(context: Context) {
     }
 
     fun deleteAccount(accountId: Int) {
-        require(accountStore.delete(accountId)) { "账号不存在" }
+        require(accountStore.delete(accountId)) { AppLocale.string(appContext, R.string.error_account_not_found) }
         invalidateUsage(accountId)
         invalidateTasks(accountId)
     }
@@ -90,7 +93,7 @@ class CursorRepository(context: Context) {
         val snapshot = accountStore.snapshot(accountId)
         if (TokenUtils.isExpired(snapshot.accessToken) || (snapshot.tokenInvalid && !forceRefresh)) {
             markCredentialInvalid(snapshot)
-            throw ApiException(401, "Cursor Access Token 已过期或无效，请更新 Token")
+            throw ApiException(401, AppLocale.string(appContext, R.string.error_api_token_invalid))
         }
 
         if (!forceRefresh) {
@@ -174,7 +177,7 @@ class CursorRepository(context: Context) {
         val snapshot = accountStore.snapshot(accountId)
         if (TokenUtils.isExpired(snapshot.accessToken) || (snapshot.tokenInvalid && !forceRefresh)) {
             markCredentialInvalid(snapshot)
-            throw ApiException(401, "Cursor Access Token 已过期或无效，请更新 Token")
+            throw ApiException(401, AppLocale.string(appContext, R.string.error_api_token_invalid))
         }
 
         if (!forceRefresh) {

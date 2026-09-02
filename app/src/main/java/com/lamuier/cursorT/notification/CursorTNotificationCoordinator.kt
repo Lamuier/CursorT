@@ -23,6 +23,7 @@ import com.lamuier.cursorT.data.NotificationPreferences
 import com.lamuier.cursorT.data.PercentDisplayMode
 import com.lamuier.cursorT.model.CursorTOverview
 import com.lamuier.cursorT.model.TotalFormat
+import com.lamuier.cursorT.util.AppLocale
 import com.lamuier.cursorT.util.UsageCalculations
 import java.time.Instant
 import java.time.LocalDateTime
@@ -58,6 +59,8 @@ class CursorTNotificationCoordinator(
     private val appContext = context.applicationContext
     private val notificationManager =
         appContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+    private fun strings(): Context = AppLocale.wrap(appContext)
 
     /**
      * 以最新用量快照刷新常驻通知与阈值提醒。usage 为 null（无账号 / 无数据）时
@@ -111,7 +114,7 @@ class CursorTNotificationCoordinator(
         )
         val cycleEndMillis = parseDate(usage.billingCycle.end)
 
-        val title = appContext.getString(R.string.notification_live_title)
+        val title = strings().getString(R.string.notification_live_title)
         val settings = preferences.read()
         val mode = settings.percentDisplayMode
         val usedPercentInt = percentInt
@@ -124,14 +127,14 @@ class CursorTNotificationCoordinator(
             usage.usage.limitDollars > 0
         ) {
             if (mode == PercentDisplayMode.Remaining) {
-                appContext.getString(
+                strings().getString(
                     R.string.notification_live_usage_remaining_dollars,
                     displayPercentInt,
                     money(usage.usage.remainingDollars),
                     money(usage.usage.limitDollars),
                 )
             } else {
-                appContext.getString(
+                strings().getString(
                     R.string.notification_live_usage_dollars,
                     usedPercentInt,
                     money(usage.usage.totalSpendDollars),
@@ -140,18 +143,18 @@ class CursorTNotificationCoordinator(
             }
         } else {
             if (mode == PercentDisplayMode.Remaining) {
-                appContext.getString(
+                strings().getString(
                     R.string.notification_live_usage_remaining_percent,
                     displayPercentInt,
                 )
             } else {
-                appContext.getString(R.string.notification_live_usage_percent, usedPercentInt)
+                strings().getString(R.string.notification_live_usage_percent, usedPercentInt)
             }
         }
         val resetSuffix = billing?.let {
-            appContext.getString(
+            strings().getString(
                 R.string.notification_live_body_suffix,
-                UsageCalculations.formatRemaining(it.remainingMillis),
+                UsageCalculations.formatRemaining(it.remainingMillis, resources = strings().resources),
             )
         }.orEmpty()
         val text = usagePart + resetSuffix
@@ -230,12 +233,12 @@ class CursorTNotificationCoordinator(
             notification = notification,
             title = title,
             content = text,
-            islandTitle = appContext.getString(
+            islandTitle = strings().getString(
                 R.string.notification_island_title,
                 displayPercentInt,
             ),
             islandContent = islandRemainingText(usage),
-            timerSuffix = appContext.getString(R.string.notification_island_suffix_reset),
+            timerSuffix = strings().getString(R.string.notification_island_suffix_reset),
             cycleEndMillis = cycleEndMillis?.takeIf { it > nowMillis },
         )
         runCatching { notificationManager.notify(LIVE_NOTIFICATION_ID, notification) }
@@ -248,7 +251,7 @@ class CursorTNotificationCoordinator(
             .addProgressSegment(Notification.ProgressStyle.Segment(PROGRESS_MAX))
         builder.setStyle(progressStyle)
         builder.setShortCriticalText(
-            appContext.getString(R.string.notification_short_percent, percentInt),
+            strings().getString(R.string.notification_short_percent, percentInt),
         )
     }
 
@@ -269,7 +272,7 @@ class CursorTNotificationCoordinator(
             .addMetric(
                 Notification.Metric(
                     Notification.Metric.FixedFloat(displayPercentFloat, "%", 2, 2),
-                    appContext.getString(R.string.notification_metric_usage),
+                    strings().getString(R.string.notification_metric_usage),
                     semanticStyle,
                 ),
             )
@@ -280,7 +283,7 @@ class CursorTNotificationCoordinator(
                         Instant.ofEpochMilli(end),
                         Notification.Metric.TimeDifference.FORMAT_ADAPTIVE,
                     ),
-                    appContext.getString(R.string.notification_metric_reset),
+                    strings().getString(R.string.notification_metric_reset),
                 ),
             )
         }
@@ -288,14 +291,14 @@ class CursorTNotificationCoordinator(
             metricStyle.addMetric(
                 Notification.Metric(
                     Notification.Metric.FixedFloat(creditsDollars.toFloat(), "$", 2, 2),
-                    appContext.getString(R.string.notification_metric_credits),
+                    strings().getString(R.string.notification_metric_credits),
                 ),
             )
         }
         metricStyle.setCriticalMetric(0)
         builder.setStyle(metricStyle)
         builder.setShortCriticalText(
-            appContext.getString(
+            strings().getString(
                 R.string.notification_short_percent,
                 displayPercentFloat.toInt(),
             ),
@@ -332,11 +335,11 @@ class CursorTNotificationCoordinator(
         val reminded = preferences.remindedThresholds(cycleKey)
         val threshold = THRESHOLDS.firstOrNull { percent >= it && it !in reminded } ?: return
 
-        val title = appContext.getString(R.string.notification_reminder_title)
+        val title = strings().getString(R.string.notification_reminder_title)
         val text = if (threshold >= 100) {
-            appContext.getString(R.string.notification_reminder_body_full)
+            strings().getString(R.string.notification_reminder_body_full)
         } else {
-            appContext.getString(
+            strings().getString(
                 R.string.notification_reminder_body_threshold,
                 threshold,
                 percent.roundToInt(),
@@ -395,7 +398,7 @@ class CursorTNotificationCoordinator(
         ) {
             return ""
         }
-        return appContext.getString(
+        return strings().getString(
             R.string.notification_island_remaining,
             money(usage.usage.remainingDollars),
         )
@@ -406,22 +409,22 @@ class CursorTNotificationCoordinator(
         notificationManager.createNotificationChannel(
             NotificationChannel(
                 CHANNEL_ID,
-                appContext.getString(R.string.notification_live_channel_name),
+                strings().getString(R.string.notification_live_channel_name),
                 NotificationManager.IMPORTANCE_HIGH,
             ).apply {
                 description =
-                    appContext.getString(R.string.notification_live_channel_description)
+                    strings().getString(R.string.notification_live_channel_description)
                 setShowBadge(true)
             },
         )
         notificationManager.createNotificationChannel(
             NotificationChannel(
                 REMINDER_CHANNEL_ID,
-                appContext.getString(R.string.notification_reminder_channel_name),
+                strings().getString(R.string.notification_reminder_channel_name),
                 NotificationManager.IMPORTANCE_HIGH,
             ).apply {
                 description =
-                    appContext.getString(R.string.notification_reminder_channel_description)
+                    strings().getString(R.string.notification_reminder_channel_description)
                 setShowBadge(true)
             },
         )

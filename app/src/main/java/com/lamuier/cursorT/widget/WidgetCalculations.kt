@@ -1,5 +1,7 @@
 package com.lamuier.cursorT.widget
 
+import android.content.res.Resources
+import com.lamuier.cursorT.R
 import com.lamuier.cursorT.model.ComponentStatus
 import com.lamuier.cursorT.model.CursorServiceStatus
 import com.lamuier.cursorT.model.CursorTOverview
@@ -62,14 +64,17 @@ internal object WidgetCalculations {
         return (degraded + operational).take(limit).map { it.name to it.status }
     }
 
-    fun incidentHeadline(status: CursorServiceStatus): String {
+    fun incidentHeadline(status: CursorServiceStatus, resources: Resources? = null): String {
         val active = status.activeIncidents.firstOrNull()
         if (active != null) return active.name
         val maintenance = status.scheduledMaintenances.firstOrNull()
         if (maintenance != null) return maintenance.name
         val recent = status.recentIncidents.firstOrNull()
-        if (recent != null) return "近期 ${recent.name}"
-        return "暂无事件"
+        if (recent != null) {
+            return resources?.getString(R.string.widget_recent_incident, recent.name)
+                ?: "近期 ${recent.name}"
+        }
+        return resources?.getString(R.string.widget_no_incidents) ?: "暂无事件"
     }
 
     fun indicatorColor(indicator: StatusIndicator): Int = when (indicator) {

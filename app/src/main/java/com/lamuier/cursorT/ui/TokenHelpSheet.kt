@@ -38,9 +38,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+
+import com.lamuier.cursorT.R
 
 private val CodeSurface = Color(0xFF0F1419)
 private val CodeOnSurface = Color(0xFFD7E0EA)
@@ -52,7 +55,7 @@ internal fun TokenHelpSheet(onDismiss: () -> Unit) {
         onDismissRequest = onDismiss,
         containerColor = MaterialTheme.colorScheme.surface,
     ) {
-        TokenHelpContent(onDismiss = onDismiss, actionLabel = "我知道了")
+        TokenHelpContent(onDismiss = onDismiss, actionLabel = stringResource(R.string.token_help_got_it))
     }
 }
 
@@ -69,18 +72,18 @@ internal fun TokenHelpContent(onDismiss: () -> Unit, actionLabel: String) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
-                    "如何获取 Access Token",
+                    stringResource(R.string.token_help_title),
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    "以下步骤只在已登录 Cursor 的 Windows 电脑上执行。",
+                    stringResource(R.string.token_help_intro),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             IconButton(onClick = onDismiss) {
-                Icon(Icons.Default.Close, contentDescription = "关闭帮助")
+                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.token_help_close))
             }
         }
 
@@ -92,34 +95,34 @@ internal fun TokenHelpContent(onDismiss: () -> Unit, actionLabel: String) {
             Column(modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp)) {
                 HelpTimelineStep(
                     number = 1,
-                    title = "确认 Cursor 已登录",
-                    body = "打开 Windows 版 Cursor，确认右上角账号已登录。读取数据库前不需要退出账号。",
+                    title = stringResource(R.string.token_help_step1_title),
+                    body = stringResource(R.string.token_help_step1_body),
                     isLast = false,
                 )
                 HelpTimelineStep(
                     number = 2,
-                    title = "找到本地数据库",
-                    body = "数据库路径：%APPDATA%\\Cursor\\User\\globalStorage\\state.vscdb",
+                    title = stringResource(R.string.token_help_step2_title),
+                    body = stringResource(R.string.token_help_step2_body),
                     isLast = false,
                 )
                 HelpTimelineStep(
                     number = 3,
-                    title = "读取指定键值",
-                    body = "Token 对应的 key 是 cursorAuth/accessToken。建议直接复制到剪贴板，不要重定向到文件。",
+                    title = stringResource(R.string.token_help_step3_title),
+                    body = stringResource(R.string.token_help_step3_body),
                     isLast = true,
                 )
             }
         }
 
         HelpCommand(
-            title = "PowerShell（已安装 sqlite3）",
-            description = "以只读方式查询并直接复制到 Windows 剪贴板：",
+            title = stringResource(R.string.token_help_powershell_title),
+            description = stringResource(R.string.token_help_powershell_body),
             command = POWERSHELL_COMMAND,
         )
 
         HelpCommand(
-            title = "Python（在 PowerShell 运行）",
-            description = "无需 sqlite3 命令行；Python 标准库只读数据库，并通过 clip.exe 直接复制：",
+            title = stringResource(R.string.token_help_python_title),
+            description = stringResource(R.string.token_help_python_body),
             command = PYTHON_COMMAND,
         )
 
@@ -133,18 +136,18 @@ internal fun TokenHelpContent(onDismiss: () -> Unit, actionLabel: String) {
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Text(
-                    "保护你的 Token",
+                    stringResource(R.string.token_help_protect_title),
                     color = MaterialTheme.colorScheme.onErrorContainer,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    "Token 等同于登录凭据。不要发送到聊天、工单、邮件或代码仓库；粘贴到本应用后，及时清空电脑和手机剪贴板。",
+                    stringResource(R.string.token_help_protect_body),
                     color = MaterialTheme.colorScheme.onErrorContainer,
                     style = MaterialTheme.typography.bodySmall,
                 )
                 SelectionContainer {
                     Text(
-                        "PowerShell 清空剪贴板：Set-Clipboard -Value \"\"",
+                        stringResource(R.string.token_help_clear_clipboard),
                         color = MaterialTheme.colorScheme.onErrorContainer,
                         style = MaterialTheme.typography.labelMedium,
                         fontFamily = FontFamily.Monospace,
@@ -241,11 +244,11 @@ private fun HelpCommand(title: String, description: String, command: String) {
                 FilledTonalButton(
                     onClick = {
                         context.getSystemService(ClipboardManager::class.java)
-                            .setPrimaryClip(ClipData.newPlainText("Cursor Token 获取命令", command))
+                            .setPrimaryClip(ClipData.newPlainText(context.getString(R.string.token_help_command_clip_label), command))
                         copied = true
                     },
                 ) {
-                    Text(if (copied) "已复制" else "复制命令")
+                    Text(if (copied) stringResource(R.string.action_copied) else stringResource(R.string.token_help_copy_command))
                 }
             }
             Text(

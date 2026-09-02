@@ -32,6 +32,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -40,6 +41,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
+import com.lamuier.cursorT.R
 import com.lamuier.cursorT.data.NotificationSettings
 import com.lamuier.cursorT.data.PercentDisplayMode
 import com.lamuier.cursorT.data.ThemeSettings
@@ -50,6 +52,7 @@ import com.lamuier.cursorT.model.ShortcutAction
 import com.lamuier.cursorT.ui.theme.ColorPalette
 import com.lamuier.cursorT.ui.theme.LocalDisplayZone
 import com.lamuier.cursorT.ui.theme.ThemeMode
+import com.lamuier.cursorT.util.AppLanguage
 import com.lamuier.cursorT.util.DeviceCredentialGate
 import com.lamuier.cursorT.util.DisplayTimeZones
 import com.lamuier.cursorT.util.SensitiveContent
@@ -69,6 +72,8 @@ fun CursorTApp(
     onPaletteChange: (ColorPalette) -> Unit,
     timeZoneId: String,
     onTimeZoneChange: (String) -> Unit,
+    language: AppLanguage,
+    onLanguageChange: (AppLanguage) -> Unit,
     onLiveUpdatesToggle: (Boolean) -> Unit,
     onThresholdRemindersToggle: (Boolean) -> Unit,
     percentDisplayMode: PercentDisplayMode,
@@ -97,18 +102,22 @@ fun CursorTApp(
     val activity = LocalContext.current.findFragmentActivity()
     val scope = rememberCoroutineScope()
     val displayZone = remember(timeZoneId) { DisplayTimeZones.resolve(timeZoneId) }
+    val cannotStartGate = stringResource(R.string.account_cannot_start_gate)
+    val revealTitle = stringResource(R.string.account_shortcut_reveal_title)
+    val revealSubtitle = stringResource(R.string.account_reveal_gate_subtitle)
+    val cannotReadToken = stringResource(R.string.account_cannot_read_token)
 
     // 直接发起设备验证，通过后读取并明文展示已保存的 Token，无需进入账号面板。
     fun requestShortcutTokenReveal(target: CursorAccount) {
         val host = activity
         if (host == null) {
-            scope.launch { snackbarHostState.showSnackbar("当前界面无法发起设备验证") }
+            scope.launch { snackbarHostState.showSnackbar(cannotStartGate) }
             return
         }
         DeviceCredentialGate.authenticate(
             activity = host,
-            title = "查看 Access Token",
-            subtitle = "使用指纹、面部或锁屏密码/图案确认是你本人",
+            title = revealTitle,
+            subtitle = revealSubtitle,
             onSuccess = {
                 try {
                     revealedToken = viewModel.revealAccessToken(target.id)
@@ -116,7 +125,7 @@ fun CursorTApp(
                     scope.launch {
                         snackbarHostState.showSnackbar(
                             error.message?.takeIf { it.isNotBlank() }
-                                ?: "无法读取已保存的 Access Token",
+                                ?: cannotReadToken,
                         )
                     }
                 }
@@ -279,6 +288,8 @@ fun CursorTApp(
             onPaletteChange = onPaletteChange,
             timeZoneId = timeZoneId,
             onTimeZoneChange = onTimeZoneChange,
+            language = language,
+            onLanguageChange = onLanguageChange,
             onLiveUpdatesToggle = onLiveUpdatesToggle,
             onThresholdRemindersToggle = onThresholdRemindersToggle,
             percentDisplayMode = percentDisplayMode,
@@ -295,12 +306,12 @@ fun CursorTApp(
             onDismissRequest = { if (!state.submitting) deleteTarget = null },
             title = {
                 Text(
-                    "删除「${target.alias}」？",
+                    stringResource(R.string.account_delete_title, target.alias),
                     fontWeight = FontWeight.SemiBold,
                 )
             },
             text = {
-                Text("本机保存的账号和用量缓存将被删除。之后需要重新录入 Access Token。")
+                Text(stringResource(R.string.account_delete_body))
             },
             confirmButton = {
                 Button(
@@ -323,13 +334,13 @@ fun CursorTApp(
                             color = MaterialTheme.colorScheme.onError,
                         )
                     } else {
-                        Text("删除")
+                        Text(stringResource(R.string.action_delete))
                     }
                 }
             },
             dismissButton = {
                 TextButton(enabled = !state.submitting, onClick = { deleteTarget = null }) {
-                    Text("取消")
+                    Text(stringResource(R.string.action_cancel))
                 }
             },
         )
@@ -360,7 +371,7 @@ private fun TokenRevealDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    "已通过设备验证。Token 仅加密保存在本机，请勿泄露给他人。",
+                    stringResource(R.string.account_token_revealed_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -389,12 +400,12 @@ private fun TokenRevealDialog(
                     copied = true
                 },
             ) {
-                Text(if (copied) "已复制" else "复制")
+                Text(if (copied) stringResource(R.string.action_copied) else stringResource(R.string.action_copy))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("关闭")
+                Text(stringResource(R.string.action_close))
             }
         },
     )
@@ -414,13 +425,13 @@ private fun BootScreen() {
             modifier = Modifier.padding(24.dp),
         ) {
             Text(
-                "Cursor助手",
+                stringResource(R.string.app_name),
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary,
             )
             Text(
-                "Cursor 用量监控",
+                stringResource(R.string.boot_subtitle),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

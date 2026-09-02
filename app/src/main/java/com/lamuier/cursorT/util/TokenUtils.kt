@@ -1,5 +1,7 @@
 package com.lamuier.cursorT.util
 
+import android.content.res.Resources
+import com.lamuier.cursorT.R
 import java.util.Base64
 
 object TokenUtils {
@@ -8,10 +10,14 @@ object TokenUtils {
     private val accessTokenPattern = Regex("[A-Za-z0-9._~=-]+")
     private val userIdPattern = Regex("[A-Za-z0-9._@-]{1,256}")
 
-    fun requireValidAccessToken(token: String): String {
+    fun requireValidAccessToken(token: String, resources: Resources? = null): String {
         val value = token.trim()
-        require(value.length in 32..8192) { "Access Token 长度不正确" }
-        require(accessTokenPattern.matches(value)) { "Access Token 包含不安全字符" }
+        require(value.length in 32..8192) {
+            resources?.getString(R.string.error_token_length) ?: "Access Token 长度不正确"
+        }
+        require(accessTokenPattern.matches(value)) {
+            resources?.getString(R.string.error_token_unsafe) ?: "Access Token 包含不安全字符"
+        }
         return value
     }
 

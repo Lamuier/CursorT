@@ -1,14 +1,17 @@
 package com.lamuier.cursorT.model
 
+import androidx.annotation.StringRes
+import com.lamuier.cursorT.R
+
 /**
  * 主界面功能页签。顺序可在设置中自定义；存储用稳定 [id]，缺项按默认顺序补齐。
  */
-enum class DashboardTab(val id: String, val label: String) {
-    Overview("overview", "概览"),
-    Usage("usage", "用量"),
-    Billing("billing", "账单"),
-    Tasks("tasks", "任务"),
-    Status("status", "状态");
+enum class DashboardTab(val id: String, @StringRes val labelRes: Int) {
+    Overview("overview", R.string.tab_overview),
+    Usage("usage", R.string.tab_usage),
+    Billing("billing", R.string.tab_billing),
+    Tasks("tasks", R.string.tab_tasks),
+    Status("status", R.string.tab_status);
 
     companion object {
         val DEFAULT_ORDER: List<DashboardTab> = entries.toList()

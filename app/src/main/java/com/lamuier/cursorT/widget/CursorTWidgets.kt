@@ -26,6 +26,7 @@ import com.lamuier.cursorT.model.CursorAccount
 import com.lamuier.cursorT.model.CursorServiceStatus
 import com.lamuier.cursorT.model.CursorTOverview
 import com.lamuier.cursorT.network.ApiException
+import com.lamuier.cursorT.util.AppLocale
 import com.lamuier.cursorT.util.DisplayTime
 import com.lamuier.cursorT.util.DisplayTimeZones
 import com.lamuier.cursorT.util.StatusPresentation
@@ -48,6 +49,8 @@ private const val EXTRA_FORCE_REFRESH = "force_refresh"
 private const val WIDGET_REFRESH_JOB_ID = 0x43505731
 private const val CACHE_FRESH_SECONDS = 15 * 60
 private const val MANUAL_REFRESH_COOLDOWN_MS = 10_000L
+
+private fun loc(context: Context): Context = AppLocale.wrap(context)
 
 private enum class WidgetKind(
     val layoutId: Int,
@@ -119,7 +122,11 @@ abstract class BaseCursorWidgetProvider : AppWidgetProvider() {
                     CursorTWidgetUpdater.updateFromCache(
                         context.applicationContext,
                         goAsync(),
-                        statusOverride = if (accepted) "正在刷新…" else "请稍后再刷新",
+                        statusOverride = if (accepted) {
+                            loc(context).getString(R.string.widget_refreshing)
+                        } else {
+                            loc(context).getString(R.string.widget_refresh_later)
+                        },
                     )
                 }
             }
@@ -335,10 +342,11 @@ object CursorTWidgetUpdater {
         // to handle genuine drag-resize events.
         val effectiveKind = spec.kind
         val views = RemoteViews(context.packageName, effectiveKind.layoutId)
+        val strings = loc(context)
         val usage = snapshot.usage
         val account = snapshot.account
         val totalPercent = usage?.let(WidgetCalculations::totalPercent)
-        val brand = context.getString(R.string.widget_brand)
+        val brand = strings.getString(R.string.widget_brand)
         val accountLabel = account?.alias?.takeIf { it.isNotBlank() }
         val colors = WidgetThemeColors.resolve(context)
 
@@ -373,37 +381,47 @@ object CursorTWidgetUpdater {
             views.setProgressBar(R.id.widget_progress, 100, progress, false)
             views.setContentDescription(
                 R.id.widget_progress,
-                "Cursor 总用量 ${totalPercent?.let(WidgetCalculations::percent) ?: "暂无数据"}",
+                strings.getString(
+                    R.string.widget_total_usage_a11y,
+                    totalPercent?.let(WidgetCalculations::percent) ?: strings.getString(R.string.no_data),
+                ),
             )
             views.setTextViewText(
                 R.id.widget_plan,
-                usage?.plan?.name?.takeIf { it.isNotBlank() } ?: "套餐 —",
+                usage?.plan?.name?.takeIf { it.isNotBlank() }
+                    ?: strings.getString(R.string.widget_plan_placeholder),
             )
             bindModeProgress(
                 views,
                 R.id.widget_auto_value,
                 R.id.widget_auto_progress,
-                "Cursor 模型",
+                strings.getString(R.string.widget_cursor_models),
                 usage?.usage?.autoPercentUsed,
+                strings,
             )
             bindModeProgress(
                 views,
                 R.id.widget_api_value,
                 R.id.widget_api_progress,
-                "其他模型",
+                strings.getString(R.string.label_other_models),
                 usage?.usage?.apiPercentUsed,
+                strings,
             )
             views.setTextViewText(
                 R.id.widget_credits,
                 when {
-                    usage == null -> "Credits —"
-                    usage.partialData -> "Credits —"
-                    else -> "Credits ${WidgetCalculations.money(usage.credits.totalDollars)}"
+                    usage == null -> strings.getString(R.string.widget_credits_placeholder)
+                    usage.partialData -> strings.getString(R.string.widget_credits_placeholder)
+                    else -> strings.getString(
+                        R.string.widget_credits_value,
+                        WidgetCalculations.money(usage.credits.totalDollars),
+                    )
                 },
             )
             views.setTextViewText(
                 R.id.widget_billing,
-                usage?.let(::billingLabel) ?: "周期 —",
+                usage?.let { billingLabel(strings, it) }
+                    ?: strings.getString(R.string.widget_billing_placeholder),
             )
         }
         return views
@@ -422,20 +440,21 @@ object CursorTWidgetUpdater {
         val operationalPercent = service?.let(WidgetCalculations::operationalPercent)
         val donutColor = service?.let { WidgetCalculations.indicatorColor(it.indicator) } ?: colors.primary
 
-        views.setTextViewText(R.id.widget_brand, context.getString(R.string.widget_status_brand))
+        val strings = loc(context)
+        views.setTextViewText(R.id.widget_brand, strings.getString(R.string.widget_status_brand))
         views.setTextViewText(
             R.id.widget_value,
             service?.let { status ->
                 if (kind == WidgetKind.StatusMini) {
-                    StatusPresentation.compactIndicatorLabel(status.indicator)
+                    StatusPresentation.compactIndicatorLabel(status.indicator, strings.resources)
                 } else {
-                    StatusPresentation.indicatorLabel(status.indicator)
+                    StatusPresentation.indicatorLabel(status.indicator, strings.resources)
                 }
             } ?: "—",
         )
         views.setTextViewText(
             R.id.widget_status,
-            snapshot.serviceStatusLine.ifBlank { "等待首次刷新" },
+            snapshot.serviceStatusLine.ifBlank { strings.getString(R.string.widget_waiting_first) },
         )
         views.setOnClickPendingIntent(
             R.id.widget_root,
@@ -462,7 +481,8 @@ object CursorTWidgetUpdater {
             )
             views.setTextViewText(
                 R.id.widget_incident,
-                service?.let(WidgetCalculations::incidentHeadline) ?: "暂无事件",
+                service?.let { WidgetCalculations.incidentHeadline(it, loc(context).resources) }
+                    ?: loc(context).getString(R.string.widget_no_incidents),
             )
             bindStatusComponents(context, views, colors, service)
         }
@@ -486,7 +506,7 @@ object CursorTWidgetUpdater {
             views.setViewVisibility(rowId, android.view.View.VISIBLE)
             views.setTextViewText(
                 STATUS_COMPONENT_NAMES[index],
-                "${item.first}  ${StatusPresentation.componentLabel(item.second)}",
+                "${item.first}  ${StatusPresentation.componentLabel(item.second, loc(context).resources)}",
             )
             views.setTextColor(STATUS_COMPONENT_NAMES[index], colors.onSurface)
             views.setImageViewBitmap(
@@ -686,24 +706,37 @@ object CursorTWidgetUpdater {
         progressId: Int,
         label: String,
         value: Double?,
+        strings: Context,
     ) {
         views.setTextViewText(labelId, WidgetCalculations.modeLabel(label, value))
         views.setProgressBar(progressId, 100, WidgetCalculations.progress(value), false)
         views.setContentDescription(
             progressId,
-            "$label 用量池 ${value?.let(WidgetCalculations::percent) ?: "暂无数据"}",
+            strings.getString(
+                R.string.pool_progress_description,
+                label,
+                value?.let(WidgetCalculations::percent) ?: strings.getString(R.string.no_data),
+            ),
         )
     }
 
-    private fun billingLabel(usage: CursorTOverview): String {
+    private fun billingLabel(strings: Context, usage: CursorTOverview): String {
         val billing = UsageCalculations.billingProgress(
             usage.billingCycle.start,
             usage.billingCycle.end,
         )
         return when {
-            billing != null -> "周期剩 ${UsageCalculations.formatRemaining(billing.remainingMillis, compact = true)}"
-            !usage.plan.billingCycleEnd.isNullOrBlank() -> "截至 ${usage.plan.billingCycleEnd.take(16)}"
-            else -> "周期 —"
+            billing != null -> strings.getString(
+                R.string.widget_cycle_remaining,
+                UsageCalculations.formatRemaining(
+                    billing.remainingMillis,
+                    compact = true,
+                    resources = strings.resources,
+                ),
+            )
+            !usage.plan.billingCycleEnd.isNullOrBlank() ->
+                strings.getString(R.string.label_until_date, usage.plan.billingCycleEnd.take(16))
+            else -> strings.getString(R.string.widget_billing_placeholder)
         }
     }
 
@@ -824,6 +857,9 @@ class CursorTWidgetJobService : JobService() {
 }
 
 private object WidgetLoader {
+    private fun str(context: Context, id: Int, vararg args: Any): String =
+        AppLocale.string(context, id, *args)
+
     fun readCached(context: Context): WidgetSnapshot {
         val usageSnapshot = try {
             val repository = CursorRepository(context)
@@ -832,7 +868,7 @@ private object WidgetLoader {
                 val account = selectedAccount(repository)
                 if (account == null) {
                     if (selectedAccount(repository) == null) {
-                        result = WidgetSnapshot(null, null, "点击添加账号")
+                        result = WidgetSnapshot(null, null, str(context, R.string.widget_tap_add_account))
                         return@repeat
                     }
                     return@repeat
@@ -843,16 +879,16 @@ private object WidgetLoader {
                 val stableAccount = accountAtRevision(repository, account.id, revision)
                     ?: return@repeat
                 val status = if (stableAccount.tokenExpired) {
-                    "Token 已过期 · 点击更新"
+                    str(context, R.string.widget_token_expired_tap)
                 } else {
-                    usage?.let { cachedStatus(context, it) } ?: "等待首次刷新"
+                    usage?.let { cachedStatus(context, it) } ?: str(context, R.string.widget_waiting_first)
                 }
                 result = WidgetSnapshot(stableAccount, usage, status, accountRevision = revision)
                 return@repeat
             }
-            result ?: WidgetSnapshot(null, null, "账号已变化 · 正在更新")
+            result ?: WidgetSnapshot(null, null, str(context, R.string.widget_account_changed))
         } catch (_: Exception) {
-            WidgetSnapshot(null, null, "打开应用检查账号")
+            WidgetSnapshot(null, null, str(context, R.string.widget_open_app_check))
         }
         return attachCachedStatus(context, usageSnapshot)
     }
@@ -887,8 +923,8 @@ private object WidgetLoader {
         val account = try {
             selectedAccount(repository)
         } catch (_: Exception) {
-            return WidgetLoadResult(WidgetSnapshot(null, null, "打开应用检查账号"))
-        } ?: return WidgetLoadResult(WidgetSnapshot(null, null, "点击添加账号"))
+            return WidgetLoadResult(WidgetSnapshot(null, null, str(context, R.string.widget_open_app_check)))
+        } ?: return WidgetLoadResult(WidgetSnapshot(null, null, str(context, R.string.widget_tap_add_account)))
 
         val revision = runCatching { repository.accountRevision(account.id) }.getOrElse {
             return WidgetLoadResult(readCached(context))
@@ -900,7 +936,7 @@ private object WidgetLoader {
             ?: return WidgetLoadResult(readCached(context))
         if (stableAccount.tokenExpired) {
             return WidgetLoadResult(
-                WidgetSnapshot(stableAccount, cached, "Token 已过期 · 点击更新", accountRevision = revision),
+                WidgetSnapshot(stableAccount, cached, str(context, R.string.widget_token_expired_tap), accountRevision = revision),
             )
         }
         if (!force && cached != null && cached.cacheAgeSeconds < CACHE_FRESH_SECONDS) {
@@ -921,14 +957,14 @@ private object WidgetLoader {
                 ?: return WidgetLoadResult(readCached(context))
             if (error.statusCode == 401 || error.statusCode == 403) {
                 WidgetLoadResult(
-                    WidgetSnapshot(latestAccount, cached, "Token 已过期 · 点击更新", accountRevision = revision),
+                    WidgetSnapshot(latestAccount, cached, str(context, R.string.widget_token_expired_tap), accountRevision = revision),
                 )
             } else {
                 WidgetLoadResult(
                     WidgetSnapshot(
                         latestAccount,
                         cached,
-                        if (cached != null) "缓存 · 刷新失败" else "刷新失败",
+                        if (cached != null) str(context, R.string.widget_cache_refresh_failed) else str(context, R.string.widget_refresh_failed),
                         accountRevision = revision,
                     ),
                     shouldRetry = error.statusCode == 429 || error.statusCode in 500..599,
@@ -943,7 +979,7 @@ private object WidgetLoader {
                 WidgetSnapshot(
                     latestAccount,
                     cached,
-                    if (cached != null) "缓存 · 网络不可用" else "网络不可用",
+                    if (cached != null) str(context, R.string.widget_cache_offline) else str(context, R.string.widget_offline),
                     accountRevision = revision,
                 ),
                 shouldRetry = true,
@@ -955,7 +991,7 @@ private object WidgetLoader {
                 WidgetSnapshot(
                     latestAccount,
                     cached,
-                    if (cached != null) "缓存 · 刷新失败" else "刷新失败",
+                    if (cached != null) str(context, R.string.widget_cache_refresh_failed) else str(context, R.string.widget_refresh_failed),
                     accountRevision = revision,
                 ),
             )
@@ -974,19 +1010,19 @@ private object WidgetLoader {
         } catch (error: ApiException) {
             StatusLoadResult(
                 status = cached,
-                line = if (cached != null) "缓存 · 刷新失败" else "刷新失败",
+                line = if (cached != null) str(context, R.string.widget_cache_refresh_failed) else str(context, R.string.widget_refresh_failed),
                 shouldRetry = error.statusCode == 429 || error.statusCode in 500..599,
             )
         } catch (_: IOException) {
             StatusLoadResult(
                 status = cached,
-                line = if (cached != null) "缓存 · 网络不可用" else "网络不可用",
+                line = if (cached != null) str(context, R.string.widget_cache_offline) else str(context, R.string.widget_offline),
                 shouldRetry = true,
             )
         } catch (_: Exception) {
             StatusLoadResult(
                 status = cached,
-                line = if (cached != null) "缓存 · 刷新失败" else "刷新失败",
+                line = if (cached != null) str(context, R.string.widget_cache_refresh_failed) else str(context, R.string.widget_refresh_failed),
             )
         }
     }
@@ -995,7 +1031,8 @@ private object WidgetLoader {
         val status = runCatching { CursorStatusRepository(context).cached() }.getOrNull()
         return snapshot.copy(
             serviceStatus = status,
-            serviceStatusLine = status?.let { cachedServiceLine(context, it) } ?: "等待首次刷新",
+            serviceStatusLine = status?.let { cachedServiceLine(context, it) }
+                ?: str(context, R.string.widget_waiting_first),
         )
     }
 
@@ -1032,27 +1069,27 @@ private object WidgetLoader {
     }
 
     private fun cachedStatus(context: Context, usage: CursorTOverview): String = when {
-        usage.partialData -> "缓存 · 部分数据"
-        else -> "缓存 · ${timeLabel(context, usage.fetchedAt)}"
+        usage.partialData -> str(context, R.string.widget_cache_partial)
+        else -> str(context, R.string.widget_cache_time, timeLabel(context, usage.fetchedAt))
     }
 
     private fun liveStatus(context: Context, usage: CursorTOverview): String = when {
-        usage.partialData -> "已更新 · 部分数据"
-        else -> "更新 ${timeLabel(context, usage.fetchedAt)}"
+        usage.partialData -> str(context, R.string.widget_updated_partial)
+        else -> str(context, R.string.widget_updated_time, timeLabel(context, usage.fetchedAt))
     }
 
     private fun cachedServiceLine(context: Context, status: CursorServiceStatus): String = when {
-        status.partialHistory -> "缓存 · 部分数据"
-        else -> "缓存 · ${timeLabel(context, status.fetchedAt)}"
+        status.partialHistory -> str(context, R.string.widget_cache_partial)
+        else -> str(context, R.string.widget_cache_time, timeLabel(context, status.fetchedAt))
     }
 
     private fun liveServiceLine(context: Context, status: CursorServiceStatus): String = when {
-        status.partialHistory -> "已更新 · 部分数据"
-        else -> "更新 ${timeLabel(context, status.fetchedAt)}"
+        status.partialHistory -> str(context, R.string.widget_updated_partial)
+        else -> str(context, R.string.widget_updated_time, timeLabel(context, status.fetchedAt))
     }
 
     private fun timeLabel(context: Context, value: String): String {
         val zone = DisplayTimeZones.resolve(DashboardPreferences.get(context).readTimeZoneId())
-        return DisplayTime.formatStoredClock(value, zone) ?: "完成"
+        return DisplayTime.formatStoredClock(value, zone) ?: str(context, R.string.widget_done)
     }
 }

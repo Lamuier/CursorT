@@ -1,8 +1,11 @@
 package com.lamuier.cursorT.data
 
 import android.content.Context
+import androidx.annotation.StringRes
 import com.lamuier.cursorT.BuildConfig
+import com.lamuier.cursorT.R
 import com.lamuier.cursorT.model.CursorAccount
+import com.lamuier.cursorT.util.AppLocale
 import com.lamuier.cursorT.util.TokenUtils
 import org.json.JSONArray
 import org.json.JSONObject
@@ -13,14 +16,17 @@ import java.util.Locale
 import java.util.UUID
 
 class EncryptedAccountStore(context: Context) {
-    private val preferences = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
+    private val appContext = context.applicationContext
+    private val preferences = appContext.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
     private val crypto = KeystoreCrypto(KEY_ALIAS)
     private val lock = Any()
 
     init {
-        migrateFromPulseClient(context.applicationContext)
+        migrateFromPulseClient(appContext)
         migrateToSingleAccount()
     }
+
+    private fun msg(@StringRes id: Int) = AppLocale.string(appContext, id)
 
     fun listAccounts(): List<CursorAccount> = synchronized(lock) {
         readStoredAccounts().map(::publicView)
@@ -28,10 +34,10 @@ class EncryptedAccountStore(context: Context) {
 
     fun create(alias: String, accessToken: String): CursorAccount = synchronized(lock) {
         val accounts = readStoredAccounts().toMutableList()
-        require(accounts.isEmpty()) { "当前版本仅支持保存一个 Cursor 账号" }
+        require(accounts.isEmpty()) { msg(R.string.error_single_account_only) }
         val normalizedAlias = normalizeAlias(alias)
-        require(accounts.none { decryptAlias(it) == normalizedAlias }) { "别名已存在" }
-        val normalizedToken = TokenUtils.requireValidAccessToken(accessToken)
+        require(accounts.none { decryptAlias(it) == normalizedAlias }) { msg(R.string.error_alias_exists) }
+        val normalizedToken = TokenUtils.requireValidAccessToken(accessToken, AppLocale.wrap(appContext).resources)
         val now = System.currentTimeMillis()
         val uuid = UUID.randomUUID().toString()
         val minimumNextId = (accounts.maxOfOrNull { it.id } ?: 0) + 1
@@ -54,16 +60,16 @@ class EncryptedAccountStore(context: Context) {
     fun update(accountId: Int, alias: String?, accessToken: String?): CursorAccount = synchronized(lock) {
         val accounts = readStoredAccounts().toMutableList()
         val index = accounts.indexOfFirst { it.id == accountId }
-        require(index >= 0) { "账号不存在" }
+        require(index >= 0) { msg(R.string.error_account_not_found) }
         val current = accounts[index]
-        require(alias != null || accessToken != null) { "别名或 Access Token 至少填写一项" }
+        require(alias != null || accessToken != null) { msg(R.string.error_alias_or_token) }
         val nextAlias = alias?.let(::normalizeAlias)
         if (nextAlias != null) {
             require(
                 accounts.none { it.id != accountId && decryptAlias(it) == nextAlias },
-            ) { "别名已存在" }
+            ) { msg(R.string.error_alias_exists) }
         }
-        val nextToken = accessToken?.let(TokenUtils::requireValidAccessToken)
+        val nextToken = accessToken?.let { TokenUtils.requireValidAccessToken(it, AppLocale.wrap(appContext).resources) }
         val updated = current.copy(
             encryptedAlias = nextAlias
                 ?.let { crypto.encrypt(it, aad(current.uuid, "alias")) }
@@ -88,13 +94,13 @@ class EncryptedAccountStore(context: Context) {
         if (preferences.getInt(KEY_SELECTED_ACCOUNT, -1) == accountId) {
             editor.remove(KEY_SELECTED_ACCOUNT)
         }
-        check(editor.commit()) { "无法安全删除 Cursor 账号" }
+        check(editor.commit()) { msg(R.string.error_delete_account_secure) }
         true
     }
 
     internal fun snapshot(accountId: Int): AccountSnapshot = synchronized(lock) {
         val account = readStoredAccounts().firstOrNull { it.id == accountId }
-            ?: throw IllegalArgumentException("账号不存在")
+            ?: throw IllegalArgumentException(msg(R.string.error_account_not_found))
         AccountSnapshot(
             id = account.id,
             alias = decryptAlias(account),
@@ -106,12 +112,12 @@ class EncryptedAccountStore(context: Context) {
 
     fun revision(accountId: Int): Long = synchronized(lock) {
         readStoredAccounts().firstOrNull { it.id == accountId }?.revision
-            ?: throw IllegalArgumentException("账号不存在")
+            ?: throw IllegalArgumentException(msg(R.string.error_account_not_found))
     }
 
     fun revealAccessToken(accountId: Int): String = synchronized(lock) {
         val account = readStoredAccounts().firstOrNull { it.id == accountId }
-            ?: throw IllegalArgumentException("账号不存在")
+            ?: throw IllegalArgumentException(msg(R.string.error_account_not_found))
         decryptAccessToken(account)
     }
 
@@ -126,7 +132,7 @@ class EncryptedAccountStore(context: Context) {
     fun saveSelectedAccountId(accountId: Int?) = synchronized(lock) {
         val editor = preferences.edit()
         if (accountId == null) editor.remove(KEY_SELECTED_ACCOUNT) else editor.putInt(KEY_SELECTED_ACCOUNT, accountId)
-        check(editor.commit()) { "无法保存账号选择" }
+        check(editor.commit()) { msg(R.string.error_save_selection) }
     }
 
     internal fun pendingUsageCacheCleanupAccountIds(): List<Int> = synchronized(lock) {
@@ -175,19 +181,19 @@ class EncryptedAccountStore(context: Context) {
     private fun decryptAlias(account: StoredAccount): String = try {
         crypto.decrypt(account.encryptedAlias, aad(account.uuid, "alias"))
     } catch (error: Exception) {
-        throw IllegalStateException("本地账号别名解密失败，请清除应用数据后重试", error)
+        throw IllegalStateException(msg(R.string.error_alias_decrypt), error)
     }
 
     private fun decryptAccessToken(account: StoredAccount): String = try {
         crypto.decrypt(account.encryptedAccessToken, aad(account.uuid, "access_token"))
     } catch (error: Exception) {
-        throw IllegalStateException("账号凭据解密失败，请重新录入 Access Token", error)
+        throw IllegalStateException(msg(R.string.error_credential_decrypt), error)
     }
 
     private fun normalizeAlias(alias: String): String {
         val value = alias.trim()
-        require(value.isNotBlank()) { "别名不能为空" }
-        require(value.length <= 64) { "别名不能超过 64 个字符" }
+        require(value.isNotBlank()) { msg(R.string.error_alias_blank) }
+        require(value.length <= 64) { msg(R.string.account_alias_too_long) }
         return value
     }
 
@@ -213,7 +219,7 @@ class EncryptedAccountStore(context: Context) {
                 }
             }
         } catch (error: Exception) {
-            throw IllegalStateException("本地账号数据损坏，请清除应用数据后重试", error)
+            throw IllegalStateException(msg(R.string.error_account_corrupt), error)
         }
     }
 
@@ -221,7 +227,7 @@ class EncryptedAccountStore(context: Context) {
         val editor = preferences.edit().putString(KEY_ACCOUNTS, serializeAccounts(accounts).toString())
         if (nextId != null) editor.putInt(KEY_NEXT_ID, nextId)
         check(editor.commit()) {
-            "无法安全保存 Cursor 账号"
+            msg(R.string.error_save_account_secure)
         }
     }
 
@@ -270,7 +276,7 @@ class EncryptedAccountStore(context: Context) {
                 serializeAccountIds(pendingCleanupIds).toString(),
             )
         }
-        check(editor.commit()) { "无法安全迁移为单 Cursor 账号" }
+        check(editor.commit()) { msg(R.string.error_migrate_account_secure) }
     }
 
     private fun readPendingUsageCacheCleanupAccountIds(): List<Int> {
@@ -283,7 +289,7 @@ class EncryptedAccountStore(context: Context) {
                 }
             }.distinct()
         } catch (error: Exception) {
-            throw IllegalStateException("本地账号迁移状态损坏，请清除应用数据后重试", error)
+            throw IllegalStateException(msg(R.string.error_migrate_corrupt), error)
         }
     }
 

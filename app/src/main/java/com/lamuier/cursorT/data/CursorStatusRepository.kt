@@ -15,8 +15,8 @@ import kotlinx.coroutines.launch
 
 class CursorStatusRepository(
     context: Context,
-    private val api: CursorApiClient = CursorApiClient(),
 ) {
+    private val api = CursorApiClient(context.applicationContext)
     private val cacheStore = StatusCacheStore(context.applicationContext)
 
     fun cached(): CursorServiceStatus? {

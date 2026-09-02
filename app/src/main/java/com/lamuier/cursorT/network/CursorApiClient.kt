@@ -1,6 +1,10 @@
 package com.lamuier.cursorT.network
 
+import android.content.Context
+import androidx.annotation.StringRes
 import com.lamuier.cursorT.BuildConfig
+import com.lamuier.cursorT.R
+import com.lamuier.cursorT.util.AppLocale
 import com.lamuier.cursorT.util.TokenUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -16,7 +20,8 @@ class ApiException(
     override val message: String,
 ) : Exception(message)
 
-class CursorApiClient {
+class CursorApiClient(private val context: Context) {
+    private fun msg(@StringRes id: Int, vararg args: Any): String = AppLocale.string(context, id, *args)
     suspend fun connectRpc(
         accessToken: String,
         method: String,
@@ -111,7 +116,7 @@ class CursorApiClient {
 
             val status = connection.responseCode
             if (status in 300..399) {
-                throw ApiException(status, "Cursor API 发生了不安全的重定向")
+                throw ApiException(status, msg(R.string.error_api_redirect))
             }
             val stream = if (status in 200..299) connection.inputStream else connection.errorStream
             val body = readBody(stream, connection.contentLengthLong, status, kind, maxBytes)
@@ -161,24 +166,24 @@ class CursorApiClient {
         extractCursorError(body)?.let { return it }
         return when (kind) {
             ApiKind.Status -> when (status) {
-                404 -> "Cursor 状态接口已发生变化，请升级应用"
-                429 -> "Cursor 状态页请求过于频繁，请稍后重试"
-                in 500..599 -> "Cursor 状态页暂时不可用（HTTP $status）"
-                else -> "Cursor 状态页请求失败（HTTP $status）"
+                404 -> msg(R.string.error_api_status_changed)
+                429 -> msg(R.string.error_api_status_rate)
+                in 500..599 -> msg(R.string.error_api_status_unavailable, status)
+                else -> msg(R.string.error_api_status_failed, status)
             }
             ApiKind.Usage -> when (status) {
-                401, 403 -> "Cursor Access Token 已过期或无效，请更新 Token"
-                404 -> "Cursor 用量接口已发生变化，请升级应用"
-                429 -> "Cursor 请求过于频繁，请稍后重试"
-                in 500..599 -> "Cursor 服务暂时不可用（HTTP $status）"
-                else -> "Cursor API 请求失败（HTTP $status）"
+                401, 403 -> msg(R.string.error_api_token_invalid)
+                404 -> msg(R.string.error_api_usage_changed)
+                429 -> msg(R.string.error_api_rate)
+                in 500..599 -> msg(R.string.error_api_unavailable, status)
+                else -> msg(R.string.error_api_failed, status)
             }
             ApiKind.Tasks -> when (status) {
-                401, 403 -> "Cursor Access Token 已过期或无效，请更新 Token"
-                404 -> "云端任务接口已发生变化，请升级应用"
-                429 -> "Cursor 请求过于频繁，请稍后重试"
-                in 500..599 -> "Cursor 服务暂时不可用（HTTP $status）"
-                else -> "无法加载云端任务（HTTP $status）"
+                401, 403 -> msg(R.string.error_api_token_invalid)
+                404 -> msg(R.string.error_api_tasks_changed)
+                429 -> msg(R.string.error_api_rate)
+                in 500..599 -> msg(R.string.error_api_unavailable, status)
+                else -> msg(R.string.error_api_tasks_failed, status)
             }
         }
     }
@@ -200,23 +205,23 @@ class CursorApiClient {
     }
 
     private fun overflowMessage(kind: ApiKind): String = when (kind) {
-        ApiKind.Status -> "Cursor 状态页响应超过 1 MiB 安全上限"
-        ApiKind.Usage -> "Cursor API 响应超过 1 MiB 安全上限"
-        ApiKind.Tasks -> "云端任务响应超过 1 MiB 安全上限"
+        ApiKind.Status -> msg(R.string.error_api_status_overflow)
+        ApiKind.Usage -> msg(R.string.error_api_usage_overflow)
+        ApiKind.Tasks -> msg(R.string.error_api_tasks_overflow)
     }
 
     private fun sessionCookie(accessToken: String): String {
         val userId = TokenUtils.userId(accessToken)
-        if (userId.isBlank()) throw ApiException(400, "Access Token 中缺少 Cursor 用户标识")
+        if (userId.isBlank()) throw ApiException(400, msg(R.string.error_api_token_missing_user))
         return "WorkosCursorSessionToken=$userId%3A%3A$accessToken"
     }
 
     private fun rpcUrl(service: String, method: String): String {
         val allowedService = when (service) {
             DASHBOARD_SERVICE -> service
-            else -> throw ApiException(400, "不支持的 Cursor 接口")
+            else -> throw ApiException(400, msg(R.string.error_api_unsupported))
         }
-        if (!RPC_METHOD.matches(method)) throw ApiException(400, "不支持的 Cursor 接口")
+        if (!RPC_METHOD.matches(method)) throw ApiException(400, msg(R.string.error_api_unsupported))
         return "$CURSOR_API_BASE/$allowedService/$method"
     }
 

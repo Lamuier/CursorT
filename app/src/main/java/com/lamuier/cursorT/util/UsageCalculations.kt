@@ -1,5 +1,7 @@
 package com.lamuier.cursorT.util
 
+import android.content.res.Resources
+import com.lamuier.cursorT.R
 import com.lamuier.cursorT.model.CursorTOverview
 import com.lamuier.cursorT.model.TokenUsageBreakdown
 import com.lamuier.cursorT.model.TotalFormat
@@ -103,11 +105,47 @@ object UsageCalculations {
      * 精确到分钟的重置倒计时文案：优先「天 + 小时」，不足一天用「小时 + 分」，不足一小时用「分」。
      * [compact] 为 true 时输出窄版（如「3天4时」），供桌面小组件等空间受限场景使用。
      */
-    fun formatRemaining(remainingMillis: Long, compact: Boolean = false): String {
+    fun formatRemaining(
+        remainingMillis: Long,
+        compact: Boolean = false,
+        resources: Resources? = null,
+    ): String {
         val totalMinutes = remainingMillis.coerceAtLeast(0) / 60_000
         val days = totalMinutes / (24 * 60)
-        val hours = totalMinutes % (24 * 60) / 60
-        val minutes = totalMinutes % 60
+        val hours = (totalMinutes % (24 * 60) / 60).toInt()
+        val minutes = (totalMinutes % 60).toInt()
+        val dayCount = days.toInt()
+        if (resources != null) {
+            return when {
+                dayCount > 0 -> if (compact) {
+                    if (hours > 0) {
+                        resources.getString(R.string.duration_compact_days_hours, dayCount, hours)
+                    } else {
+                        resources.getString(R.string.duration_compact_days, dayCount)
+                    }
+                } else if (hours > 0) {
+                    resources.getString(R.string.duration_days_hours, dayCount, hours)
+                } else {
+                    resources.getString(R.string.duration_days, dayCount)
+                }
+                hours > 0 -> if (compact) {
+                    if (minutes > 0) {
+                        resources.getString(R.string.duration_compact_hours_minutes, hours, minutes)
+                    } else {
+                        resources.getString(R.string.duration_compact_hours, hours)
+                    }
+                } else if (minutes > 0) {
+                    resources.getString(R.string.duration_hours_minutes, hours, minutes)
+                } else {
+                    resources.getString(R.string.duration_hours, hours)
+                }
+                else -> if (compact) {
+                    resources.getString(R.string.duration_compact_minutes, minutes)
+                } else {
+                    resources.getString(R.string.duration_minutes, minutes)
+                }
+            }
+        }
         return when {
             days > 0 -> if (compact) {
                 buildString {

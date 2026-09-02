@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import androidx.annotation.StringRes
+import com.lamuier.cursorT.R
 import com.lamuier.cursorT.data.CursorRepository
 import com.lamuier.cursorT.data.CursorStatusRepository
 import com.lamuier.cursorT.model.AppStage
@@ -14,6 +16,7 @@ import com.lamuier.cursorT.model.CursorTasks
 import com.lamuier.cursorT.model.CursorTOverview
 import com.lamuier.cursorT.network.ApiException
 import com.lamuier.cursorT.notification.CursorTNotificationCoordinator
+import com.lamuier.cursorT.util.AppLocale
 import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -49,7 +52,7 @@ class CursorTViewModel(
         val snapshot = _state.value
         if (snapshot.submitting || snapshot.selectedAccountId == accountId) return
         if (snapshot.accounts.none { it.id == accountId }) {
-            _state.update { it.copy(error = "账号不存在或已被删除") }
+            _state.update { it.copy(error = str(R.string.error_account_missing)) }
             return
         }
 
@@ -163,7 +166,7 @@ class CursorTViewModel(
             } catch (error: Exception) {
                 if (_state.value.selectedAccountId == accountId) {
                     _state.update {
-                        it.copy(tasksError = messageFor(error, "加载云端任务失败"))
+                        it.copy(tasksError = messageFor(error, R.string.error_load_tasks))
                     }
                 }
             } finally {
@@ -205,7 +208,7 @@ class CursorTViewModel(
                 throw error
             } catch (error: Exception) {
                 _state.update {
-                    it.copy(statusError = messageFor(error, "加载 Cursor 状态失败"))
+                    it.copy(statusError = messageFor(error, R.string.error_load_status))
                 }
             } finally {
                 statusRequestInFlight = false
@@ -221,7 +224,7 @@ class CursorTViewModel(
         val revision = try {
             repository.accountRevision(accountId)
         } catch (error: Exception) {
-            _state.update { it.copy(error = messageFor(error, "无法读取账号状态")) }
+            _state.update { it.copy(error = messageFor(error, R.string.error_read_accounts)) }
             return
         }
         val requestKey = UsageRequestKey(accountId, revision)
@@ -280,7 +283,7 @@ class CursorTViewModel(
                     _state.update {
                         it.copy(
                             accounts = latestAccounts,
-                            error = messageFor(error, "加载 Cursor 用量失败"),
+                            error = messageFor(error, R.string.error_load_usage),
                         )
                     }
                 }
@@ -296,7 +299,7 @@ class CursorTViewModel(
     fun addAccount(alias: String, accessToken: String, onSuccess: () -> Unit = {}) {
         if (_state.value.submitting) return
         if (alias.isBlank() || accessToken.isBlank()) {
-            _state.update { it.copy(error = "请填写别名和 Access Token") }
+            _state.update { it.copy(error = str(R.string.error_alias_token_required)) }
             return
         }
 
@@ -340,7 +343,7 @@ class CursorTViewModel(
                     it.copy(
                         accounts = latestAccounts,
                         submitting = false,
-                        error = messageFor(error, "添加账号失败"),
+                        error = messageFor(error, R.string.error_add_account),
                     )
                 }
             }
@@ -355,7 +358,7 @@ class CursorTViewModel(
     ) {
         if (_state.value.submitting) return
         if (alias.isNullOrBlank() && accessToken.isNullOrBlank()) {
-            _state.update { it.copy(error = "别名或 Access Token 至少填写一项") }
+            _state.update { it.copy(error = str(R.string.error_alias_or_token)) }
             return
         }
 
@@ -417,7 +420,7 @@ class CursorTViewModel(
                     it.copy(
                         accounts = latestAccounts,
                         submitting = false,
-                        error = messageFor(error, "更新账号失败"),
+                        error = messageFor(error, R.string.error_update_account),
                     )
                 }
             }
@@ -477,7 +480,7 @@ class CursorTViewModel(
                     it.copy(
                         accounts = latestAccounts,
                         submitting = false,
-                        error = messageFor(error, "删除账号失败"),
+                        error = messageFor(error, R.string.error_delete_account),
                     )
                 }
             }
@@ -532,7 +535,7 @@ class CursorTViewModel(
                     stage = AppStage.Dashboard,
                     loadingAccounts = false,
                     serviceStatus = runCatching { statusRepository.cached() }.getOrNull(),
-                    error = messageFor(error, "加载本地账号失败"),
+                    error = messageFor(error, R.string.error_load_local_accounts),
                 )
                 refreshStatus(force = false, silent = true)
             }
@@ -543,7 +546,7 @@ class CursorTViewModel(
         repository.saveSelectedAccountId(accountId)
         null
     } catch (error: Exception) {
-        messageFor(error, "无法保存账号选择")
+        messageFor(error, R.string.error_save_selection)
     }
 
     private fun latestAccountsOr(fallback: List<CursorAccount>): List<CursorAccount> =
@@ -563,12 +566,14 @@ class CursorTViewModel(
             false
         }
 
-    private fun messageFor(error: Throwable, fallback: String): String = when (error) {
+    private fun str(@StringRes id: Int) = AppLocale.string(appContext, id)
+
+    private fun messageFor(error: Throwable, @StringRes fallback: Int): String = when (error) {
         is ApiException -> error.message
-        is IllegalArgumentException -> error.message ?: fallback
-        is IllegalStateException -> error.message ?: fallback
-        is IOException -> "无法连接 Cursor 服务，请检查网络"
-        else -> error.message?.takeIf { it.isNotBlank() } ?: fallback
+        is IllegalArgumentException -> error.message ?: str(fallback)
+        is IllegalStateException -> error.message ?: str(fallback)
+        is IOException -> str(R.string.error_network)
+        else -> error.message?.takeIf { it.isNotBlank() } ?: str(fallback)
     }
 
     private data class UsageRequestKey(

@@ -1,6 +1,7 @@
 package com.lamuier.cursorT
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
@@ -27,11 +28,17 @@ import com.lamuier.cursorT.notification.CursorTNotificationCoordinator
 import com.lamuier.cursorT.ui.CursorTApp
 import com.lamuier.cursorT.ui.CursorTViewModel
 import com.lamuier.cursorT.ui.theme.CursorTTheme
+import com.lamuier.cursorT.util.AppLanguage
+import com.lamuier.cursorT.util.AppLocale
 import com.lamuier.cursorT.widget.CursorTWidgetUpdater
 
 class MainActivity : FragmentActivity() {
     /** 长按图标 Shortcut 带来的待执行动作，由 UI 层消费后清空。 */
     private var pendingShortcutAction by mutableStateOf<ShortcutAction?>(null)
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(AppLocale.wrap(newBase))
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
@@ -51,6 +58,7 @@ class MainActivity : FragmentActivity() {
             val notificationSettings by notificationPreferences.settings.collectAsStateWithLifecycle()
             val tabOrder by dashboardPreferences.order.collectAsStateWithLifecycle()
             val timeZoneId by dashboardPreferences.timeZoneId.collectAsStateWithLifecycle()
+            val language by dashboardPreferences.language.collectAsStateWithLifecycle()
             CursorTTheme(settings = themeSettings) {
                 CursorTApp(
                     viewModel = viewModel,
@@ -70,6 +78,14 @@ class MainActivity : FragmentActivity() {
                     onTimeZoneChange = { id ->
                         dashboardPreferences.setTimeZoneId(id)
                         CursorTWidgetUpdater.requestUpdate(applicationContext)
+                    },
+                    language = language,
+                    onLanguageChange = { selected ->
+                        if (selected != dashboardPreferences.readLanguage()) {
+                            dashboardPreferences.setLanguage(selected)
+                            CursorTWidgetUpdater.requestUpdate(applicationContext)
+                            recreate()
+                        }
                     },
                     onLiveUpdatesToggle = { enabled ->
                     notificationPreferences.setLiveUpdatesEnabled(enabled)

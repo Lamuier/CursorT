@@ -108,7 +108,9 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -124,6 +126,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.lamuier.cursorT.R
 import com.lamuier.cursorT.model.AppUiState
 import com.lamuier.cursorT.model.CursorAccount
 import com.lamuier.cursorT.model.CursorTOverview
@@ -201,7 +204,7 @@ internal fun DashboardScreen(
                 title = {
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text(
-                            "Cursor助手",
+                            stringResource(R.string.app_name),
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                         )
@@ -214,11 +217,16 @@ internal fun DashboardScreen(
                 ),
                 scrollBehavior = scrollBehavior,
                 actions = {
+                    val refreshBusy = state.refreshing || state.refreshingStatus || state.refreshingTasks
+                    val refreshDescription = if (refreshBusy) {
+                        stringResource(R.string.action_refreshing)
+                    } else {
+                        stringResource(R.string.action_refresh)
+                    }
                     IconButton(
                         modifier = Modifier.semantics {
-                            val busy = state.refreshing || state.refreshingStatus || state.refreshingTasks
-                            contentDescription = if (busy) "正在刷新数据" else "刷新数据"
-                            if (busy) liveRegion = LiveRegionMode.Polite
+                            contentDescription = refreshDescription
+                            if (refreshBusy) liveRegion = LiveRegionMode.Polite
                         },
                         enabled = !state.loadingAccounts && !state.refreshing &&
                             !state.refreshingStatus && !state.refreshingTasks && !state.submitting,
@@ -237,7 +245,7 @@ internal fun DashboardScreen(
                         enabled = !state.loadingAccounts && !state.submitting,
                         onClick = onShowSettings,
                     ) {
-                        Icon(Icons.Outlined.Settings, contentDescription = "设置")
+                        Icon(Icons.Outlined.Settings, contentDescription = stringResource(R.string.action_settings))
                     }
                 },
             )
@@ -266,8 +274,8 @@ internal fun DashboardScreen(
                 if (key == "loading_accounts") {
                     DashboardState(
                         icon = null,
-                        title = "正在读取本机账号",
-                        description = "请稍候…",
+                        title = stringResource(R.string.dashboard_loading_accounts_title),
+                        description = stringResource(R.string.dashboard_loading_accounts_body),
                         loading = true,
                     )
                 } else {
@@ -399,7 +407,7 @@ private fun DashboardTabPills(
                         Color.Transparent
                     },
                     animationSpec = tween(240, easing = FastOutSlowInEasing),
-                    label = "${tab.label} container",
+                    label = "${tab.id} container",
                 )
                 val content by animateColorAsState(
                     targetValue = if (active) {
@@ -408,7 +416,7 @@ private fun DashboardTabPills(
                         MaterialTheme.colorScheme.onSurfaceVariant
                     },
                     animationSpec = tween(240, easing = FastOutSlowInEasing),
-                    label = "${tab.label} content",
+                    label = "${tab.id} content",
                 )
                 Surface(
                     modifier = Modifier
@@ -433,7 +441,7 @@ private fun DashboardTabPills(
                             Spacer(Modifier.width(6.dp))
                         }
                         Text(
-                            tab.label,
+                            stringResource(tab.labelRes),
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium,
                         )
@@ -457,35 +465,35 @@ private fun UsageDependentTab(
     when {
         account == null -> DashboardState(
             icon = Icons.Outlined.PersonAdd,
-            title = "添加 Cursor 账号",
-            description = "录入 Access Token 后即可在本机查看套餐与用量。也可先查看「状态」页。",
-            primaryActionLabel = "添加账号",
+            title = stringResource(R.string.dashboard_add_account_title),
+            description = stringResource(R.string.dashboard_add_account_usage_body),
+            primaryActionLabel = stringResource(R.string.action_add_account),
             onPrimaryAction = onManageAccount,
-            secondaryActionLabel = "如何获取 Token",
+            secondaryActionLabel = stringResource(R.string.action_token_help),
             onSecondaryAction = onShowTokenHelp,
         )
         account.tokenExpired -> DashboardState(
             icon = Icons.Outlined.KeyOff,
-            title = "Access Token 已过期",
-            description = "更新 Token 后即可继续获取 Cursor 用量。",
-            primaryActionLabel = "更新 Token",
+            title = stringResource(R.string.dashboard_token_expired_title),
+            description = stringResource(R.string.dashboard_token_expired_usage_body),
+            primaryActionLabel = stringResource(R.string.action_update_token),
             onPrimaryAction = onManageAccount,
-            secondaryActionLabel = "Token 帮助",
+            secondaryActionLabel = stringResource(R.string.action_token_help_short),
             onSecondaryAction = onShowTokenHelp,
         )
         state.loadingUsage && state.usage == null -> DashboardState(
             icon = null,
-            title = "正在获取 Cursor 用量",
-            description = "正在连接 Cursor 官方接口…",
+            title = stringResource(R.string.dashboard_loading_usage_title),
+            description = stringResource(R.string.dashboard_loading_usage_body),
             loading = true,
         )
         state.usage == null -> DashboardState(
             icon = Icons.Outlined.CloudOff,
-            title = "暂时无法显示用量",
-            description = "请检查网络后重试；若持续失败，可重新录入 Token。",
-            primaryActionLabel = "重新加载",
+            title = stringResource(R.string.dashboard_usage_unavailable_title),
+            description = stringResource(R.string.dashboard_usage_unavailable_body),
+            primaryActionLabel = stringResource(R.string.action_reload),
             onPrimaryAction = onRefresh,
-            secondaryActionLabel = "管理账号",
+            secondaryActionLabel = stringResource(R.string.action_manage_account),
             onSecondaryAction = onManageAccount,
         )
         else -> content(state.usage!!)
@@ -504,20 +512,20 @@ private fun AccountOnlyTab(
     when {
         account == null -> DashboardState(
             icon = Icons.Outlined.PersonAdd,
-            title = "添加 Cursor 账号",
-            description = "录入 Access Token 后即可查看云端任务。也可先查看「状态」页。",
-            primaryActionLabel = "添加账号",
+            title = stringResource(R.string.dashboard_add_account_title),
+            description = stringResource(R.string.dashboard_add_account_tasks_body),
+            primaryActionLabel = stringResource(R.string.action_add_account),
             onPrimaryAction = onManageAccount,
-            secondaryActionLabel = "如何获取 Token",
+            secondaryActionLabel = stringResource(R.string.action_token_help),
             onSecondaryAction = onShowTokenHelp,
         )
         account.tokenExpired -> DashboardState(
             icon = Icons.Outlined.KeyOff,
-            title = "Access Token 已过期",
-            description = "更新 Token 后即可继续获取云端任务。",
-            primaryActionLabel = "更新 Token",
+            title = stringResource(R.string.dashboard_token_expired_title),
+            description = stringResource(R.string.dashboard_token_expired_tasks_body),
+            primaryActionLabel = stringResource(R.string.action_update_token),
             onPrimaryAction = onManageAccount,
-            secondaryActionLabel = "Token 帮助",
+            secondaryActionLabel = stringResource(R.string.action_token_help_short),
             onSecondaryAction = onShowTokenHelp,
         )
         else -> content()
@@ -528,14 +536,14 @@ private fun AccountOnlyTab(
 private fun AccountStatusRow(account: CursorAccount?, loading: Boolean) {
     when {
         loading -> Text(
-            "正在加载账号",
+            stringResource(R.string.dashboard_account_loading),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
         account == null -> Text(
-            "尚未添加账号",
+            stringResource(R.string.dashboard_account_empty),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
@@ -554,7 +562,7 @@ private fun AccountStatusRow(account: CursorAccount?, loading: Boolean) {
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f, fill = false),
             )
-            StatusChip(label = "Token 过期", error = true)
+            StatusChip(label = stringResource(R.string.dashboard_token_expired_chip), error = true)
         }
         else -> Text(
             account.alias,
@@ -699,34 +707,40 @@ private fun OverviewTab(usage: CursorTOverview) {
                 displayZone = zone,
             )
         }
-        val quotaTiles = remember(usage, limit, chartColors) {
+        val planQuotaLabel = stringResource(R.string.label_plan_quota)
+        val ownPoolLabel = stringResource(R.string.label_own_pool_spend)
+        val thirdPartyLabel = stringResource(R.string.label_third_party_spend)
+        val quotaTiles = remember(usage, limit, chartColors, planQuotaLabel, ownPoolLabel, thirdPartyLabel) {
             val pools = UsageCalculations.poolSpend(usage.tokenUsage)
             listOf(
                 MetricTile(
-                    label = "套餐额度",
+                    label = planQuotaLabel,
                     value = limit.takeIf { it > 0.0 }?.let(::money) ?: "—",
                     icon = Icons.Outlined.Savings,
                     accent = chartColors.chart1,
                 ),
                 MetricTile(
-                    label = "自有池消费",
+                    label = ownPoolLabel,
                     value = pools?.let { money(it.ownPoolDollars) } ?: "—",
                     icon = Icons.Outlined.Layers,
                     accent = chartColors.chart2,
                 ),
                 MetricTile(
-                    label = "三方池费用",
+                    label = thirdPartyLabel,
                     value = pools?.let { money(it.thirdPartyDollars) } ?: "—",
                     icon = Icons.Outlined.Hub,
                     accent = chartColors.chart3,
                 ),
             )
         }
-        val tokenTiles = remember(usage, chartColors) {
+        val inputTokensLabel = stringResource(R.string.label_input_tokens)
+        val outputTokensLabel = stringResource(R.string.label_output_tokens)
+        val cacheTokensLabel = stringResource(R.string.label_cache_tokens)
+        val tokenTiles = remember(usage, chartColors, inputTokensLabel, outputTokensLabel, cacheTokensLabel) {
             val tokenUsage = usage.tokenUsage
             listOf(
                 MetricTile(
-                    label = "输入 Token",
+                    label = inputTokensLabel,
                     value = tokenUsage
                         ?.let { UsageCalculations.formatTokens(it.totalInputTokens) }
                         ?: "—",
@@ -734,7 +748,7 @@ private fun OverviewTab(usage: CursorTOverview) {
                     accent = chartColors.chart2,
                 ),
                 MetricTile(
-                    label = "输出 Token",
+                    label = outputTokensLabel,
                     value = tokenUsage
                         ?.let { UsageCalculations.formatTokens(it.totalOutputTokens) }
                         ?: "—",
@@ -742,7 +756,7 @@ private fun OverviewTab(usage: CursorTOverview) {
                     accent = chartColors.chart3,
                 ),
                 MetricTile(
-                    label = "缓存 Token",
+                    label = cacheTokensLabel,
                     value = tokenUsage
                         ?.let {
                             UsageCalculations.formatTokens(
@@ -787,13 +801,13 @@ private fun OverviewTab(usage: CursorTOverview) {
                 ) {
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text(
-                            "本周期",
+                            stringResource(R.string.label_this_cycle),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.SemiBold,
                         )
                         Text(
-                            usage.plan.name ?: "Cursor 套餐",
+                            usage.plan.name ?: stringResource(R.string.label_cursor_plan),
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.SemiBold,
                             maxLines = 1,
@@ -804,29 +818,33 @@ private fun OverviewTab(usage: CursorTOverview) {
                         StatusChip(label = price)
                     }
                 }
+                val teamSpendPrefix = stringResource(R.string.label_team_spend_prefix, money(usage.usage.totalUsed))
+                val planQuotaUsed = stringResource(R.string.label_plan_quota_used, formatPercent(percent))
+                val planQuotaUnknown = stringResource(R.string.label_plan_quota_unknown)
+                val totalUsageLevel = stringResource(
+                    R.string.label_total_usage_level,
+                    formatPercent(percent),
+                    if (percentKnown) level.label() else stringResource(R.string.usage_level_unknown),
+                )
+                val cycleRemaining = billing?.let {
+                    stringResource(R.string.label_cycle_remaining_clause, formatRemainingLabel(it.remainingMillis))
+                }.orEmpty()
+                val usageDescription = buildString {
+                    if (usage.isTeam) {
+                        append(teamSpendPrefix)
+                        append(if (percentKnown) planQuotaUsed else planQuotaUnknown)
+                    } else if (percentKnown) {
+                        append(totalUsageLevel)
+                    }
+                    append(cycleRemaining)
+                }
                 UsageRing(
                     percent = percent,
                     size = chartSize,
                     progressColor = usageColor,
                     centerValue = if (usage.isTeam) money(usage.usage.totalUsed) else formatPercent(percent),
-                    caption = if (percentKnown) level.label() else "额度未知",
-                    description = buildString {
-                        if (usage.isTeam) {
-                            append("团队总消费 ${money(usage.usage.totalUsed)}，")
-                            append(
-                                if (percentKnown) {
-                                    "套餐额度使用 ${formatPercent(percent)}"
-                                } else {
-                                    "套餐额度未知"
-                                },
-                            )
-                        } else {
-                            append("总用量 ${formatPercent(percent)}，${level.label()}")
-                        }
-                        billing?.let {
-                            append("，计费周期剩余 ${UsageCalculations.formatRemaining(it.remainingMillis)}")
-                        }
-                    },
+                    caption = if (percentKnown) level.label() else stringResource(R.string.usage_level_unknown),
+                    description = usageDescription,
                     showProgress = percentKnown,
                     cyclePercent = billing?.percent,
                     cycleColor = MaterialTheme.colorScheme.primary,
@@ -837,11 +855,11 @@ private fun OverviewTab(usage: CursorTOverview) {
                 ) {
                     DotLabel(
                         color = usageColor,
-                        text = if (percentKnown) "用量 ${formatPercent(percent)}" else "用量 —",
+                        text = if (percentKnown) stringResource(R.string.label_usage_percent, formatPercent(percent)) else stringResource(R.string.label_usage_placeholder),
                     )
                     DotLabel(
                         color = MaterialTheme.colorScheme.primary,
-                        text = billing?.let { "周期 ${formatPercent(it.percent.toDouble())}" } ?: "周期 —",
+                        text = billing?.let { stringResource(R.string.label_cycle_percent, formatPercent(it.percent.toDouble())) } ?: stringResource(R.string.label_cycle_placeholder),
                     )
                 }
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
@@ -874,12 +892,12 @@ private fun OverviewTab(usage: CursorTOverview) {
                     verticalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 10.dp),
                 ) {
                     HorizontalUsageChart(
-                        label = "Grok Bot 本周",
+                        label = stringResource(R.string.label_grok_bot_week),
                         percent = grok.percentUsed,
                         color = chartColors.chart3,
                         caption = grokProgress?.let {
-                            "每周独立额度，${UsageCalculations.formatRemaining(it.remainingMillis)} 后重置"
-                        } ?: "每周独立额度，不计入月度用量池",
+                            stringResource(R.string.label_grok_weekly_quota_reset, formatRemainingLabel(it.remainingMillis))
+                        } ?: stringResource(R.string.label_grok_weekly_quota),
                     )
                 }
             }
@@ -887,7 +905,7 @@ private fun OverviewTab(usage: CursorTOverview) {
         FreshnessRow(usage)
         if (usage.partialData) {
             Text(
-                "当前仅返回部分数据",
+                stringResource(R.string.label_partial_data),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.error,
             )
@@ -910,7 +928,7 @@ private fun OverviewCycleRow(billing: BillingProgress?, planCycleEnd: String?) {
         )
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
             Text(
-                "计费周期",
+                stringResource(R.string.label_billing_cycle),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -918,8 +936,11 @@ private fun OverviewCycleRow(billing: BillingProgress?, planCycleEnd: String?) {
                 when {
                     billing != null -> "${billing.startLabel} — ${billing.endLabel}"
                     !planCycleEnd.isNullOrBlank() ->
-                        "结束于 ${DisplayTime.formatStoredDateTime(planCycleEnd, LocalDisplayZone.current) ?: planCycleEnd.take(10)}"
-                    else -> "暂未返回周期信息"
+                        stringResource(
+                            R.string.label_ends_at,
+                            DisplayTime.formatStoredDateTime(planCycleEnd, LocalDisplayZone.current) ?: planCycleEnd.take(10),
+                        )
+                    else -> stringResource(R.string.label_cycle_unknown)
                 },
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Medium,
@@ -928,7 +949,7 @@ private fun OverviewCycleRow(billing: BillingProgress?, planCycleEnd: String?) {
             )
         }
         billing?.let {
-            StatusChip(label = "剩余 ${UsageCalculations.formatRemaining(it.remainingMillis)}")
+            StatusChip(label = stringResource(R.string.label_remaining_chip, formatRemainingLabel(it.remainingMillis)))
         }
     }
 }
@@ -967,11 +988,11 @@ private fun FreshnessRow(usage: CursorTOverview) {
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Text(
-            buildString {
-                append(if (usage.fromCache) "缓存数据" else "已更新")
-                stamp?.let { append(" · $it") }
-                append(" · 下拉可刷新")
-            },
+            listOfNotNull(
+                stringResource(if (usage.fromCache) R.string.freshness_cached else R.string.freshness_updated),
+                stamp,
+                stringResource(R.string.freshness_pull_hint),
+            ).joinToString(" · "),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -989,18 +1010,20 @@ private fun UsageTab(
 ) {
     AdaptiveTabContent { compact ->
         val chartColors = LocalPulseChartColors.current
-        val segments = remember(usage, chartColors) {
+        val includedUsageLabel = stringResource(R.string.label_included_usage)
+        val remainingQuotaLabel = stringResource(R.string.label_remaining_quota)
+        val segments = remember(usage, chartColors, includedUsageLabel, remainingQuotaLabel) {
             listOf(
-                ChartSegment("包含用量", usage.usage.includedSpendDollars.safeNonNegative(), chartColors.chart1),
+                ChartSegment(includedUsageLabel, usage.usage.includedSpendDollars.safeNonNegative(), chartColors.chart1),
                 ChartSegment("Bonus", usage.usage.bonusSpendDollars.safeNonNegative(), chartColors.chart2),
-                ChartSegment("剩余额度", usage.usage.remainingDollars.safeNonNegative(), chartColors.chart3),
+                ChartSegment(remainingQuotaLabel, usage.usage.remainingDollars.safeNonNegative(), chartColors.chart3),
             )
         }
 
         SectionHeading(
             icon = Icons.Outlined.Layers,
-            title = "用量池",
-            supporting = "两个独立用量池，均在月度计费周期重置",
+            title = stringResource(R.string.label_usage_pools),
+            supporting = stringResource(R.string.label_usage_pools_supporting),
         )
         Surface(
             modifier = Modifier.fillMaxWidth(),
@@ -1013,16 +1036,16 @@ private fun UsageTab(
                 verticalArrangement = Arrangement.spacedBy(if (compact) 12.dp else 16.dp),
             ) {
                 HorizontalUsageChart(
-                    label = "Cursor 模型",
+                    label = stringResource(R.string.label_cursor_models),
                     percent = usage.usage.autoPercentUsed,
                     color = chartColors.chart1,
-                    caption = "Cursor Grok 4.5 与 Composer 2.5，包含用量显著更多",
+                    caption = stringResource(R.string.label_cursor_models_caption),
                 )
                 HorizontalUsageChart(
-                    label = "其他模型",
+                    label = stringResource(R.string.label_other_models),
                     percent = usage.usage.apiPercentUsed,
                     color = chartColors.chart2,
-                    caption = "第三方模型，按模型的 API 价格计费",
+                    caption = stringResource(R.string.label_other_models_caption),
                 )
             }
         }
@@ -1042,8 +1065,8 @@ private fun UsageTab(
                 icon = Icons.Outlined.SmartToy,
                 title = "Grok Bot",
                 supporting = grokProgress?.let {
-                    "每周独立额度，${UsageCalculations.formatRemaining(it.remainingMillis)} 后重置"
-                } ?: "每周独立额度，不计入上方月度用量池",
+                    stringResource(R.string.label_grok_weekly_quota_reset, formatRemainingLabel(it.remainingMillis))
+                } ?: stringResource(R.string.label_grok_weekly_quota_usage),
             )
             Surface(
                 modifier = Modifier.fillMaxWidth(),
@@ -1056,10 +1079,10 @@ private fun UsageTab(
                     verticalArrangement = Arrangement.spacedBy(if (compact) 12.dp else 16.dp),
                 ) {
                     HorizontalUsageChart(
-                        label = "本周用量",
+                        label = stringResource(R.string.label_week_usage),
                         percent = grok.percentUsed,
                         color = chartColors.chart3,
-                        caption = "超额后走已有的 On-demand 用量",
+                        caption = stringResource(R.string.label_grok_on_demand_caption),
                     )
                 }
             }
@@ -1067,8 +1090,8 @@ private fun UsageTab(
 
         SectionHeading(
             icon = Icons.Outlined.PieChart,
-            title = "额度构成",
-            supporting = "包含用量、Bonus 与剩余额度",
+            title = stringResource(R.string.label_quota_composition),
+            supporting = stringResource(R.string.label_quota_composition_supporting),
         )
         Surface(
             modifier = Modifier.fillMaxWidth(),
@@ -1082,13 +1105,13 @@ private fun UsageTab(
             ) {
                 StackedBar(
                     segments = segments,
-                    description = buildSegmentDescription("额度构成", segments),
+                    description = buildSegmentDescription(stringResource(R.string.label_quota_composition), segments),
                     height = if (compact) 14.dp else 16.dp,
                 )
                 SegmentLegend(segments)
                 Row(modifier = Modifier.fillMaxWidth()) {
                     Text(
-                        "总消费",
+                        stringResource(R.string.label_total_spend),
                         modifier = Modifier.weight(1f),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -1117,8 +1140,8 @@ private fun TokenUsageSection(usage: CursorTOverview, compact: Boolean) {
     val tokenUsage = usage.tokenUsage
     SectionHeading(
         icon = Icons.AutoMirrored.Outlined.TrendingUp,
-        title = "Token 用量",
-        supporting = "本计费周期按模型汇总的输入 / 输出 Token",
+        title = stringResource(R.string.label_token_usage),
+        supporting = stringResource(R.string.label_token_section_supporting),
     )
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -1133,14 +1156,14 @@ private fun TokenUsageSection(usage: CursorTOverview, compact: Boolean) {
             when {
                 tokenUsage == null -> {
                     Text(
-                        text = "Token 明细暂时不可用，花费与用量百分比仍可正常查看。",
+                        text = stringResource(R.string.label_token_unavailable),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 tokenUsage.models.isEmpty() -> {
                     Text(
-                        text = "本周期暂无按模型 Token 记录。",
+                        text = stringResource(R.string.label_token_empty),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -1230,8 +1253,8 @@ private fun HistoryUsageSection(
     val pools = remember(window?.tokenUsage) { UsageCalculations.poolPercents(window?.tokenUsage) }
     SectionHeading(
         icon = Icons.Outlined.History,
-        title = "历史用量",
-        supporting = "官方两池百分比只返回当前周期；历史按 Token 费用估算占比",
+        title = stringResource(R.string.label_history_title),
+        supporting = stringResource(R.string.label_history_supporting),
     )
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -1245,8 +1268,8 @@ private fun HistoryUsageSection(
         ) {
             SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                 val options = listOf(
-                    HistoryQueryMode.CalendarMonth to "自然月",
-                    HistoryQueryMode.BillingCycle to "计费周期",
+                    HistoryQueryMode.CalendarMonth to stringResource(R.string.label_history_calendar_month),
+                    HistoryQueryMode.BillingCycle to stringResource(R.string.label_history_billing_cycle),
                 )
                 options.forEachIndexed { index, (value, label) ->
                     SegmentedButton(
@@ -1267,10 +1290,10 @@ private fun HistoryUsageSection(
                         onClick = { selectedMonth = selectedMonth.minusMonths(1) },
                         enabled = selectedMonth.isAfter(earliestMonth),
                     ) {
-                        Icon(Icons.Outlined.ChevronLeft, contentDescription = "上一个月")
+                        Icon(Icons.Outlined.ChevronLeft, contentDescription = stringResource(R.string.label_history_prev_month))
                     }
                     Text(
-                        "${selectedMonth.year}年${selectedMonth.monthValue}月",
+                        stringResource(R.string.label_year_month, selectedMonth.year, selectedMonth.monthValue),
                         modifier = Modifier.weight(1f),
                         textAlign = TextAlign.Center,
                         style = MaterialTheme.typography.titleSmall,
@@ -1280,7 +1303,7 @@ private fun HistoryUsageSection(
                         onClick = { selectedMonth = selectedMonth.plusMonths(1) },
                         enabled = selectedMonth.isBefore(nowMonth),
                     ) {
-                        Icon(Icons.Outlined.ChevronRight, contentDescription = "下一个月")
+                        Icon(Icons.Outlined.ChevronRight, contentDescription = stringResource(R.string.label_history_next_month))
                     }
                 }
             } else {
@@ -1293,13 +1316,13 @@ private fun HistoryUsageSection(
                         onClick = { cycleOffset -= 1 },
                         enabled = selectedCycleRange != null && cycleOffset > -12,
                     ) {
-                        Icon(Icons.Outlined.ChevronLeft, contentDescription = "上一个计费周期")
+                        Icon(Icons.Outlined.ChevronLeft, contentDescription = stringResource(R.string.label_history_prev_cycle))
                     }
                     Text(
                         text = if (labels != null) {
                             "${labels.first} → ${labels.second}"
                         } else {
-                            "计费周期未知"
+                            stringResource(R.string.label_history_cycle_unknown)
                         },
                         modifier = Modifier.weight(1f),
                         textAlign = TextAlign.Center,
@@ -1310,21 +1333,21 @@ private fun HistoryUsageSection(
                         onClick = { cycleOffset += 1 },
                         enabled = cycleOffset < -1,
                     ) {
-                        Icon(Icons.Outlined.ChevronRight, contentDescription = "下一个计费周期")
+                        Icon(Icons.Outlined.ChevronRight, contentDescription = stringResource(R.string.label_history_next_cycle))
                     }
                 }
             }
             when {
                 loading -> {
                     Text(
-                        "正在加载该窗口的用量…",
+                        stringResource(R.string.label_history_loading),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 window?.tokenUsage == null -> {
                     Text(
-                        "该窗口暂无 Token 明细。",
+                        stringResource(R.string.label_history_empty_tokens),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -1333,34 +1356,35 @@ private fun HistoryUsageSection(
                     val tokenUsage = window.tokenUsage!!
                     if (pools != null) {
                         HorizontalUsageChart(
-                            label = "Cursor 模型",
+                            label = stringResource(R.string.label_cursor_models),
                             percent = pools.ownPercent,
                             color = chartColors.chart1,
-                            caption = "费用 ${money(pools.ownPoolDollars)}，占该窗口 Token 费用",
+                            caption = stringResource(R.string.label_history_pool_share_caption, money(pools.ownPoolDollars)),
                         )
                         HorizontalUsageChart(
-                            label = "其他模型",
+                            label = stringResource(R.string.label_other_models),
                             percent = pools.thirdPartyPercent,
                             color = chartColors.chart2,
-                            caption = "费用 ${money(pools.thirdPartyDollars)}，占该窗口 Token 费用",
+                            caption = stringResource(R.string.label_history_pool_share_caption, money(pools.thirdPartyDollars)),
                         )
                     } else {
                         Text(
-                            "该窗口暂无足够费用数据估算用量池占比。",
+                            stringResource(R.string.label_history_pool_share_unavailable),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    Text(
-                        buildString {
-                            append("入 ${UsageCalculations.formatTokens(tokenUsage.totalInputTokens)}")
-                            append(" · 出 ${UsageCalculations.formatTokens(tokenUsage.totalOutputTokens)}")
-                            val cached = tokenUsage.totalCacheWriteTokens + tokenUsage.totalCacheReadTokens
-                            if (cached > 0L) {
-                                append(" · 缓存 ${UsageCalculations.formatTokens(cached)}")
-                            }
-                            append(" · ${money(tokenUsage.totalCostDollars)}")
+                    val cachedTokens = tokenUsage.totalCacheWriteTokens + tokenUsage.totalCacheReadTokens
+                    val tokenLine = listOfNotNull(
+                        stringResource(R.string.label_in_tokens, UsageCalculations.formatTokens(tokenUsage.totalInputTokens)),
+                        stringResource(R.string.label_out_tokens, UsageCalculations.formatTokens(tokenUsage.totalOutputTokens)),
+                        cachedTokens.takeIf { it > 0L }?.let {
+                            stringResource(R.string.label_cache_tokens_short, UsageCalculations.formatTokens(it))
                         },
+                        money(tokenUsage.totalCostDollars),
+                    ).joinToString(" · ")
+                    Text(
+                        tokenLine,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -1386,16 +1410,29 @@ private fun ModelTokenRow(
     compact: Boolean,
 ) {
     val cached = model.cacheWriteTokens + model.cacheReadTokens
+    val modelA11y = if (cached > 0L) {
+        stringResource(
+            R.string.label_model_token_a11y_cache,
+            model.modelIntent,
+            model.inputTokens.toString(),
+            model.outputTokens.toString(),
+            cached.toString(),
+            money(model.costDollars),
+        )
+    } else {
+        stringResource(
+            R.string.label_model_token_a11y,
+            model.modelIntent,
+            model.inputTokens.toString(),
+            model.outputTokens.toString(),
+            money(model.costDollars),
+        )
+    }
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .semantics(mergeDescendants = true) {
-                contentDescription = buildString {
-                    append(model.modelIntent)
-                    append("，输入 ${model.inputTokens}，输出 ${model.outputTokens}")
-                    if (cached > 0L) append("，缓存 $cached")
-                    append("，费用 ${money(model.costDollars)}")
-                }
+                contentDescription = modelA11y
             },
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
@@ -1419,14 +1456,15 @@ private fun ModelTokenRow(
                 color = MaterialTheme.colorScheme.primary,
             )
         }
-        Text(
-            text = buildString {
-                append("入 ${UsageCalculations.formatTokens(model.inputTokens)}")
-                append(" · 出 ${UsageCalculations.formatTokens(model.outputTokens)}")
-                if (cached > 0L) {
-                    append(" · 缓存 ${UsageCalculations.formatTokens(cached)}")
-                }
+        val tokenLine = listOfNotNull(
+            stringResource(R.string.label_in_tokens, UsageCalculations.formatTokens(model.inputTokens)),
+            stringResource(R.string.label_out_tokens, UsageCalculations.formatTokens(model.outputTokens)),
+            cached.takeIf { it > 0L }?.let {
+                stringResource(R.string.label_cache_tokens_short, UsageCalculations.formatTokens(it))
             },
+        ).joinToString(" · ")
+        Text(
+            text = tokenLine,
             style = if (compact) {
                 MaterialTheme.typography.bodySmall
             } else {
@@ -1441,7 +1479,8 @@ private fun ModelTokenRow(
 private fun BillingTab(usage: CursorTOverview) {
     AdaptiveTabContent { compact ->
         val chartColors = LocalPulseChartColors.current
-        val segments = remember(usage, chartColors) {
+        val otherLabel = stringResource(R.string.label_other)
+        val segments = remember(usage, chartColors, otherLabel) {
             val unclassified = (
                 usage.credits.totalDollars -
                     usage.credits.grantTotalDollars -
@@ -1450,7 +1489,7 @@ private fun BillingTab(usage: CursorTOverview) {
             listOf(
                 ChartSegment("Grant", usage.credits.grantTotalDollars, chartColors.chart1),
                 ChartSegment("Stripe", usage.credits.stripeBalanceDollars, chartColors.chart2),
-                ChartSegment("其他", unclassified, chartColors.chart3),
+                ChartSegment(otherLabel, unclassified, chartColors.chart3),
             )
         }
         val visibleSegments = remember(segments, usage.partialData) {
@@ -1475,23 +1514,23 @@ private fun BillingTab(usage: CursorTOverview) {
             ) {
                 SectionHeading(
                     icon = Icons.Outlined.CardGiftcard,
-                    title = "Credits 构成",
-                    supporting = "Grant 与 Stripe 余额",
+                    title = stringResource(R.string.label_credits_composition),
+                    supporting = stringResource(R.string.label_credits_grant_stripe),
                 )
                 if (usage.partialData) {
                     Text(
-                        "部分来源未返回，以下仅展示已获取数据",
+                        stringResource(R.string.label_partial_sources),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error,
                     )
                 }
                 if (visibleSegments.isEmpty()) {
-                    Text("Credits 数据暂不可用", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.label_credits_unavailable), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else {
                     StackedBar(
                         segments = visibleSegments,
                         description = buildSegmentDescription(
-                            if (usage.partialData) "已返回 Credits" else "Credits 构成",
+                            if (usage.partialData) stringResource(R.string.label_credits_partial) else stringResource(R.string.label_credits_composition),
                             visibleSegments,
                         ),
                         height = if (compact) 14.dp else 16.dp,
@@ -1500,7 +1539,7 @@ private fun BillingTab(usage: CursorTOverview) {
                 }
                 Row(modifier = Modifier.fillMaxWidth()) {
                     Text(
-                        if (usage.partialData) "已返回合计" else "Credits 合计",
+                        if (usage.partialData) stringResource(R.string.label_credits_partial_total) else stringResource(R.string.label_credits_total),
                         modifier = Modifier.weight(1f),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -1819,6 +1858,11 @@ private fun HorizontalUsageChart(
         label = "$label progress",
     )
     val trackColor = MaterialTheme.colorScheme.surfaceVariant
+    val poolDescription = stringResource(
+        R.string.pool_progress_description,
+        label,
+        value?.let(::formatPercent) ?: stringResource(R.string.no_data),
+    )
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(modifier = Modifier.fillMaxWidth()) {
             Text(label, modifier = Modifier.weight(1f), fontWeight = FontWeight.Medium)
@@ -1841,7 +1885,7 @@ private fun HorizontalUsageChart(
             height = 12.dp,
             trackColor = trackColor,
             modifier = Modifier.clearAndSetSemantics {
-                contentDescription = "$label 用量池 ${value?.let(::formatPercent) ?: "暂无数据"}"
+                contentDescription = poolDescription
             },
         )
     }
@@ -1990,15 +2034,23 @@ private fun BillingCycleChart(usage: CursorTOverview, compact: Boolean) {
             modifier = Modifier.padding(if (compact) 14.dp else 18.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            SectionHeading(icon = Icons.Outlined.CalendarMonth, title = "计费周期")
+            SectionHeading(icon = Icons.Outlined.CalendarMonth, title = stringResource(R.string.label_billing_cycle))
             if (billing == null) {
                 Text(
                     usage.plan.billingCycleEnd?.let {
-                        "周期结束：${DisplayTime.formatStoredDateTime(it, zone) ?: it}"
-                    } ?: "暂未返回周期信息",
+                        stringResource(
+                            R.string.label_cycle_end,
+                            DisplayTime.formatStoredDateTime(it, zone) ?: it,
+                        )
+                    } ?: stringResource(R.string.label_cycle_unknown),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             } else {
+                val cycleA11y = stringResource(
+                    R.string.label_cycle_progress_a11y,
+                    formatPercent(billing.percent.toDouble()),
+                    formatRemainingLabel(billing.remainingMillis),
+                )
                 Row(modifier = Modifier.fillMaxWidth()) {
                     Text(
                         "${billing.startLabel} — ${billing.endLabel}",
@@ -2008,7 +2060,7 @@ private fun BillingCycleChart(usage: CursorTOverview, compact: Boolean) {
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        "剩余 ${UsageCalculations.formatRemaining(billing.remainingMillis)}",
+                        stringResource(R.string.label_remaining, formatRemainingLabel(billing.remainingMillis)),
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.primary,
                         maxLines = 1,
@@ -2020,14 +2072,12 @@ private fun BillingCycleChart(usage: CursorTOverview, compact: Boolean) {
                     height = if (compact) 10.dp else 12.dp,
                     trackColor = trackColor,
                     modifier = Modifier.clearAndSetSemantics {
-                        contentDescription =
-                            "计费周期已进行 ${formatPercent(billing.percent.toDouble())}，" +
-                                "剩余 ${UsageCalculations.formatRemaining(billing.remainingMillis)}"
+                        contentDescription = cycleA11y
                     },
                 )
                 Row(modifier = Modifier.fillMaxWidth()) {
                     Text(
-                        "已过 ${billing.elapsedDays} / ${billing.totalDays} 天",
+                        stringResource(R.string.label_cycle_elapsed_days, billing.elapsedDays, billing.totalDays),
                         modifier = Modifier.weight(1f),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -2058,29 +2108,29 @@ private fun BillingStatusCard(usage: CursorTOverview, compact: Boolean) {
             modifier = Modifier.padding(if (compact) 14.dp else 18.dp),
             verticalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 10.dp),
         ) {
-            SectionHeading(icon = Icons.AutoMirrored.Outlined.ReceiptLong, title = "账单状态")
+            SectionHeading(icon = Icons.AutoMirrored.Outlined.ReceiptLong, title = stringResource(R.string.label_billing_status))
             if (onDemand != null) {
                 BillingRow("On-demand", money(onDemand.totalSpendDollars))
                 if (onDemand.individualLimitDollars > 0.0) {
                     BudgetProgress(
-                        label = "个人额度",
+                        label = stringResource(R.string.label_personal_quota),
                         used = onDemand.individualUsedDollars,
                         limit = onDemand.individualLimitDollars,
                     )
                 }
                 if (onDemand.pooledLimitDollars > 0.0) {
                     BudgetProgress(
-                        label = "共享额度",
+                        label = stringResource(R.string.label_shared_quota),
                         used = onDemand.pooledUsedDollars,
                         limit = onDemand.pooledLimitDollars,
                     )
                 }
             }
             if (membership != null || status != null) {
-                BillingRow("订阅", listOfNotNull(membership, status).joinToString(" · "))
+                BillingRow(stringResource(R.string.label_subscription), listOfNotNull(membership, status).joinToString(" · "))
             }
             if (onDemand == null && membership == null && status == null) {
-                Text("暂未返回额外账单信息", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.label_billing_empty), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
@@ -2098,6 +2148,11 @@ private fun BudgetProgress(label: String, used: Double, limit: Double) {
     )
     val progressColor = MaterialTheme.colorScheme.tertiary
     val trackColor = MaterialTheme.colorScheme.surfaceVariant
+    val budgetDescription = stringResource(
+        R.string.label_used_percent_a11y,
+        label,
+        formatPercent(percent),
+    )
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(modifier = Modifier.fillMaxWidth()) {
             Text(label, modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -2109,7 +2164,7 @@ private fun BudgetProgress(label: String, used: Double, limit: Double) {
             height = 8.dp,
             trackColor = trackColor,
             modifier = Modifier.clearAndSetSemantics {
-                contentDescription = "$label 已使用 ${formatPercent(percent)}"
+                contentDescription = budgetDescription
             },
         )
     }
@@ -2134,16 +2189,23 @@ private fun buildSegmentDescription(prefix: String, segments: List<ChartSegment>
     buildString {
         append(prefix)
         segments.forEach { segment ->
-            append("，${segment.label} ${money(segment.value)}")
+            append(" · ${segment.label} ${money(segment.value)}")
         }
     }
 
-private fun UsageLevel.label(): String = when (this) {
-    UsageLevel.Healthy -> "用量正常"
-    UsageLevel.Warning -> "请关注用量"
-    UsageLevel.Critical -> "即将用尽"
-    UsageLevel.Exhausted -> "已用尽"
-}
+@Composable
+private fun formatRemainingLabel(millis: Long, compact: Boolean = false): String =
+    UsageCalculations.formatRemaining(millis, compact, LocalContext.current.resources)
+
+@Composable
+private fun UsageLevel.label(): String = stringResource(
+    when (this) {
+        UsageLevel.Healthy -> R.string.usage_level_healthy
+        UsageLevel.Warning -> R.string.usage_level_warning
+        UsageLevel.Critical -> R.string.usage_level_critical
+        UsageLevel.Exhausted -> R.string.usage_level_exhausted
+    },
+)
 
 private fun Double.safeNonNegative(): Double = takeIf { it.isFinite() }?.coerceAtLeast(0.0) ?: 0.0
 

@@ -1,5 +1,8 @@
 package com.lamuier.cursorT.util
 
+import android.content.res.Resources
+import androidx.annotation.StringRes
+import com.lamuier.cursorT.R
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -13,23 +16,23 @@ import java.util.Locale
 object DisplayTimeZones {
     const val SYSTEM_ID = "system"
 
-    data class Option(val id: String, val label: String)
+    data class Option(val id: String, @StringRes val labelRes: Int)
 
     val OPTIONS = listOf(
-        Option(SYSTEM_ID, "跟随系统"),
-        Option("Asia/Shanghai", "中国"),
-        Option("Asia/Hong_Kong", "香港"),
-        Option("Asia/Taipei", "台北"),
-        Option("Asia/Tokyo", "东京"),
-        Option("Asia/Seoul", "首尔"),
-        Option("Asia/Singapore", "新加坡"),
-        Option("UTC", "UTC"),
-        Option("Europe/London", "伦敦"),
-        Option("Europe/Paris", "巴黎"),
-        Option("America/New_York", "纽约"),
-        Option("America/Chicago", "芝加哥"),
-        Option("America/Los_Angeles", "洛杉矶"),
-        Option("Australia/Sydney", "悉尼"),
+        Option(SYSTEM_ID, R.string.timezone_system),
+        Option("Asia/Shanghai", R.string.timezone_china),
+        Option("Asia/Hong_Kong", R.string.timezone_hong_kong),
+        Option("Asia/Taipei", R.string.timezone_taipei),
+        Option("Asia/Tokyo", R.string.timezone_tokyo),
+        Option("Asia/Seoul", R.string.timezone_seoul),
+        Option("Asia/Singapore", R.string.timezone_singapore),
+        Option("UTC", R.string.timezone_utc),
+        Option("Europe/London", R.string.timezone_london),
+        Option("Europe/Paris", R.string.timezone_paris),
+        Option("America/New_York", R.string.timezone_new_york),
+        Option("America/Chicago", R.string.timezone_chicago),
+        Option("America/Los_Angeles", R.string.timezone_los_angeles),
+        Option("Australia/Sydney", R.string.timezone_sydney),
     )
 
     fun fromStorage(value: String?): String {
@@ -48,9 +51,33 @@ object DisplayTimeZones {
         return runCatching { ZoneId.of(stored) }.getOrElse { nowZone }
     }
 
-    fun label(id: String): String =
-        OPTIONS.firstOrNull { it.id == id }?.label
-            ?: if (id == SYSTEM_ID) "跟随系统" else id
+    fun label(id: String, resources: Resources? = null): String {
+        val option = OPTIONS.firstOrNull { it.id == id }
+        return when {
+            option != null -> resources?.getString(option.labelRes)
+                ?: resourcesFallback(option.labelRes)
+            id == SYSTEM_ID -> resources?.getString(R.string.timezone_system) ?: "跟随系统"
+            else -> id
+        }
+    }
+
+    private fun resourcesFallback(id: Int): String = when (id) {
+        R.string.timezone_system -> "跟随系统"
+        R.string.timezone_china -> "中国"
+        R.string.timezone_hong_kong -> "香港"
+        R.string.timezone_taipei -> "台北"
+        R.string.timezone_tokyo -> "东京"
+        R.string.timezone_seoul -> "首尔"
+        R.string.timezone_singapore -> "新加坡"
+        R.string.timezone_utc -> "UTC"
+        R.string.timezone_london -> "伦敦"
+        R.string.timezone_paris -> "巴黎"
+        R.string.timezone_new_york -> "纽约"
+        R.string.timezone_chicago -> "芝加哥"
+        R.string.timezone_los_angeles -> "洛杉矶"
+        R.string.timezone_sydney -> "悉尼"
+        else -> ""
+    }
 }
 
 /**

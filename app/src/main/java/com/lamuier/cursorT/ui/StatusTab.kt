@@ -36,8 +36,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -45,6 +47,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.lamuier.cursorT.R
 import com.lamuier.cursorT.model.ComponentStatus
 import com.lamuier.cursorT.model.CursorServiceStatus
 import com.lamuier.cursorT.model.StatusIncident
@@ -65,15 +68,15 @@ internal fun StatusTab(
     when {
         status == null && loading -> DashboardState(
             icon = null,
-            title = "正在获取 Cursor 状态",
-            description = "正在连接官方状态页…",
+            title = stringResource(R.string.status_loading_title),
+            description = stringResource(R.string.status_loading_body),
             loading = true,
         )
         status == null -> DashboardState(
             icon = Icons.Outlined.CloudOff,
-            title = "暂时无法显示状态",
-            description = error ?: "请检查网络后重试。",
-            primaryActionLabel = "重新加载",
+            title = stringResource(R.string.status_unavailable_title),
+            description = error ?: stringResource(R.string.network_retry_hint),
+            primaryActionLabel = stringResource(R.string.action_reload),
             onPrimaryAction = onRetry,
         )
         else -> StatusContent(
@@ -105,8 +108,8 @@ private fun StatusContent(
         }
         SectionHeading(
             icon = Icons.Outlined.CheckCircle,
-            title = "服务组件",
-            supporting = "来自 Cursor 官方状态页",
+            title = stringResource(R.string.status_components_title),
+            supporting = stringResource(R.string.status_components_supporting),
         )
         Surface(
             modifier = Modifier.fillMaxWidth(),
@@ -130,8 +133,8 @@ private fun StatusContent(
         if (status.activeIncidents.isNotEmpty()) {
             SectionHeading(
                 icon = Icons.Outlined.ReportProblem,
-                title = "当前事件",
-                supporting = "${status.activeIncidents.size} 项进行中",
+                title = stringResource(R.string.status_current_events),
+                supporting = stringResource(R.string.status_active_count, status.activeIncidents.size),
             )
             status.activeIncidents.forEach { incident ->
                 IncidentCard(incident, compact, uriHandler)
@@ -141,8 +144,8 @@ private fun StatusContent(
         if (status.scheduledMaintenances.isNotEmpty()) {
             SectionHeading(
                 icon = Icons.Outlined.Build,
-                title = "计划维护",
-                supporting = "${status.scheduledMaintenances.size} 项",
+                title = stringResource(R.string.status_scheduled_maintenance),
+                supporting = stringResource(R.string.status_item_count, status.scheduledMaintenances.size),
             )
             status.scheduledMaintenances.forEach { incident ->
                 IncidentCard(incident, compact, uriHandler)
@@ -151,8 +154,12 @@ private fun StatusContent(
 
         SectionHeading(
             icon = Icons.Outlined.History,
-            title = "近期事件",
-            supporting = if (status.partialHistory) "历史记录不完整" else "含已恢复的事件",
+            title = stringResource(R.string.status_recent_events),
+            supporting = if (status.partialHistory) {
+                stringResource(R.string.status_history_partial)
+            } else {
+                stringResource(R.string.status_history_complete)
+            },
         )
         if (status.recentIncidents.isEmpty()) {
             Surface(
@@ -161,7 +168,7 @@ private fun StatusContent(
                 color = MaterialTheme.colorScheme.surfaceContainerLow,
             ) {
                 Text(
-                    "暂无近期事件",
+                    stringResource(R.string.status_recent_empty),
                     modifier = Modifier.padding(if (compact) 14.dp else 18.dp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -182,7 +189,7 @@ private fun StatusContent(
                 modifier = Modifier.size(16.dp),
             )
             Spacer(Modifier.size(6.dp))
-            Text("打开官方状态页")
+            Text(stringResource(R.string.status_open_official))
         }
         StatusFreshnessRow(status)
     }
@@ -194,6 +201,9 @@ private fun OverallStatusHero(
     accent: Color,
     compact: Boolean,
 ) {
+    val resources = LocalContext.current.resources
+    val indicatorLabel = StatusPresentation.indicatorLabel(status.indicator, resources)
+    val heroA11y = stringResource(R.string.status_current_a11y, indicatorLabel)
     val heroBrush = Brush.linearGradient(
         listOf(
             accent.copy(alpha = 0.18f),
@@ -210,7 +220,7 @@ private fun OverallStatusHero(
         modifier = Modifier
             .fillMaxWidth()
             .semantics {
-                contentDescription = "Cursor 当前状态：${StatusPresentation.indicatorLabel(status.indicator)}"
+                contentDescription = heroA11y
             },
         shape = MaterialTheme.shapes.extraLarge,
         color = MaterialTheme.colorScheme.surfaceContainerLowest,
@@ -242,13 +252,13 @@ private fun OverallStatusHero(
                 }
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
-                        "Cursor 可用状态",
+                        stringResource(R.string.status_availability),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.SemiBold,
                     )
                     Text(
-                        StatusPresentation.indicatorLabel(status.indicator),
+                        indicatorLabel,
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = accent,
@@ -258,9 +268,13 @@ private fun OverallStatusHero(
             val degraded = status.components.count { it.status != ComponentStatus.Operational }
             Text(
                 if (degraded == 0) {
-                    "全部 ${status.components.size} 个组件运行正常"
+                    stringResource(R.string.status_all_components_ok, status.components.size)
                 } else {
-                    "${degraded} 个组件异常 · ${status.components.size - degraded} 个正常"
+                    stringResource(
+                        R.string.status_degraded_components,
+                        degraded,
+                        status.components.size - degraded,
+                    )
                 },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -272,7 +286,7 @@ private fun OverallStatusHero(
 @Composable
 private fun ComponentRow(name: String, status: ComponentStatus) {
     val color = componentColor(status)
-    val label = StatusPresentation.componentLabel(status)
+    val label = StatusPresentation.componentLabel(status, LocalContext.current.resources)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -349,7 +363,7 @@ private fun IncidentCard(
                 if (url != null) {
                     Icon(
                         Icons.AutoMirrored.Outlined.OpenInNew,
-                        contentDescription = "在浏览器中打开事件",
+                        contentDescription = stringResource(R.string.status_open_incident),
                         modifier = Modifier.size(16.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -359,9 +373,9 @@ private fun IncidentCard(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                StatusChip(label = StatusPresentation.incidentStatusLabel(incident.status))
+                StatusChip(label = StatusPresentation.incidentStatusLabel(incident.status, LocalContext.current.resources))
                 if (incident.impact.isNotBlank() && incident.impact != "none") {
-                    StatusChip(label = StatusPresentation.impactLabel(incident.impact))
+                    StatusChip(label = StatusPresentation.impactLabel(incident.impact, LocalContext.current.resources))
                 }
                 StatusPresentation.formatInstant(
                     incident.updatedAt ?: incident.resolvedAt ?: incident.createdAt,
@@ -405,11 +419,11 @@ private fun StatusFreshnessRow(status: CursorServiceStatus) {
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Text(
-            buildString {
-                append(if (status.fromCache) "缓存数据" else "已更新")
-                stamp?.let { append(" · $it") }
-                append(" · 下拉可刷新")
-            },
+            listOfNotNull(
+                stringResource(if (status.fromCache) R.string.freshness_cached else R.string.freshness_updated),
+                stamp,
+                stringResource(R.string.freshness_pull_hint),
+            ).joinToString(" · "),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

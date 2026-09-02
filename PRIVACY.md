@@ -1,6 +1,6 @@
 # 隐私政策 / Privacy Policy
 
-> 本文件适用于 Cursor助手 Android 应用（包名 `com.lamuier.cursorT`）。
+> 本文件适用于 Cursor助手 Android 应用（包名 `com.lamuier.cursorT`）。**中文** | [English](PRIVACY.en.md)
 
 **生效日期：2026-08-19**
 
@@ -52,7 +52,7 @@ Cursor助手 是一款本地优先的应用：不内置任何第三方统计、�
 
 ## 变更
 
-本政策如有实质变更，将随应用更新在 [CHANGELOG.md](CHANGELOG.md) 中注明。
+本政策如有实质变更，将随应用更新在 [CHANGELOG.md](CHANGELOG.md)（[English](CHANGELOG.en.md)）中注明。
 
 ## 联系
 

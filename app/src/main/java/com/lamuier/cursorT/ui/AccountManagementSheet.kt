@@ -59,6 +59,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -67,6 +68,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
+import com.lamuier.cursorT.R
 import com.lamuier.cursorT.model.CursorAccount
 import com.lamuier.cursorT.util.DeviceCredentialGate
 import com.lamuier.cursorT.util.SensitiveContent
@@ -132,15 +134,15 @@ internal fun AccountManagementSheet(
     fun requestRevealSavedToken(target: CursorAccount) {
         val host = activity
         if (host == null) {
-            revealError = "当前界面无法发起设备验证"
+            revealError = context.getString(R.string.account_cannot_start_gate)
             return
         }
         revealError = null
         revealBusy = true
         DeviceCredentialGate.authenticate(
             activity = host,
-            title = "验证以查看 Token",
-            subtitle = "使用指纹、面部或锁屏密码/图案确认是你本人",
+            title = context.getString(R.string.account_reveal_gate_title),
+            subtitle = context.getString(R.string.account_reveal_gate_subtitle),
             onSuccess = {
                 try {
                     revealedToken = onRevealSavedToken(target.id)
@@ -150,7 +152,7 @@ internal fun AccountManagementSheet(
                 } catch (error: Exception) {
                     revealedToken = null
                     revealError = error.message?.takeIf { it.isNotBlank() }
-                        ?: "无法读取已保存的 Access Token"
+                        ?: context.getString(R.string.account_cannot_read_token)
                 } finally {
                     revealBusy = false
                 }
@@ -177,12 +179,12 @@ internal fun AccountManagementSheet(
         val trimmedAlias = alias.trim()
         val trimmedToken = accessToken.trim()
         aliasError = when {
-            trimmedAlias.isEmpty() -> "请输入账号别名"
-            trimmedAlias.length > 64 -> "别名不能超过 64 个字符"
+            trimmedAlias.isEmpty() -> context.getString(R.string.account_alias_required)
+            trimmedAlias.length > 64 -> context.getString(R.string.account_alias_too_long)
             else -> null
         }
         tokenError = when {
-            account == null && trimmedToken.isEmpty() -> "请输入 Cursor Access Token"
+            account == null && trimmedToken.isEmpty() -> context.getString(R.string.account_token_required)
             else -> null
         }
         formError = null
@@ -200,7 +202,7 @@ internal fun AccountManagementSheet(
         val nextAlias = trimmedAlias.takeIf { it != account.alias }
         val nextToken = trimmedToken.ifBlank { null }
         if (nextAlias == null && nextToken == null) {
-            formError = "没有需要保存的更改"
+            formError = context.getString(R.string.account_no_changes)
             return
         }
         onUpdate(account.id, nextAlias, nextToken) {
@@ -228,7 +230,7 @@ internal fun AccountManagementSheet(
         if (showingTokenHelp) {
             TokenHelpContent(
                 onDismiss = { showingTokenHelp = false },
-                actionLabel = "返回账号设置",
+                actionLabel = stringResource(R.string.account_back_to_settings),
             )
         } else {
             Column(
@@ -244,12 +246,16 @@ internal fun AccountManagementSheet(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(
-                            text = if (account == null) "添加 Cursor 账号" else "编辑 Cursor 账号",
+                            text = if (account == null) {
+                                stringResource(R.string.account_add_title)
+                            } else {
+                                stringResource(R.string.account_edit_title)
+                            },
                             style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.SemiBold,
                         )
                         Text(
-                            "此设备仅保存一个 Cursor 账号。",
+                            stringResource(R.string.account_single_device_hint),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -261,7 +267,7 @@ internal fun AccountManagementSheet(
                             onDismiss()
                         },
                     ) {
-                        Icon(Icons.Default.Close, contentDescription = "关闭账号设置")
+                        Icon(Icons.Default.Close, contentDescription = stringResource(R.string.account_close_sheet))
                     }
                 }
 
@@ -290,7 +296,7 @@ internal fun AccountManagementSheet(
                     onClick = { showingTokenHelp = true },
                     modifier = Modifier.align(Alignment.Start),
                 ) {
-                    Text("如何获取 Access Token？")
+                    Text(stringResource(R.string.account_how_to_token))
                 }
 
                 error?.let { SheetError(it, onClearError) }
@@ -323,9 +329,9 @@ internal fun AccountManagementSheet(
                                         }
                                     }
                                 },
-                            label = { Text("账号别名") },
+                            label = { Text(stringResource(R.string.account_alias_label)) },
                             supportingText = {
-                                Text(aliasError ?: "例如：个人账号；最多 64 个字符")
+                                Text(aliasError ?: stringResource(R.string.account_alias_supporting))
                             },
                             isError = aliasError != null,
                             enabled = !busy,
@@ -357,18 +363,18 @@ internal fun AccountManagementSheet(
                             label = {
                                 Text(
                                     if (account == null) {
-                                        "Cursor Access Token"
+                                        stringResource(R.string.account_token_label)
                                     } else {
-                                        "新 Access Token（可选）"
+                                        stringResource(R.string.account_new_token_optional)
                                     },
                                 )
                             },
                             supportingText = {
                                 Text(
                                     tokenError ?: if (account == null) {
-                                        "仅加密保存在本机，不会发送给第三方服务"
+                                        stringResource(R.string.account_token_local_only)
                                     } else {
-                                        "留空会保留当前 Token"
+                                        stringResource(R.string.account_token_keep_blank)
                                     },
                                 )
                             },
@@ -393,7 +399,7 @@ internal fun AccountManagementSheet(
                                     enabled = !busy,
                                     onClick = { tokenVisible = !tokenVisible },
                                 ) {
-                                    Text(if (tokenVisible) "隐藏" else "显示")
+                                    Text(if (tokenVisible) stringResource(R.string.action_hide) else stringResource(R.string.action_show))
                                 }
                             },
                         )
@@ -418,7 +424,7 @@ internal fun AccountManagementSheet(
                                     strokeWidth = 2.dp,
                                 )
                             } else {
-                                Text(if (account == null) "保存账号" else "保存更改")
+                                Text(if (account == null) stringResource(R.string.account_save) else stringResource(R.string.account_save_changes))
                             }
                         }
 
@@ -436,14 +442,14 @@ internal fun AccountManagementSheet(
                                 ),
                                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.45f)),
                             ) {
-                                Text("删除此设备上的账号")
+                                Text(stringResource(R.string.account_delete_device))
                             }
                         }
                     }
                 }
 
                 Text(
-                    "Token 只会发送到 Cursor 官方 HTTPS 接口。更换账号前，请先删除当前账号。",
+                    stringResource(R.string.account_token_official_only),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -477,12 +483,12 @@ private fun SavedTokenRevealSection(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
-                "已保存的 Access Token",
+                stringResource(R.string.account_saved_token_title),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
             )
             Text(
-                "查看前需通过指纹、面部或锁屏密码/图案验证。",
+                stringResource(R.string.account_saved_token_hint),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -506,7 +512,7 @@ private fun SavedTokenRevealSection(
                         )
                     }
                     Text(
-                        if (revealBusy) "验证中…" else "验证并查看 Token",
+                        if (revealBusy) stringResource(R.string.account_verifying) else stringResource(R.string.account_verify_and_show),
                         modifier = Modifier.padding(start = 8.dp),
                     )
                 }
@@ -546,15 +552,15 @@ private fun SavedTokenRevealSection(
                             modifier = Modifier.size(18.dp),
                         )
                         Text(
-                            if (revealedTokenVisible) "隐藏" else "显示",
+                            if (revealedTokenVisible) stringResource(R.string.action_hide) else stringResource(R.string.action_show),
                             modifier = Modifier.padding(start = 4.dp),
                         )
                     }
                     TextButton(onClick = onCopy) {
-                        Text(if (tokenCopied) "已复制" else "复制")
+                        Text(if (tokenCopied) stringResource(R.string.action_copied) else stringResource(R.string.action_copy))
                     }
                     TextButton(onClick = onHide) {
-                        Text("收起")
+                        Text(stringResource(R.string.action_collapse))
                     }
                 }
             }
@@ -623,15 +629,15 @@ private fun AccountHeroCard(account: CursorAccount?) {
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 Text(
-                    account?.alias ?: "尚未添加账号",
+                    account?.alias ?: stringResource(R.string.dashboard_account_empty),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
                     when {
-                        account == null -> "保存后即可在首页查看 Cursor 用量"
-                        expired -> "当前 Token 已过期，请在下方填写新 Token"
-                        else -> "账号和 Token 使用 Android Keystore 加密保存在本机"
+                        account == null -> stringResource(R.string.account_empty_cta)
+                        expired -> stringResource(R.string.account_expired_cta)
+                        else -> stringResource(R.string.account_encrypted_cta)
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = if (expired) {
@@ -658,7 +664,7 @@ private fun SheetError(message: String, onDismiss: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(message, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-            TextButton(onClick = onDismiss) { Text("关闭") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_close)) }
         }
     }
 }

@@ -1,9 +1,11 @@
 package com.lamuier.cursorT.ui.theme
 
+import androidx.annotation.StringRes
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Immutable
+import com.lamuier.cursorT.R
 import androidx.compose.ui.graphics.Color
 
 enum class ThemeMode(val storageKey: String) {
@@ -20,14 +22,14 @@ enum class ThemeMode(val storageKey: String) {
 
 enum class ColorPalette(
     val storageKey: String,
-    val displayName: String,
+    @StringRes val displayNameRes: Int,
     val previewSwatch: Color,
 ) {
-    Pulse("pulse", "冰蓝", Color(0xFF3B82F6)),
-    Aurora("aurora", "青绿", Color(0xFF0D9488)),
-    Ember("ember", "琥珀", Color(0xFFD97706)),
-    Violet("violet", "靛紫", Color(0xFF6366F1)),
-    System("system", "系统", Color(0xFF78909C)),
+    Pulse("pulse", R.string.palette_pulse, Color(0xFF3B82F6)),
+    Aurora("aurora", R.string.palette_aurora, Color(0xFF0D9488)),
+    Ember("ember", R.string.palette_ember, Color(0xFFD97706)),
+    Violet("violet", R.string.palette_violet, Color(0xFF6366F1)),
+    System("system", R.string.palette_system, Color(0xFF78909C)),
     ;
 
     companion object {

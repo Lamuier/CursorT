@@ -130,7 +130,7 @@ object TasksJsonParser {
         val modelDetails = item.optJSONObject("modelDetails")
         return AgentTask(
             id = id,
-            name = item.optString("name").ifBlank { "未命名任务" },
+            name = item.optString("name").trim(),
             status = parseStatus(item.nullableString("status")),
             repoUrl = item.nullableString("repoUrl"),
             branchName = item.nullableString("branchName"),

@@ -130,9 +130,7 @@ object AgentTaskGrouping {
         }
     }
 
-    internal fun activityMs(task: AgentTask): Long =
-        sequenceOf(task.lastActivityMs ?: 0L, task.updatedAtMs, task.createdAtMs)
-            .firstOrNull { it > 0L } ?: 0L
+    internal fun activityMs(task: AgentTask): Long = task.latestTimeMs
 
     enum class RecencyBucket(val label: String) {
         Today("今天"),

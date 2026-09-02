@@ -120,7 +120,7 @@ object TasksJsonParser {
                 val task = parseTask(item) ?: continue
                 add(task)
             }
-        }.sortedByDescending { it.updatedAtMs }
+        }.sortedByDescending { it.latestTimeMs }
     }
 
     private fun parseTask(item: JSONObject): AgentTask? {

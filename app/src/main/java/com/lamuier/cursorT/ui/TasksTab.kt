@@ -104,23 +104,26 @@ private fun TasksContent(
     val context = LocalContext.current
     val preferences = remember { DashboardPreferences.get(context) }
     val groupMode by preferences.taskGroupMode.collectAsStateWithLifecycle()
-    val activeCount = tasks.tasks.count {
+    val orderedTasks = remember(tasks.tasks) {
+        tasks.tasks.sortedByDescending { it.latestTimeMs }
+    }
+    val activeCount = orderedTasks.count {
         it.status == AgentTaskStatus.Running || it.status == AgentTaskStatus.Creating
     }
-    val grokBotCount = tasks.tasks.count { it.source == AgentTaskSource.GrokBot }
-    val groups = remember(tasks.tasks, groupMode) {
-        AgentTaskGrouping.groups(tasks.tasks, groupMode)
+    val grokBotCount = orderedTasks.count { it.source == AgentTaskSource.GrokBot }
+    val groups = remember(orderedTasks, groupMode) {
+        AgentTaskGrouping.groups(orderedTasks, groupMode)
     }
     var collapsed by remember(groupMode, tasks.accountId) { mutableStateOf(emptySet<String>()) }
     AdaptiveTabContent { compact ->
         SectionHeading(
             icon = Icons.Outlined.SmartToy,
             title = "云端任务",
-            supporting = if (tasks.tasks.isEmpty()) {
+            supporting = if (orderedTasks.isEmpty()) {
                 "暂无任务记录"
             } else {
                 buildString {
-                    append("共 ${tasks.tasks.size} 项 · $activeCount 项进行中")
+                    append("共 ${orderedTasks.size} 项 · $activeCount 项进行中")
                     if (grokBotCount > 0) append(" · $grokBotCount 项来自 Grok Bot")
                 }
             },
@@ -132,7 +135,7 @@ private fun TasksContent(
                 color = MaterialTheme.colorScheme.error,
             )
         }
-        if (tasks.tasks.isEmpty()) {
+        if (orderedTasks.isEmpty()) {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = MaterialTheme.shapes.large,
@@ -361,9 +364,7 @@ private fun TaskCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                val activity = AgentTaskPresentation.formatRelative(
-                    task.lastActivityMs ?: task.updatedAtMs,
-                )
+                val activity = AgentTaskPresentation.formatRelative(task.latestTimeMs)
                 activity?.let {
                     Text(
                         it,

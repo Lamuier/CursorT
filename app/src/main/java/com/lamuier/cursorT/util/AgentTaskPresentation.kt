@@ -4,9 +4,7 @@ import com.lamuier.cursorT.model.AgentTaskPrStatus
 import com.lamuier.cursorT.model.AgentTaskSource
 import com.lamuier.cursorT.model.AgentTaskStatus
 import java.net.URI
-import java.time.Instant
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 object AgentTaskPresentation {
@@ -73,7 +71,11 @@ object AgentTaskPresentation {
         return if (maxMode) "$shortName · Max" else shortName
     }
 
-    fun formatRelative(epochMs: Long, nowMs: Long = System.currentTimeMillis()): String? {
+    fun formatRelative(
+        epochMs: Long,
+        nowMs: Long = System.currentTimeMillis(),
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): String? {
         if (epochMs <= 0L) return null
         val diff = (nowMs - epochMs).coerceAtLeast(0L)
         return when {
@@ -81,7 +83,7 @@ object AgentTaskPresentation {
             diff < HOUR_MS -> "${diff / MINUTE_MS} 分钟前"
             diff < DAY_MS -> "${diff / HOUR_MS} 小时前"
             diff < 7L * DAY_MS -> "${diff / DAY_MS} 天前"
-            else -> DATE_TIME.format(Instant.ofEpochMilli(epochMs).atZone(ZoneId.systemDefault()))
+            else -> DisplayTime.formatEpoch(epochMs, zone)
         }
     }
 
@@ -129,6 +131,4 @@ object AgentTaskPresentation {
     private const val HOUR_MS = 3_600_000L
     private const val DAY_MS = 86_400_000L
     private val BC_ID = Regex("^bc[-_][A-Za-z0-9_-]{1,80}$")
-    private val DATE_TIME: DateTimeFormatter =
-        DateTimeFormatter.ofPattern("MM-dd HH:mm", Locale.US)
 }

@@ -3,10 +3,7 @@ package com.lamuier.cursorT.util
 import com.lamuier.cursorT.model.ComponentStatus
 import com.lamuier.cursorT.model.StatusIndicator
 import java.net.URI
-import java.time.Instant
-import java.time.OffsetDateTime
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 object StatusPresentation {
@@ -57,10 +54,8 @@ object StatusPresentation {
         else -> impact.ifBlank { "未知" }
     }
 
-    fun formatInstant(iso: String?, zoneId: ZoneId = ZoneId.systemDefault()): String? {
-        val instant = parseIso(iso) ?: return null
-        return DATE_TIME.format(instant.atZone(zoneId))
-    }
+    fun formatInstant(iso: String?, zoneId: ZoneId = ZoneId.systemDefault()): String? =
+        DisplayTime.formatIso(iso, zoneId)
 
     fun incidentUrl(shortlink: String?, incidentId: String): String? {
         shortlink?.takeIf(::isSafeStatusUrl)?.let { return it }
@@ -79,13 +74,5 @@ object StatusPresentation {
         return host == "status.cursor.com" || host == "stspg.io" || host.endsWith(".stspg.io")
     }
 
-    private fun parseIso(value: String?): Instant? {
-        if (value.isNullOrBlank()) return null
-        return runCatching { Instant.parse(value) }.getOrNull()
-            ?: runCatching { OffsetDateTime.parse(value).toInstant() }.getOrNull()
-    }
-
-    private val DATE_TIME: DateTimeFormatter =
-        DateTimeFormatter.ofPattern("MM-dd HH:mm", Locale.US)
     private val INCIDENT_ID = Regex("^[A-Za-z0-9_-]+$")
 }

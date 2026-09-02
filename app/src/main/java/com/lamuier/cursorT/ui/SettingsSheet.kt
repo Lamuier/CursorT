@@ -26,6 +26,7 @@ import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.KeyboardArrowUp
 import androidx.compose.material.icons.outlined.LightMode
 import androidx.compose.material.icons.outlined.PhoneAndroid
+import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -55,6 +56,9 @@ import com.lamuier.cursorT.data.ThemeSettings
 import com.lamuier.cursorT.model.DashboardTab
 import com.lamuier.cursorT.ui.theme.ColorPalette
 import com.lamuier.cursorT.ui.theme.ThemeMode
+import com.lamuier.cursorT.util.DisplayTime
+import com.lamuier.cursorT.util.DisplayTimeZones
+import java.time.Instant
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -64,6 +68,8 @@ internal fun SettingsSheet(
     onDismiss: () -> Unit,
     onThemeModeChange: (ThemeMode) -> Unit,
     onPaletteChange: (ColorPalette) -> Unit,
+    timeZoneId: String,
+    onTimeZoneChange: (String) -> Unit,
     onLiveUpdatesToggle: (Boolean) -> Unit,
     onThresholdRemindersToggle: (Boolean) -> Unit,
     percentDisplayMode: PercentDisplayMode,
@@ -161,6 +167,34 @@ internal fun SettingsSheet(
                             },
                         )
                     }
+                }
+            }
+
+            HorizontalDivider()
+
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                SectionTitle(stringResource(R.string.timezone_section_title))
+                Text(
+                    stringResource(R.string.timezone_section_description),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                val previewZone = DisplayTimeZones.resolve(timeZoneId)
+                Text(
+                    stringResource(
+                        R.string.timezone_preview,
+                        DisplayTime.formatDateTime(Instant.now(), previewZone, withYear = true),
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Medium,
+                )
+                DisplayTimeZones.OPTIONS.forEach { option ->
+                    TimeZoneOption(
+                        option = option,
+                        selected = timeZoneId == option.id,
+                        onClick = { onTimeZoneChange(option.id) },
+                    )
                 }
             }
 
@@ -481,6 +515,81 @@ private fun SettingToggleRow(
                 )
             }
             Switch(checked = checked, onCheckedChange = onCheckedChange)
+        }
+    }
+}
+
+@Composable
+private fun TimeZoneOption(
+    option: DisplayTimeZones.Option,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val zone = DisplayTimeZones.resolve(option.id)
+    val offset = DisplayTime.offsetLabel(zone)
+    val supporting = if (option.id == DisplayTimeZones.SYSTEM_ID) {
+        "设备当前 $offset"
+    } else {
+        offset
+    }
+    val border = if (selected) {
+        BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+    } else {
+        BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    }
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics {
+                role = Role.RadioButton
+                this.selected = selected
+                contentDescription = "${option.label}，$supporting"
+            }
+            .clip(MaterialTheme.shapes.medium)
+            .clickable(onClick = onClick),
+        shape = MaterialTheme.shapes.medium,
+        color = if (selected) {
+            MaterialTheme.colorScheme.surfaceContainerHigh
+        } else {
+            MaterialTheme.colorScheme.surfaceContainerLow
+        },
+        border = border,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Icon(
+                Icons.Outlined.Schedule,
+                contentDescription = null,
+                tint = if (selected) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    option.label,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    supporting,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (selected) {
+                Text(
+                    "已选",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
         }
     }
 }

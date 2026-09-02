@@ -22,6 +22,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import com.lamuier.cursorT.data.ThemeSettings
+import java.time.ZoneId
+
+val LocalDisplayZone = staticCompositionLocalOf { ZoneId.systemDefault() }
 
 val LocalPulseChartColors = staticCompositionLocalOf {
     PulseChartColors(

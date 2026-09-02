@@ -21,10 +21,13 @@ import com.lamuier.cursorT.R
 import com.lamuier.cursorT.data.AccountRevisionChangedException
 import com.lamuier.cursorT.data.CursorRepository
 import com.lamuier.cursorT.data.CursorStatusRepository
+import com.lamuier.cursorT.data.DashboardPreferences
 import com.lamuier.cursorT.model.CursorAccount
 import com.lamuier.cursorT.model.CursorServiceStatus
 import com.lamuier.cursorT.model.CursorTOverview
 import com.lamuier.cursorT.network.ApiException
+import com.lamuier.cursorT.util.DisplayTime
+import com.lamuier.cursorT.util.DisplayTimeZones
 import com.lamuier.cursorT.util.StatusPresentation
 import com.lamuier.cursorT.util.UsageCalculations
 import java.io.IOException
@@ -842,7 +845,7 @@ private object WidgetLoader {
                 val status = if (stableAccount.tokenExpired) {
                     "Token 已过期 · 点击更新"
                 } else {
-                    usage?.let(::cachedStatus) ?: "等待首次刷新"
+                    usage?.let { cachedStatus(context, it) } ?: "等待首次刷新"
                 }
                 result = WidgetSnapshot(stableAccount, usage, status, accountRevision = revision)
                 return@repeat
@@ -902,7 +905,7 @@ private object WidgetLoader {
         }
         if (!force && cached != null && cached.cacheAgeSeconds < CACHE_FRESH_SECONDS) {
             return WidgetLoadResult(
-                WidgetSnapshot(stableAccount, cached, cachedStatus(cached), accountRevision = revision),
+                WidgetSnapshot(stableAccount, cached, cachedStatus(context, cached), accountRevision = revision),
             )
         }
 
@@ -911,7 +914,7 @@ private object WidgetLoader {
             val latestAccount = accountAtRevision(repository, stableAccount.id, revision)
                 ?: return WidgetLoadResult(readCached(context))
             WidgetLoadResult(
-                WidgetSnapshot(latestAccount, live, liveStatus(live), accountRevision = revision),
+                WidgetSnapshot(latestAccount, live, liveStatus(context, live), accountRevision = revision),
             )
         } catch (error: ApiException) {
             val latestAccount = accountAtRevision(repository, stableAccount.id, revision)
@@ -963,11 +966,11 @@ private object WidgetLoader {
         val repository = CursorStatusRepository(context)
         val cached = runCatching { repository.cached() }.getOrNull()
         if (!force && cached != null && cached.cacheAgeSeconds < CACHE_FRESH_SECONDS) {
-            return StatusLoadResult(cached, cachedServiceLine(cached))
+            return StatusLoadResult(cached, cachedServiceLine(context, cached))
         }
         return try {
             val live = repository.fetch(forceRefresh = force)
-            StatusLoadResult(live, liveServiceLine(live))
+            StatusLoadResult(live, liveServiceLine(context, live))
         } catch (error: ApiException) {
             StatusLoadResult(
                 status = cached,
@@ -992,7 +995,7 @@ private object WidgetLoader {
         val status = runCatching { CursorStatusRepository(context).cached() }.getOrNull()
         return snapshot.copy(
             serviceStatus = status,
-            serviceStatusLine = status?.let(::cachedServiceLine) ?: "等待首次刷新",
+            serviceStatusLine = status?.let { cachedServiceLine(context, it) } ?: "等待首次刷新",
         )
     }
 
@@ -1028,28 +1031,28 @@ private object WidgetLoader {
         return current.takeIf { currentRevision == revision }
     }
 
-    private fun cachedStatus(usage: CursorTOverview): String = when {
+    private fun cachedStatus(context: Context, usage: CursorTOverview): String = when {
         usage.partialData -> "缓存 · 部分数据"
-        else -> "缓存 · ${timeLabel(usage.fetchedAt)}"
+        else -> "缓存 · ${timeLabel(context, usage.fetchedAt)}"
     }
 
-    private fun liveStatus(usage: CursorTOverview): String = when {
+    private fun liveStatus(context: Context, usage: CursorTOverview): String = when {
         usage.partialData -> "已更新 · 部分数据"
-        else -> "更新 ${timeLabel(usage.fetchedAt)}"
+        else -> "更新 ${timeLabel(context, usage.fetchedAt)}"
     }
 
-    private fun cachedServiceLine(status: CursorServiceStatus): String = when {
+    private fun cachedServiceLine(context: Context, status: CursorServiceStatus): String = when {
         status.partialHistory -> "缓存 · 部分数据"
-        else -> "缓存 · ${timeLabel(status.fetchedAt)}"
+        else -> "缓存 · ${timeLabel(context, status.fetchedAt)}"
     }
 
-    private fun liveServiceLine(status: CursorServiceStatus): String = when {
+    private fun liveServiceLine(context: Context, status: CursorServiceStatus): String = when {
         status.partialHistory -> "已更新 · 部分数据"
-        else -> "更新 ${timeLabel(status.fetchedAt)}"
+        else -> "更新 ${timeLabel(context, status.fetchedAt)}"
     }
 
-    private fun timeLabel(value: String): String = value
-        .takeIf { it.length >= 16 }
-        ?.substring(11, 16)
-        ?: "完成"
+    private fun timeLabel(context: Context, value: String): String {
+        val zone = DisplayTimeZones.resolve(DashboardPreferences.get(context).readTimeZoneId())
+        return DisplayTime.formatStoredClock(value, zone) ?: "完成"
+    }
 }

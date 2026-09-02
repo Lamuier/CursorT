@@ -26,7 +26,7 @@ class StatusPresentationTest {
     @Test
     fun formatInstant_usesUtcClockForKnownTimestamp() {
         assertEquals(
-            "08-19 02:43",
+            "08-19 02:43 GMT",
             StatusPresentation.formatInstant("2026-08-19T02:43:55.847Z", ZoneOffset.UTC),
         )
     }

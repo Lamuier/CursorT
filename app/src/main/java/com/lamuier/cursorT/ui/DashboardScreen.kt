@@ -131,8 +131,10 @@ import com.lamuier.cursorT.model.DashboardTab
 import com.lamuier.cursorT.model.ModelTokenUsage
 import com.lamuier.cursorT.model.TokenUsageBreakdown
 import com.lamuier.cursorT.model.UsageWindow
+import com.lamuier.cursorT.ui.theme.LocalDisplayZone
 import com.lamuier.cursorT.ui.theme.LocalPulseChartColors
 import com.lamuier.cursorT.util.BillingProgress
+import com.lamuier.cursorT.util.DisplayTime
 import com.lamuier.cursorT.util.UsageCalculations
 import com.lamuier.cursorT.util.UsageHistoryWindows
 import com.lamuier.cursorT.util.UsageLevel
@@ -142,7 +144,6 @@ import androidx.lifecycle.repeatOnLifecycle
 import java.util.Locale
 import kotlinx.coroutines.delay
 import java.time.YearMonth
-import java.time.ZoneId
 import kotlinx.coroutines.launch
 
 /** 周期倒计时/百分比的本地走动间隔（仅重算时间，不触发网络请求）。 */
@@ -689,8 +690,14 @@ private fun OverviewTab(usage: CursorTOverview) {
         val level = remember(percent) { UsageCalculations.level(percent) }
         val percentKnown = !usage.isTeam || limit > 0.0
         val nowMillis = rememberNowMillis()
-        val billing = remember(usage, nowMillis) {
-            UsageCalculations.billingProgress(usage.billingCycle.start, usage.billingCycle.end, nowMillis)
+        val zone = LocalDisplayZone.current
+        val billing = remember(usage, nowMillis, zone) {
+            UsageCalculations.billingProgress(
+                usage.billingCycle.start,
+                usage.billingCycle.end,
+                nowMillis,
+                displayZone = zone,
+            )
         }
         val quotaTiles = remember(usage, limit, chartColors) {
             val pools = UsageCalculations.poolSpend(usage.tokenUsage)
@@ -848,8 +855,13 @@ private fun OverviewTab(usage: CursorTOverview) {
             MetricRowCard(tiles = tokenTiles, compact = compact)
         }
         usage.grokBot?.let { grok ->
-            val grokProgress = remember(grok, nowMillis) {
-                UsageCalculations.billingProgress(grok.periodStart, grok.resetsAt, nowMillis)
+            val grokProgress = remember(grok, nowMillis, zone) {
+                UsageCalculations.billingProgress(
+                    grok.periodStart,
+                    grok.resetsAt,
+                    nowMillis,
+                    displayZone = zone,
+                )
             }
             Surface(
                 modifier = Modifier.fillMaxWidth(),
@@ -905,7 +917,8 @@ private fun OverviewCycleRow(billing: BillingProgress?, planCycleEnd: String?) {
             Text(
                 when {
                     billing != null -> "${billing.startLabel} — ${billing.endLabel}"
-                    !planCycleEnd.isNullOrBlank() -> "结束于 ${planCycleEnd.take(10)}"
+                    !planCycleEnd.isNullOrBlank() ->
+                        "结束于 ${DisplayTime.formatStoredDateTime(planCycleEnd, LocalDisplayZone.current) ?: planCycleEnd.take(10)}"
                     else -> "暂未返回周期信息"
                 },
                 style = MaterialTheme.typography.bodyMedium,
@@ -942,7 +955,7 @@ private fun DotLabel(color: Color, text: String) {
 
 @Composable
 private fun FreshnessRow(usage: CursorTOverview) {
-    val stamp = usage.fetchedAt.takeIf { it.length >= 16 }?.substring(11, 16)
+    val stamp = DisplayTime.formatStoredClock(usage.fetchedAt, LocalDisplayZone.current)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -1016,8 +1029,14 @@ private fun UsageTab(
 
         usage.grokBot?.let { grok ->
             val nowMillis = rememberNowMillis()
-            val grokProgress = remember(grok, nowMillis) {
-                UsageCalculations.billingProgress(grok.periodStart, grok.resetsAt, nowMillis)
+            val zone = LocalDisplayZone.current
+            val grokProgress = remember(grok, nowMillis, zone) {
+                UsageCalculations.billingProgress(
+                    grok.periodStart,
+                    grok.resetsAt,
+                    nowMillis,
+                    displayZone = zone,
+                )
             }
             SectionHeading(
                 icon = Icons.Outlined.SmartToy,
@@ -1151,17 +1170,17 @@ private fun HistoryUsageSection(
     compact: Boolean,
 ) {
     val chartColors = LocalPulseChartColors.current
-    val zone = remember { ZoneId.systemDefault() }
-    val nowMonth = remember { YearMonth.now(zone) }
+    val zone = LocalDisplayZone.current
+    val nowMonth = remember(zone) { YearMonth.now(zone) }
     var mode by remember { mutableStateOf(HistoryQueryMode.CalendarMonth) }
     var selectedMonth by remember { mutableStateOf(nowMonth) }
     var cycleOffset by remember { mutableIntStateOf(-1) }
     val selectedMonthKey = UsageHistoryWindows.yearMonthKey(selectedMonth)
     val cycleStartMs = remember(usage.billingCycle.start) {
-        UsageHistoryWindows.parseLocalDateTimeMs(usage.billingCycle.start, zone)
+        UsageHistoryWindows.parseLocalDateTimeMs(usage.billingCycle.start)
     }
     val cycleEndMs = remember(usage.billingCycle.end) {
-        UsageHistoryWindows.parseLocalDateTimeMs(usage.billingCycle.end, zone)
+        UsageHistoryWindows.parseLocalDateTimeMs(usage.billingCycle.end)
     }
     val selectedCycleRange = remember(cycleStartMs, cycleEndMs, cycleOffset) {
         if (cycleStartMs == null || cycleEndMs == null) {
@@ -1171,9 +1190,9 @@ private fun HistoryUsageSection(
         }
     }
     val selectedCycleKey = selectedCycleRange?.let { UsageHistoryWindows.cycleKey(it.startMs) }
-    LaunchedEffect(selectedMonthKey, mode, usage.accountId) {
+    LaunchedEffect(selectedMonthKey, mode, usage.accountId, zone) {
         if (mode != HistoryQueryMode.CalendarMonth) return@LaunchedEffect
-        val monthRange = UsageHistoryWindows.calendarMonth(selectedMonth)
+        val monthRange = UsageHistoryWindows.calendarMonth(selectedMonth, zone = zone)
         if (usage.history?.calendarMonth?.yearMonth != selectedMonthKey &&
             extraHistory[selectedMonthKey] == null
         ) {
@@ -1945,7 +1964,15 @@ private fun rememberNowMillis(): Long {
 @Composable
 private fun BillingCycleChart(usage: CursorTOverview, compact: Boolean) {
     val nowMillis = rememberNowMillis()
-    val billing = UsageCalculations.billingProgress(usage.billingCycle.start, usage.billingCycle.end, nowMillis)
+    val zone = LocalDisplayZone.current
+    val billing = remember(usage, nowMillis, zone) {
+        UsageCalculations.billingProgress(
+            usage.billingCycle.start,
+            usage.billingCycle.end,
+            nowMillis,
+            displayZone = zone,
+        )
+    }
     val animatedProgress by animateFloatAsState(
         targetValue = billing?.let { (it.percent / 100f).coerceIn(0f, 1f) } ?: 0f,
         animationSpec = tween(560, easing = FastOutSlowInEasing),
@@ -1966,7 +1993,9 @@ private fun BillingCycleChart(usage: CursorTOverview, compact: Boolean) {
             SectionHeading(icon = Icons.Outlined.CalendarMonth, title = "计费周期")
             if (billing == null) {
                 Text(
-                    usage.plan.billingCycleEnd?.let { "周期结束：$it" } ?: "暂未返回周期信息",
+                    usage.plan.billingCycleEnd?.let {
+                        "周期结束：${DisplayTime.formatStoredDateTime(it, zone) ?: it}"
+                    } ?: "暂未返回周期信息",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             } else {

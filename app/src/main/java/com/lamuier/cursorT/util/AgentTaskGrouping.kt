@@ -1,6 +1,7 @@
 package com.lamuier.cursorT.util
 
 import com.lamuier.cursorT.model.AgentTask
+import com.lamuier.cursorT.model.AgentTaskPrStatus
 import com.lamuier.cursorT.model.AgentTaskSource
 import com.lamuier.cursorT.model.AgentTaskStatus
 import com.lamuier.cursorT.model.TaskGroupMode
@@ -15,6 +16,9 @@ data class AgentTaskGroup(
 )
 
 object AgentTaskGrouping {
+    fun visibleTasks(tasks: List<AgentTask>): List<AgentTask> =
+        tasks.filter { it.prStatus != AgentTaskPrStatus.Merged }
+
     fun groups(
         tasks: List<AgentTask>,
         mode: TaskGroupMode,

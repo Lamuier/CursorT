@@ -3,6 +3,7 @@ package com.lamuier.cursorT.network
 import com.lamuier.cursorT.model.AgentTaskPrStatus
 import com.lamuier.cursorT.model.AgentTaskSource
 import com.lamuier.cursorT.model.AgentTaskStatus
+import com.lamuier.cursorT.util.AgentTaskGrouping
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -146,6 +147,18 @@ class TasksJsonParserTest {
         )
         val tasks = TasksJsonParser.parse(payload, accountId = 1)
         assertEquals(AgentTaskSource.Unknown, tasks.tasks.single().source)
+    }
+
+    @Test
+    fun parse_isPrMergedWithoutStatus_marksMerged() {
+        val payload = JSONObject(
+            """
+            {"composers":[{"bcId":"bc-m","name":"t","status":"finished","isPrMerged":true}]}
+            """.trimIndent(),
+        )
+        val tasks = TasksJsonParser.parse(payload, accountId = 1)
+        assertEquals(AgentTaskPrStatus.Merged, tasks.tasks.single().prStatus)
+        assertTrue(AgentTaskGrouping.visibleTasks(tasks.tasks).isEmpty())
     }
 
     private fun resource(name: String): String =

@@ -49,7 +49,9 @@ import com.lamuier.cursorT.model.ComponentStatus
 import com.lamuier.cursorT.model.CursorServiceStatus
 import com.lamuier.cursorT.model.StatusIncident
 import com.lamuier.cursorT.model.StatusIndicator
+import com.lamuier.cursorT.ui.theme.LocalDisplayZone
 import com.lamuier.cursorT.ui.theme.LocalPulseChartColors
+import com.lamuier.cursorT.util.DisplayTime
 import com.lamuier.cursorT.util.StatusPresentation
 
 @Composable
@@ -361,7 +363,10 @@ private fun IncidentCard(
                 if (incident.impact.isNotBlank() && incident.impact != "none") {
                     StatusChip(label = StatusPresentation.impactLabel(incident.impact))
                 }
-                StatusPresentation.formatInstant(incident.updatedAt ?: incident.resolvedAt ?: incident.createdAt)
+                StatusPresentation.formatInstant(
+                    incident.updatedAt ?: incident.resolvedAt ?: incident.createdAt,
+                    LocalDisplayZone.current,
+                )
                     ?.let { StatusChip(label = it) }
             }
             if (incident.affectedComponents.isNotEmpty()) {
@@ -388,7 +393,7 @@ private fun IncidentCard(
 
 @Composable
 private fun StatusFreshnessRow(status: CursorServiceStatus) {
-    val stamp = status.fetchedAt.takeIf { it.length >= 16 }?.substring(11, 16)
+    val stamp = DisplayTime.formatStoredClock(status.fetchedAt, LocalDisplayZone.current)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),

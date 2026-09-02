@@ -54,10 +54,12 @@ import com.lamuier.cursorT.model.AgentTaskSource
 import com.lamuier.cursorT.model.AgentTaskStatus
 import com.lamuier.cursorT.model.CursorTasks
 import com.lamuier.cursorT.model.TaskGroupMode
+import com.lamuier.cursorT.ui.theme.LocalDisplayZone
 import com.lamuier.cursorT.ui.theme.LocalPulseChartColors
 import com.lamuier.cursorT.util.AgentTaskGrouping
 import com.lamuier.cursorT.util.AgentTaskPresentation
 import com.lamuier.cursorT.util.CursorCustomTabs
+import com.lamuier.cursorT.util.DisplayTime
 import java.util.Locale
 
 @Composable
@@ -104,27 +106,28 @@ private fun TasksContent(
     val context = LocalContext.current
     val preferences = remember { DashboardPreferences.get(context) }
     val groupMode by preferences.taskGroupMode.collectAsStateWithLifecycle()
-    val orderedTasks = remember(tasks.tasks) {
-        tasks.tasks.sortedByDescending { it.latestTimeMs }
-    }
-    val activeCount = orderedTasks.count {
+    val zone = LocalDisplayZone.current
+    val visibleTasks = remember(tasks.tasks) { AgentTaskGrouping.visibleTasks(tasks.tasks) }
+    val hiddenMergedCount = tasks.tasks.size - visibleTasks.size
+    val activeCount = visibleTasks.count {
         it.status == AgentTaskStatus.Running || it.status == AgentTaskStatus.Creating
     }
-    val grokBotCount = orderedTasks.count { it.source == AgentTaskSource.GrokBot }
-    val groups = remember(orderedTasks, groupMode) {
-        AgentTaskGrouping.groups(orderedTasks, groupMode)
+    val grokBotCount = visibleTasks.count { it.source == AgentTaskSource.GrokBot }
+    val groups = remember(visibleTasks, groupMode, zone) {
+        AgentTaskGrouping.groups(visibleTasks, groupMode, zone = zone)
     }
     var collapsed by remember(groupMode, tasks.accountId) { mutableStateOf(emptySet<String>()) }
     AdaptiveTabContent { compact ->
         SectionHeading(
             icon = Icons.Outlined.SmartToy,
             title = "云端任务",
-            supporting = if (orderedTasks.isEmpty()) {
-                "暂无任务记录"
-            } else {
-                buildString {
-                    append("共 ${orderedTasks.size} 项 · $activeCount 项进行中")
+            supporting = when {
+                tasks.tasks.isEmpty() -> "暂无任务记录"
+                visibleTasks.isEmpty() -> "已合并的分支已从列表移除（$hiddenMergedCount 项）"
+                else -> buildString {
+                    append("共 ${visibleTasks.size} 项 · $activeCount 项进行中")
                     if (grokBotCount > 0) append(" · $grokBotCount 项来自 Grok Bot")
+                    if (hiddenMergedCount > 0) append(" · 已移除 $hiddenMergedCount 项已合并")
                 }
             },
         )
@@ -135,14 +138,18 @@ private fun TasksContent(
                 color = MaterialTheme.colorScheme.error,
             )
         }
-        if (orderedTasks.isEmpty()) {
+        if (visibleTasks.isEmpty()) {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = MaterialTheme.shapes.large,
                 color = MaterialTheme.colorScheme.surfaceContainerLow,
             ) {
                 Text(
-                    "暂无云端任务。可在 Cursor 网页或 Grok Bot 启动后台智能体后下拉刷新；点击任务会用 Chrome 打开官方对话页。",
+                    if (hiddenMergedCount > 0) {
+                        "已合并分支的任务已从列表移除。可在网页打开 Cursor Agents 查看完整记录。"
+                    } else {
+                        "暂无云端任务。可在 Cursor 网页或 Grok Bot 启动后台智能体后下拉刷新；点击任务会用 Chrome 打开官方对话页。"
+                    },
                     modifier = Modifier.padding(if (compact) 14.dp else 18.dp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -157,28 +164,38 @@ private fun TasksContent(
                             index = index,
                             count = TaskGroupMode.entries.size,
                         ),
+                        icon = {},
                     ) {
-                        Text(mode.label)
+                        Text(mode.label, maxLines = 1)
                     }
                 }
             }
             groups.forEach { group ->
                 val expanded = group.key !in collapsed
-                TaskGroupHeader(
-                    title = group.title,
-                    count = group.tasks.size,
-                    activeCount = group.tasks.count {
-                        it.status == AgentTaskStatus.Running ||
-                            it.status == AgentTaskStatus.Creating
-                    },
-                    expanded = expanded,
-                    onToggle = {
-                        collapsed = if (expanded) collapsed + group.key else collapsed - group.key
-                    },
-                )
-                if (expanded) {
-                    group.tasks.forEach { task ->
-                        TaskCard(task, compact, openUrl, onOpenFailed)
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 10.dp),
+                ) {
+                    TaskGroupHeader(
+                        title = group.title,
+                        count = group.tasks.size,
+                        activeCount = group.tasks.count {
+                            it.status == AgentTaskStatus.Running ||
+                                it.status == AgentTaskStatus.Creating
+                        },
+                        expanded = expanded,
+                        onToggle = {
+                            collapsed = if (expanded) {
+                                collapsed + group.key
+                            } else {
+                                collapsed - group.key
+                            }
+                        },
+                    )
+                    if (expanded) {
+                        group.tasks.forEach { task ->
+                            TaskCard(task, compact, openUrl, onOpenFailed)
+                        }
                     }
                 }
             }
@@ -364,7 +381,10 @@ private fun TaskCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                val activity = AgentTaskPresentation.formatRelative(task.latestTimeMs)
+                val activity = AgentTaskPresentation.formatRelative(
+                    task.latestTimeMs,
+                    zone = LocalDisplayZone.current,
+                )
                 activity?.let {
                     Text(
                         it,
@@ -420,7 +440,7 @@ internal fun TaskChip(label: String, color: Color) {
 
 @Composable
 private fun TasksFreshnessRow(tasks: CursorTasks) {
-    val stamp = tasks.fetchedAt.takeIf { it.length >= 16 }?.substring(11, 16)
+    val stamp = DisplayTime.formatStoredClock(tasks.fetchedAt, LocalDisplayZone.current)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),

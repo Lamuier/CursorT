@@ -78,7 +78,8 @@ Android App（本机）
 - Alias 与 Access Token 使用 Android Keystore 不可导出密钥 + AES-GCM 加密保存。
 - Token 仅发往固定 Cursor 官方 HTTPS 域名，禁止重定向，不允许自定义服务地址。状态页请求不携带 Token。Custom Tabs 由系统浏览器发起，不携带本应用 Access Token。
 - Token 不进入 `savedInstanceState`、日志或用量 / 任务缓存；Release 禁止应用数据备份、设备迁移及明文 HTTP。
-- 仅缓存解析后的用量与任务字段（任务缓存同样按 账号+凭据修订号 加密存储），不保存 Cursor 原始响应。任务对话不在应用内请求，改为打开官方网页。任务列表请求会带上 `include_sources`（含 `BACKGROUND_COMPOSER_SOURCE_GROK_BOT`），解析 `source` 后按仓库 / 状态 / 时间 / 来源分组展示。
+- 仅缓存解析后的用量与任务字段（任务缓存同样按 账号+凭据修订号 加密存储），不保存 Cursor 原始响应。任务对话不在应用内请求，改为打开官方网页。任务列表请求会带上 `include_sources`（含 `BACKGROUND_COMPOSER_SOURCE_GROK_BOT`），解析 `source` 后按仓库 / 状态 / 时间 / 来源分组展示；已合并 PR 的任务不进入任务页列表。
+- 绝对时间按设置中的展示时区格式化并附带 GMT 偏移（默认跟随系统）；本机无时区的缓存时间戳按写入时的系统时区解读后再换算。
 - Custom Tabs 目标 URL 必须通过白名单：`cursor.com/agents`（无查询串或仅 `id=<bcId>`），或无 query/fragment 的 `github.com` HTTPS 链接。
 - 服务状态使用 Statuspage 公开 JSON（`/api/v2/summary.json` 与 `/api/v2/incidents.json`），不解析 HTML、不订阅 RSS。`summary.json` 含总览、组件与未恢复事件；`incidents.json` 提供近期历史。二者均为官方、结构化、无需鉴权的接口。
 - 桌面小组件运行在独立进程 `:widgetProvider`。用量与状态两套小组件共用同一个 JobService 刷新调度（缓存 TTL 15 分钟）。仅放置状态小组件时不会请求用量接口；状态请求不携带 Token。

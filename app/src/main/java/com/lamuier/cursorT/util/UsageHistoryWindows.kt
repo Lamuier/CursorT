@@ -87,9 +87,10 @@ object UsageHistoryWindows {
         range: EpochRange,
         zone: ZoneId = ZoneId.systemDefault(),
     ): Pair<String, String> {
-        val fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(zone)
-        return fmt.format(Instant.ofEpochMilli(range.startMs)) to
-            fmt.format(Instant.ofEpochMilli(range.endMs))
+        val start = Instant.ofEpochMilli(range.startMs)
+        val end = Instant.ofEpochMilli(range.endMs)
+        return DisplayTime.formatDateTime(start, zone, withYear = true, includeTime = true) to
+            DisplayTime.formatDateTime(end, zone, withYear = true, includeTime = true)
     }
 
     fun parseEpochMillis(value: Any?): Long? {

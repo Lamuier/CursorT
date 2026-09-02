@@ -135,7 +135,8 @@ object TasksJsonParser {
             repoUrl = item.nullableString("repoUrl"),
             branchName = item.nullableString("branchName"),
             prUrl = item.nullableString("prUrl"),
-            prStatus = parsePrStatus(item.nullableString("prStatus")),
+            prStatus = parsePrStatus(item.nullableString("prStatus"))
+                ?: if (item.optBoolean("isPrMerged", false)) AgentTaskPrStatus.Merged else null,
             linesAdded = item.optInt("linesAdded", 0).coerceAtLeast(0),
             linesRemoved = item.optInt("linesRemoved", 0).coerceAtLeast(0),
             filesChanged = item.optInt("filesChanged", 0).coerceAtLeast(0),

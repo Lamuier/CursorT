@@ -16,7 +16,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDateTime
-import java.time.ZoneId
+import java.time.ZoneOffset
 
 class UsageCalculationsTest {
     @Test
@@ -52,55 +52,57 @@ class UsageCalculationsTest {
 
     @Test
     fun billingProgress_reportsElapsedAndRemainingDays() {
-        val zone = ZoneId.systemDefault()
+        val zone = ZoneOffset.ofHours(8)
         val start = LocalDateTime.of(2026, 7, 1, 0, 0)
-        val end = start.plusDays(30)
         val now = start.plusDays(10).plusHours(12).atZone(zone).toInstant().toEpochMilli()
         val result = UsageCalculations.billingProgress(
             start = "2026-07-01 00:00:00",
             end = "2026-07-31 00:00:00",
             nowMillis = now,
+            displayZone = zone,
+            storageZone = zone,
         )
         assertNotNull(result)
         assertEquals(30, result!!.totalDays)
         assertEquals(10, result.elapsedDays)
         assertEquals(20, result.remainingDays)
         assertEquals(35f, result.percent, 0.01f)
-        // 结束时间精确到分钟，剩余时间精确到毫秒；同年周期省略年份。
-        assertEquals("07-01", result.startLabel)
-        assertEquals("07-31 00:00", result.endLabel)
+        assertEquals("07-01 GMT+8", result.startLabel)
+        assertEquals("07-31 00:00 GMT+8", result.endLabel)
         assertEquals(19L * 24 * 60 * 60_000 + 12 * 60 * 60_000, result.remainingMillis)
     }
 
     @Test
     fun billingProgress_labelsKeepYearAcrossYears() {
-        val zone = ZoneId.systemDefault()
+        val zone = ZoneOffset.ofHours(8)
         val start = LocalDateTime.of(2026, 12, 1, 0, 0)
         val now = start.plusDays(10).atZone(zone).toInstant().toEpochMilli()
         val result = UsageCalculations.billingProgress(
             start = "2026-12-01 00:00:00",
             end = "2027-01-01 00:00:00",
             nowMillis = now,
+            displayZone = zone,
+            storageZone = zone,
         )
         assertNotNull(result)
-        // 跨年周期保留年份避免歧义。
-        assertEquals("2026-12-01", result!!.startLabel)
-        assertEquals("2027-01-01 00:00", result.endLabel)
+        assertEquals("2026-12-01 GMT+8", result!!.startLabel)
+        assertEquals("2027-01-01 00:00 GMT+8", result.endLabel)
     }
 
     @Test
     fun billingProgress_endLabelOmitsTimeWhenAbsent() {
-        val zone = ZoneId.systemDefault()
+        val zone = ZoneOffset.ofHours(8)
         val start = LocalDateTime.of(2026, 7, 1, 0, 0)
         val now = start.atZone(zone).toInstant().toEpochMilli()
         val result = UsageCalculations.billingProgress(
             start = "2026-07-01 00:00:00",
             end = "2026-07-31",
             nowMillis = now,
+            displayZone = zone,
+            storageZone = zone,
         )
         assertNotNull(result)
-        // 结束值只有日期时不追加时刻。
-        assertEquals("07-31", result!!.endLabel)
+        assertEquals("07-31 GMT+8", result!!.endLabel)
     }
 
     @Test

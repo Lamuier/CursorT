@@ -22,6 +22,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -47,8 +48,10 @@ import com.lamuier.cursorT.model.CursorAccount
 import com.lamuier.cursorT.model.DashboardTab
 import com.lamuier.cursorT.model.ShortcutAction
 import com.lamuier.cursorT.ui.theme.ColorPalette
+import com.lamuier.cursorT.ui.theme.LocalDisplayZone
 import com.lamuier.cursorT.ui.theme.ThemeMode
 import com.lamuier.cursorT.util.DeviceCredentialGate
+import com.lamuier.cursorT.util.DisplayTimeZones
 import com.lamuier.cursorT.util.SensitiveContent
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -64,6 +67,8 @@ fun CursorTApp(
     onShortcutActionConsumed: () -> Unit,
     onThemeModeChange: (ThemeMode) -> Unit,
     onPaletteChange: (ColorPalette) -> Unit,
+    timeZoneId: String,
+    onTimeZoneChange: (String) -> Unit,
     onLiveUpdatesToggle: (Boolean) -> Unit,
     onThresholdRemindersToggle: (Boolean) -> Unit,
     percentDisplayMode: PercentDisplayMode,
@@ -91,6 +96,7 @@ fun CursorTApp(
 
     val activity = LocalContext.current.findFragmentActivity()
     val scope = rememberCoroutineScope()
+    val displayZone = remember(timeZoneId) { DisplayTimeZones.resolve(timeZoneId) }
 
     // 直接发起设备验证，通过后读取并明文展示已保存的 Token，无需进入账号面板。
     fun requestShortcutTokenReveal(target: CursorAccount) {
@@ -231,6 +237,7 @@ fun CursorTApp(
         }
     }
 
+    CompositionLocalProvider(LocalDisplayZone provides displayZone) {
     when (state.stage) {
         AppStage.Booting -> BootScreen()
         AppStage.Dashboard -> DashboardScreen(
@@ -270,6 +277,8 @@ fun CursorTApp(
             onDismiss = { showSettings = false },
             onThemeModeChange = onThemeModeChange,
             onPaletteChange = onPaletteChange,
+            timeZoneId = timeZoneId,
+            onTimeZoneChange = onTimeZoneChange,
             onLiveUpdatesToggle = onLiveUpdatesToggle,
             onThresholdRemindersToggle = onThresholdRemindersToggle,
             percentDisplayMode = percentDisplayMode,
@@ -331,6 +340,7 @@ fun CursorTApp(
             token = token,
             onDismiss = { revealedToken = null },
         )
+    }
     }
 }
 

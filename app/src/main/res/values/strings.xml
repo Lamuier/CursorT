@@ -40,9 +40,12 @@
     <string name="shortcut_settings_short_label">设置</string>
     <string name="shortcut_settings_long_label">应用设置</string>
     <string name="settings_title">设置</string>
-    <string name="settings_description">外观、页签、通知与账号统一管理</string>
+    <string name="settings_description">外观、时区、页签、通知与账号统一管理</string>
     <string name="appearance_title">外观</string>
     <string name="appearance_description">深浅色与主题色板会同步到桌面小组件</string>
+    <string name="timezone_section_title">时区</string>
+    <string name="timezone_section_description">界面上的绝对时间会按此时区显示，并带上 GMT 偏移</string>
+    <string name="timezone_preview">当前时间：%1$s</string>
     <string name="tab_order_section_title">页签顺序</string>
     <string name="tab_order_section_description">调整主界面功能页签的左右顺序，当前页签会跟着一起移动</string>
     <string name="tab_order_move_up">上移%1$s</string>

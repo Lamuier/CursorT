@@ -4,10 +4,8 @@ import com.lamuier.cursorT.model.CursorTOverview
 import com.lamuier.cursorT.model.TokenUsageBreakdown
 import com.lamuier.cursorT.model.TotalFormat
 import java.time.Duration
-import java.time.LocalDateTime
+import java.time.Instant
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.time.format.DateTimeParseException
 import java.util.Locale
 import kotlin.math.ceil
 import kotlin.math.floor
@@ -65,9 +63,11 @@ object UsageCalculations {
         start: String?,
         end: String?,
         nowMillis: Long = System.currentTimeMillis(),
+        displayZone: ZoneId = ZoneId.systemDefault(),
+        storageZone: ZoneId = ZoneId.systemDefault(),
     ): BillingProgress? {
-        val startMillis = parseDate(start) ?: return null
-        val endMillis = parseDate(end) ?: return null
+        val startMillis = parseDate(start, storageZone) ?: return null
+        val endMillis = parseDate(end, storageZone) ?: return null
         if (endMillis <= startMillis) return null
 
         val totalMillis = endMillis - startMillis
@@ -75,27 +75,29 @@ object UsageCalculations {
         val dayMillis = Duration.ofDays(1).toMillis().toDouble()
         val totalDays = ceil(totalMillis / dayMillis).toInt().coerceAtLeast(1)
         val elapsedDays = floor(elapsedMillis / dayMillis).toInt().coerceIn(0, totalDays)
-        // 同一年内省略年份以缩短展示；跨年周期才保留年份避免歧义。
-        val withYear = start?.take(4) != end?.take(4)
+        val startInstant = Instant.ofEpochMilli(startMillis)
+        val endInstant = Instant.ofEpochMilli(endMillis)
+        val withYear = startInstant.atZone(displayZone).year != endInstant.atZone(displayZone).year
         return BillingProgress(
             totalDays = totalDays,
             elapsedDays = elapsedDays,
             remainingDays = (totalDays - elapsedDays).coerceAtLeast(0),
             percent = (elapsedMillis.toDouble() / totalMillis * 100.0).toFloat().coerceIn(0f, 100f),
-            startLabel = start?.let { cycleDateLabel(it, withYear) } ?: "—",
-            // 结束时间精确到分钟，展示重置的具体时刻而非仅日期。
-            endLabel = end?.let { cycleDateLabel(it, withYear) + cycleTimeLabel(it) } ?: "—",
+            startLabel = DisplayTime.formatDateTime(
+                startInstant,
+                displayZone,
+                withYear = withYear,
+                includeTime = false,
+            ),
+            endLabel = DisplayTime.formatDateTime(
+                endInstant,
+                displayZone,
+                withYear = withYear,
+                includeTime = (end?.trim()?.length ?: 0) >= 16,
+            ),
             remainingMillis = (endMillis - nowMillis).coerceIn(0, totalMillis),
         )
     }
-
-    private fun cycleDateLabel(value: String, withYear: Boolean): String {
-        val date = value.take(10)
-        return if (withYear) date else date.substring(5)
-    }
-
-    private fun cycleTimeLabel(value: String): String =
-        if (value.length >= 16) " " + value.substring(11, 16) else ""
 
     /**
      * 精确到分钟的重置倒计时文案：优先「天 + 小时」，不足一天用「小时 + 分」，不足一小时用「分」。
@@ -193,22 +195,7 @@ object UsageCalculations {
             name.startsWith("cursor")
     }
 
-    private fun parseDate(value: String?): Long? {
-        if (value.isNullOrBlank()) return null
-        // 兼容纯日期（yyyy-MM-dd），按当天零点处理。
-        val normalized = if (value.length == 10) {
-            value + "T00:00:00"
-        } else {
-            value.replace(' ', 'T')
-        }
-        return try {
-            LocalDateTime.parse(normalized, DateTimeFormatter.ISO_LOCAL_DATE_TIME)
-                .atZone(ZoneId.systemDefault())
-                .toInstant()
-                .toEpochMilli()
-        } catch (_: DateTimeParseException) {
-            null
-        }
-    }
+    private fun parseDate(value: String?, storageZone: ZoneId): Long? =
+        DisplayTime.parseStoredLocal(value, storageZone)?.toEpochMilli()
 }
 

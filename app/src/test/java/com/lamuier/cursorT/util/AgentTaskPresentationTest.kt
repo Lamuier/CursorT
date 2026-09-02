@@ -53,4 +53,15 @@ class AgentTaskPresentationTest {
         assertNull(AgentTaskPresentation.repoDisplayName("  "))
         assertNull(AgentTaskPresentation.repoDisplayName(null))
     }
+
+    @Test
+    fun formatRelative_oldTimestampIncludesZone() {
+        val now = java.time.Instant.parse("2026-08-25T00:00:00Z").toEpochMilli()
+        val old = java.time.Instant.parse("2026-08-15T00:00:00Z").toEpochMilli()
+        assertEquals(
+            "08-15 00:00 GMT",
+            AgentTaskPresentation.formatRelative(old, nowMs = now, zone = java.time.ZoneOffset.UTC),
+        )
+        assertEquals("刚刚", AgentTaskPresentation.formatRelative(now - 1_000L, nowMs = now))
+    }
 }

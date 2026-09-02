@@ -50,6 +50,7 @@ class MainActivity : FragmentActivity() {
             val themeSettings by themePreferences.settings.collectAsStateWithLifecycle()
             val notificationSettings by notificationPreferences.settings.collectAsStateWithLifecycle()
             val tabOrder by dashboardPreferences.order.collectAsStateWithLifecycle()
+            val timeZoneId by dashboardPreferences.timeZoneId.collectAsStateWithLifecycle()
             CursorTTheme(settings = themeSettings) {
                 CursorTApp(
                     viewModel = viewModel,
@@ -65,7 +66,12 @@ class MainActivity : FragmentActivity() {
                         themePreferences.setColorPalette(palette)
                         CursorTWidgetUpdater.requestUpdate(applicationContext)
                     },
-                onLiveUpdatesToggle = { enabled ->
+                    timeZoneId = timeZoneId,
+                    onTimeZoneChange = { id ->
+                        dashboardPreferences.setTimeZoneId(id)
+                        CursorTWidgetUpdater.requestUpdate(applicationContext)
+                    },
+                    onLiveUpdatesToggle = { enabled ->
                     notificationPreferences.setLiveUpdatesEnabled(enabled)
                     if (enabled) {
                         ensureNotificationPermissionAndRefresh()

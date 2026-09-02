@@ -1,6 +1,7 @@
 package com.lamuier.cursorT.util
 
 import com.lamuier.cursorT.model.AgentTask
+import com.lamuier.cursorT.model.AgentTaskPrStatus
 import com.lamuier.cursorT.model.AgentTaskSource
 import com.lamuier.cursorT.model.AgentTaskStatus
 import com.lamuier.cursorT.model.TaskGroupMode
@@ -74,6 +75,42 @@ class AgentTaskGroupingTest {
     }
 
     @Test
+    fun groupsByRepository_sortsTasksInsideGroupByLatestTime() {
+        val groups = AgentTaskGrouping.groups(
+            tasks = listOf(
+                task(
+                    id = "old-activity",
+                    repo = "github.com/acme/app",
+                    created = 1,
+                    updated = 50,
+                    lastActivity = 10,
+                ),
+                task(
+                    id = "new-activity",
+                    repo = "github.com/acme/app",
+                    created = 1,
+                    updated = 20,
+                    lastActivity = 80,
+                ),
+            ),
+            mode = TaskGroupMode.Repository,
+        )
+        assertEquals(listOf("new-activity", "old-activity"), groups.single().tasks.map { it.id })
+    }
+
+    @Test
+    fun visibleTasks_dropsMergedPullRequests() {
+        val kept = task("open", status = AgentTaskStatus.Finished)
+        val merged = task("merged", status = AgentTaskStatus.Finished).copy(
+            prStatus = AgentTaskPrStatus.Merged,
+        )
+        assertEquals(
+            listOf("open"),
+            AgentTaskGrouping.visibleTasks(listOf(kept, merged)).map { it.id },
+        )
+    }
+
+    @Test
     fun taskGroupMode_fallsBackToRepository() {
         assertEquals(TaskGroupMode.Source, TaskGroupMode.fromStorage("source"))
         assertEquals(TaskGroupMode.Repository, TaskGroupMode.fromStorage("nope"))
@@ -85,7 +122,9 @@ class AgentTaskGroupingTest {
         repo: String? = "github.com/example/demo",
         status: AgentTaskStatus = AgentTaskStatus.Finished,
         source: AgentTaskSource = AgentTaskSource.Website,
+        created: Long? = null,
         updated: Long = 1L,
+        lastActivity: Long? = updated,
     ): AgentTask = AgentTask(
         id = id,
         name = id,
@@ -99,9 +138,9 @@ class AgentTaskGroupingTest {
         filesChanged = 0,
         modelName = null,
         maxMode = false,
-        createdAtMs = updated,
+        createdAtMs = created ?: updated,
         updatedAtMs = updated,
-        lastActivityMs = updated,
+        lastActivityMs = lastActivity,
         source = source,
     )
 }

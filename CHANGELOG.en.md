@@ -4,6 +4,16 @@
 
 The Chinese [CHANGELOG.md](CHANGELOG.md) is canonical.
 
+## 2.5.3
+
+> Version: 2.5.2 → 2.5.3. This release aligns Overview and Usage plan-quota numbers. No new capability and no breaking change, so a patch bump under SemVer.
+
+- Overview quota tiles are now plan quota / used / remaining, sharing the same official numbers as the Usage quota mix
+- The Usage quota mix is normalized to the plan quota: included + in-quota bonus + remaining = Overview plan quota; bonus outside the plan is listed separately
+- When the period `limit` is missing, both surfaces fall back to the plan `includedAmount`
+- Own-pool / third-party token costs stay on Overview as their own row, not mixed into the plan-quota tiles
+- `versionCode=17`, `versionName=2.5.3`
+
 ## 2.5.2
 
 > Version: 2.5.1 → 2.5.2. This release fixes status widgets opening the wrong tab. No new capability and no breaking change, so a patch bump under SemVer.

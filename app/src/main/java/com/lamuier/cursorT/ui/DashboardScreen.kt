@@ -47,6 +47,7 @@ import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.ChevronLeft
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.CardGiftcard
 import androidx.compose.material.icons.outlined.CloudDone
 import androidx.compose.material.icons.outlined.CloudOff
@@ -712,7 +713,8 @@ private fun OverviewTab(usage: CursorTOverview) {
     AdaptiveTabContent { compact ->
         val chartColors = LocalPulseChartColors.current
         val chartSize = if (compact) 150.dp else 178.dp
-        val limit = remember(usage) { effectiveLimit(usage) }
+        val quota = remember(usage) { UsageCalculations.quotaBreakdown(usage) }
+        val limit = quota.limitDollars
         val percent = remember(usage, limit) {
             if (usage.isTeam && limit > 0.0) {
                 usage.usage.includedSpendDollars.safeNonNegative() / limit * 100.0
@@ -735,17 +737,36 @@ private fun OverviewTab(usage: CursorTOverview) {
             UsageCalculations.level(percent, billing?.percent?.toDouble())
         }
         val planQuotaLabel = stringResource(R.string.label_plan_quota)
+        val usedQuotaLabel = stringResource(R.string.label_quota_used)
+        val remainingQuotaLabel = stringResource(R.string.label_remaining_quota)
         val ownPoolLabel = stringResource(R.string.label_own_pool_spend)
         val thirdPartyLabel = stringResource(R.string.label_third_party_spend)
-        val quotaTiles = remember(usage, limit, chartColors, planQuotaLabel, ownPoolLabel, thirdPartyLabel) {
-            val pools = UsageCalculations.poolSpend(usage.tokenUsage)
+        val tokenCostTotalLabel = stringResource(R.string.label_token_cost_total)
+        val quotaTiles = remember(quota, chartColors, planQuotaLabel, usedQuotaLabel, remainingQuotaLabel) {
             listOf(
                 MetricTile(
                     label = planQuotaLabel,
-                    value = limit.takeIf { it > 0.0 }?.let(::money) ?: "—",
+                    value = quota.limitDollars.takeIf { it > 0.0 }?.let(::money) ?: "—",
                     icon = Icons.Outlined.Savings,
                     accent = chartColors.chart1,
                 ),
+                MetricTile(
+                    label = usedQuotaLabel,
+                    value = money(quota.usedInQuotaDollars),
+                    icon = Icons.Outlined.DataUsage,
+                    accent = chartColors.chart2,
+                ),
+                MetricTile(
+                    label = remainingQuotaLabel,
+                    value = money(quota.remainingDollars),
+                    icon = Icons.Outlined.AccountBalanceWallet,
+                    accent = chartColors.chart3,
+                ),
+            )
+        }
+        val poolTiles = remember(usage, chartColors, ownPoolLabel, thirdPartyLabel, tokenCostTotalLabel) {
+            val pools = UsageCalculations.poolSpend(usage.tokenUsage)
+            listOf(
                 MetricTile(
                     label = ownPoolLabel,
                     value = pools?.let { money(it.ownPoolDollars) } ?: "—",
@@ -757,6 +778,12 @@ private fun OverviewTab(usage: CursorTOverview) {
                     value = pools?.let { money(it.thirdPartyDollars) } ?: "—",
                     icon = Icons.Outlined.Hub,
                     accent = chartColors.chart3,
+                ),
+                MetricTile(
+                    label = tokenCostTotalLabel,
+                    value = pools?.let { money(it.ownPoolDollars + it.thirdPartyDollars) } ?: "—",
+                    icon = Icons.AutoMirrored.Outlined.ReceiptLong,
+                    accent = chartColors.healthy,
                 ),
             )
         }
@@ -897,6 +924,7 @@ private fun OverviewTab(usage: CursorTOverview) {
             verticalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 10.dp),
         ) {
             MetricRowCard(tiles = quotaTiles, compact = compact)
+            MetricRowCard(tiles = poolTiles, compact = compact)
             MetricRowCard(tiles = tokenTiles, compact = compact)
         }
         usage.grokBot?.let { grok ->
@@ -1037,14 +1065,30 @@ private fun UsageTab(
 ) {
     AdaptiveTabContent { compact ->
         val chartColors = LocalPulseChartColors.current
+        val quota = remember(usage) { UsageCalculations.quotaBreakdown(usage) }
         val includedUsageLabel = stringResource(R.string.label_included_usage)
+        val bonusLabel = stringResource(R.string.label_bonus)
         val remainingQuotaLabel = stringResource(R.string.label_remaining_quota)
-        val segments = remember(usage, chartColors, includedUsageLabel, remainingQuotaLabel) {
-            listOf(
-                ChartSegment(includedUsageLabel, usage.usage.includedSpendDollars.safeNonNegative(), chartColors.chart1),
-                ChartSegment("Bonus", usage.usage.bonusSpendDollars.safeNonNegative(), chartColors.chart2),
-                ChartSegment(remainingQuotaLabel, usage.usage.remainingDollars.safeNonNegative(), chartColors.chart3),
-            )
+        val segments = remember(quota, chartColors, includedUsageLabel, bonusLabel, remainingQuotaLabel) {
+            buildList {
+                add(
+                    ChartSegment(
+                        includedUsageLabel,
+                        quota.includedInQuotaDollars,
+                        chartColors.chart1,
+                    ),
+                )
+                if (quota.bonusInQuotaDollars > 0.0) {
+                    add(ChartSegment(bonusLabel, quota.bonusInQuotaDollars, chartColors.chart2))
+                }
+                add(
+                    ChartSegment(
+                        remainingQuotaLabel,
+                        quota.remainingDollars,
+                        chartColors.chart3,
+                    ),
+                )
+            }
         }
 
         SectionHeading(
@@ -1118,7 +1162,13 @@ private fun UsageTab(
         SectionHeading(
             icon = Icons.Outlined.PieChart,
             title = stringResource(R.string.label_quota_composition),
-            supporting = stringResource(R.string.label_quota_composition_supporting),
+            supporting = stringResource(
+                if (quota.extraBonusDollars > 0.0) {
+                    R.string.label_quota_composition_supporting_extra_bonus
+                } else {
+                    R.string.label_quota_composition_supporting
+                },
+            ),
         )
         Surface(
             modifier = Modifier.fillMaxWidth(),
@@ -1136,6 +1186,32 @@ private fun UsageTab(
                     height = if (compact) 14.dp else 16.dp,
                 )
                 SegmentLegend(segments)
+                if (quota.extraBonusDollars > 0.0) {
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            stringResource(R.string.label_bonus_extra),
+                            modifier = Modifier.weight(1f),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        AnimatedValueText(
+                            value = money(quota.extraBonusDollars),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                }
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        stringResource(R.string.label_plan_quota),
+                        modifier = Modifier.weight(1f),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    AnimatedValueText(
+                        value = quota.limitDollars.takeIf { it > 0.0 }?.let(::money) ?: "—",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
                 Row(modifier = Modifier.fillMaxWidth()) {
                     Text(
                         stringResource(R.string.label_total_spend),
@@ -1143,7 +1219,7 @@ private fun UsageTab(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     AnimatedValueText(
-                        value = money(usage.usage.totalSpendDollars),
+                        value = money(quota.totalSpendDollars),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                     )
@@ -2204,12 +2280,6 @@ private fun BillingRow(label: String, value: String) {
         Spacer(Modifier.width(12.dp))
         Text(value, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
-}
-
-private fun effectiveLimit(usage: CursorTOverview): Double = when {
-    usage.usage.limitDollars > 0.0 -> usage.usage.limitDollars
-    usage.plan.includedAmountDollars > 0.0 -> usage.plan.includedAmountDollars
-    else -> 0.0
 }
 
 private fun buildSegmentDescription(prefix: String, segments: List<ChartSegment>): String =

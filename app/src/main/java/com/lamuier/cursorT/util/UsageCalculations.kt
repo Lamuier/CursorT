@@ -9,8 +9,10 @@ import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
 import java.util.Locale
+import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.floor
+import kotlin.math.roundToInt
 
 enum class UsageLevel {
     Healthy,
@@ -24,6 +26,27 @@ data class PoolSpend(
     val ownPoolDollars: Double,
     val thirdPartyDollars: Double,
 )
+
+/**
+ * 套餐额度拆分：概览额度卡与用量「额度构成」共用，避免两边各算一遍。
+ *
+ * [limitDollars] 优先用周期 `limit`，缺失时回退套餐 `includedAmount`。
+ * 已知额度时 [includedInQuotaDollars] + [bonusInQuotaDollars] + [remainingDollars]
+ * 等于套餐额度；未计入额度的 Bonus 放在 [extraBonusDollars]。
+ */
+data class QuotaBreakdown(
+    val limitDollars: Double,
+    val includedSpendDollars: Double,
+    val bonusSpendDollars: Double,
+    val includedInQuotaDollars: Double,
+    val bonusInQuotaDollars: Double,
+    val remainingDollars: Double,
+    val extraBonusDollars: Double,
+    val totalSpendDollars: Double,
+) {
+    val bonusInQuota: Boolean get() = bonusInQuotaDollars > 0.0
+    val usedInQuotaDollars: Double get() = includedInQuotaDollars + bonusInQuotaDollars
+}
 
 /** 历史窗口里官方两池百分比不可用时，用 Token 费用占比近似。 */
 data class PoolPercents(
@@ -47,11 +70,69 @@ data class BillingProgress(
 object UsageCalculations {
     fun usagePercent(overview: CursorTOverview): Double {
         val usage = overview.usage
+        val limit = effectiveLimit(overview)
         return when {
             usage.totalFormat == TotalFormat.Percent -> usage.totalUsed
-            usage.limitDollars > 0 -> usage.includedSpendDollars / usage.limitDollars * 100.0
+            limit > 0 -> usage.includedSpendDollars / limit * 100.0
             else -> 0.0
         }.coerceAtLeast(0.0)
+    }
+
+    /** 概览「套餐额度」与用量构成条的共同上限。 */
+    fun effectiveLimit(overview: CursorTOverview): Double = when {
+        overview.usage.limitDollars > 0.0 -> overview.usage.limitDollars
+        overview.plan.includedAmountDollars > 0.0 -> overview.plan.includedAmountDollars
+        else -> 0.0
+    }.moneyAmount()
+
+    fun quotaBreakdown(overview: CursorTOverview): QuotaBreakdown {
+        val included = overview.usage.includedSpendDollars.moneyAmount()
+        val bonus = overview.usage.bonusSpendDollars.moneyAmount()
+        val officialRemaining = overview.usage.remainingDollars.moneyAmount()
+        val totalSpend = overview.usage.totalSpendDollars.moneyAmount()
+        val limit = effectiveLimit(overview)
+        if (limit <= 0.0) {
+            return QuotaBreakdown(
+                limitDollars = 0.0,
+                includedSpendDollars = included,
+                bonusSpendDollars = bonus,
+                includedInQuotaDollars = included,
+                bonusInQuotaDollars = 0.0,
+                remainingDollars = officialRemaining,
+                extraBonusDollars = bonus,
+                totalSpendDollars = totalSpend,
+            )
+        }
+
+        val withBonus = included + bonus + officialRemaining
+        val withoutBonus = included + officialRemaining
+        val bonusCountsTowardLimit = bonus > 0.0 &&
+            abs(withBonus - limit) <= abs(withoutBonus - limit)
+        val rawUsed = included + if (bonusCountsTowardLimit) bonus else 0.0
+        val usedInQuota = rawUsed.coerceAtMost(limit).moneyAmount()
+        val compositionTotal = usedInQuota + officialRemaining
+        val remaining = if (abs(compositionTotal - limit) <= QUOTA_MATCH_TOLERANCE) {
+            officialRemaining
+        } else {
+            (limit - usedInQuota).coerceAtLeast(0.0).moneyAmount()
+        }
+        val alignedUsed = (limit - remaining).coerceAtLeast(0.0).moneyAmount()
+        val includedInQuota = included.coerceAtMost(alignedUsed).moneyAmount()
+        val bonusInQuota = if (bonusCountsTowardLimit) {
+            (alignedUsed - includedInQuota).coerceAtLeast(0.0).moneyAmount()
+        } else {
+            0.0
+        }
+        return QuotaBreakdown(
+            limitDollars = limit,
+            includedSpendDollars = included,
+            bonusSpendDollars = bonus,
+            includedInQuotaDollars = includedInQuota,
+            bonusInQuotaDollars = bonusInQuota,
+            remainingDollars = remaining,
+            extraBonusDollars = (bonus - bonusInQuota).coerceAtLeast(0.0).moneyAmount(),
+            totalSpendDollars = totalSpend,
+        )
     }
 
     /**
@@ -244,5 +325,12 @@ object UsageCalculations {
 
     private fun parseDate(value: String?, storageZone: ZoneId): Long? =
         DisplayTime.parseStoredLocal(value, storageZone)?.toEpochMilli()
+
+    private const val QUOTA_MATCH_TOLERANCE = 0.02
+
+    private fun Double.moneyAmount(): Double {
+        if (!isFinite()) return 0.0
+        return (coerceAtLeast(0.0) * 100.0).roundToInt() / 100.0
+    }
 }
 

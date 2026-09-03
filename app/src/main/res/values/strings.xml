@@ -268,6 +268,7 @@
     <string name="label_bonus">Bonus</string>
     <string name="label_bonus_extra">额外 Bonus</string>
     <string name="label_token_cost_total">Token 合计</string>
+    <string name="label_token_spend_caption">Token 费用按模型估算，与上方套餐额度不是同一组数字</string>
     <string name="label_own_pool_spend">自有池消费</string>
     <string name="label_third_party_spend">三方池费用</string>
     <string name="label_input_tokens">输入 Token</string>

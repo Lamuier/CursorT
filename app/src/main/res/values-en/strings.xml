@@ -265,6 +265,7 @@
     <string name="label_bonus">Bonus</string>
     <string name="label_bonus_extra">Extra bonus</string>
     <string name="label_token_cost_total">Token total</string>
+    <string name="label_token_spend_caption">Token costs are model estimates, not the plan quota above</string>
     <string name="label_own_pool_spend">Own-pool spend</string>
     <string name="label_third_party_spend">Third-party spend</string>
     <string name="label_input_tokens">Input tokens</string>

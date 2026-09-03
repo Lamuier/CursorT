@@ -924,7 +924,14 @@ private fun OverviewTab(usage: CursorTOverview) {
             verticalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 10.dp),
         ) {
             MetricRowCard(tiles = quotaTiles, compact = compact)
-            MetricRowCard(tiles = poolTiles, compact = compact)
+            Column(verticalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 8.dp)) {
+                Text(
+                    stringResource(R.string.label_token_spend_caption),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                MetricRowCard(tiles = poolTiles, compact = compact)
+            }
             MetricRowCard(tiles = tokenTiles, compact = compact)
         }
         usage.grokBot?.let { grok ->

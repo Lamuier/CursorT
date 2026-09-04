@@ -182,6 +182,8 @@ internal fun DashboardScreen(
     state: AppUiState,
     snackbarHostState: SnackbarHostState,
     tabOrder: List<DashboardTab>,
+    pendingOpenTab: DashboardTab? = null,
+    onOpenTabConsumed: () -> Unit = {},
     onLoadHistoryWindow: (String, Long, Long, String?) -> Unit,
     onRefresh: () -> Unit,
     onManageAccount: () -> Unit,
@@ -280,18 +282,41 @@ internal fun DashboardScreen(
                     )
                 } else {
                     val tabs = remember(tabOrder) { DashboardTab.resolveOrder(tabOrder.map { it.id }) }
+                    val startIndex = pendingOpenTab
+                        ?.let { tabs.indexOf(it) }
+                        ?.takeIf { it >= 0 }
+                        ?: 0
                     val pagerState = rememberPagerState(
+                        initialPage = startIndex,
                         pageCount = { tabs.size },
                     )
                     val pagerScope = rememberCoroutineScope()
-                    var selectedTab by remember { mutableStateOf(tabs.first()) }
-                    LaunchedEffect(pagerState.settledPage, tabs) {
+                    var selectedTab by remember { mutableStateOf(tabs.getOrNull(startIndex) ?: tabs.first()) }
+                    LaunchedEffect(pagerState.settledPage, tabs, pendingOpenTab) {
+                        if (pendingOpenTab != null) return@LaunchedEffect
                         tabs.getOrNull(pagerState.settledPage)?.let { selectedTab = it }
                     }
-                    LaunchedEffect(tabs) {
+                    LaunchedEffect(tabs, pendingOpenTab) {
+                        if (pendingOpenTab != null) return@LaunchedEffect
                         val index = tabs.indexOf(selectedTab).takeIf { it >= 0 } ?: 0
                         if (pagerState.currentPage != index) {
                             pagerState.scrollToPage(index)
+                        }
+                    }
+                    LaunchedEffect(pendingOpenTab, tabs, pagerState.currentPage, pagerState.settledPage) {
+                        val tab = pendingOpenTab ?: return@LaunchedEffect
+                        val index = tabs.indexOf(tab)
+                        if (index < 0) {
+                            onOpenTabConsumed()
+                            return@LaunchedEffect
+                        }
+                        selectedTab = tab
+                        if (pagerState.currentPage != index) {
+                            pagerState.scrollToPage(index)
+                            return@LaunchedEffect
+                        }
+                        if (pagerState.settledPage == index) {
+                            onOpenTabConsumed()
                         }
                     }
                     val selectedIndex = tabs.indexOf(selectedTab).takeIf { it >= 0 } ?: 0

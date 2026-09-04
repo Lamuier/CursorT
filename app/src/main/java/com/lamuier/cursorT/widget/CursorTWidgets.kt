@@ -25,6 +25,7 @@ import com.lamuier.cursorT.data.DashboardPreferences
 import com.lamuier.cursorT.model.CursorAccount
 import com.lamuier.cursorT.model.CursorServiceStatus
 import com.lamuier.cursorT.model.CursorTOverview
+import com.lamuier.cursorT.model.DashboardTab
 import com.lamuier.cursorT.network.ApiException
 import com.lamuier.cursorT.util.AppLocale
 import com.lamuier.cursorT.util.DisplayTime
@@ -45,6 +46,8 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 private const val ACTION_MANUAL_REFRESH = "com.lamuier.cursorT.action.MANUAL_WIDGET_REFRESH"
+const val ACTION_OPEN_FROM_WIDGET = "com.lamuier.cursorT.action.OPEN_FROM_WIDGET"
+const val EXTRA_WIDGET_OPEN_TAB = "com.lamuier.cursorT.extra.OPEN_TAB"
 private const val EXTRA_FORCE_REFRESH = "force_refresh"
 private const val WIDGET_REFRESH_JOB_ID = 0x43505731
 private const val CACHE_FRESH_SECONDS = 15 * 60
@@ -746,9 +749,13 @@ object CursorTWidgetUpdater {
         widgetId: Int,
     ): PendingIntent {
         val intent = Intent(context, MainActivity::class.java).apply {
-            action = "com.lamuier.cursorT.action.OPEN_FROM_WIDGET"
+            action = ACTION_OPEN_FROM_WIDGET
             data = widgetUri("open", spec, widgetId)
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(
+                EXTRA_WIDGET_OPEN_TAB,
+                if (spec.kind.isStatus) DashboardTab.Status.id else DashboardTab.Overview.id,
+            )
         }
         return PendingIntent.getActivity(
             context,

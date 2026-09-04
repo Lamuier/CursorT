@@ -23,6 +23,7 @@ import com.lamuier.cursorT.data.DashboardPreferences
 import com.lamuier.cursorT.data.NotificationPreferences
 import com.lamuier.cursorT.data.PercentDisplayMode
 import com.lamuier.cursorT.data.ThemePreferences
+import com.lamuier.cursorT.model.DashboardTab
 import com.lamuier.cursorT.model.ShortcutAction
 import com.lamuier.cursorT.notification.CursorTNotificationCoordinator
 import com.lamuier.cursorT.ui.CursorTApp
@@ -31,10 +32,14 @@ import com.lamuier.cursorT.ui.theme.CursorTTheme
 import com.lamuier.cursorT.util.AppLanguage
 import com.lamuier.cursorT.util.AppLocale
 import com.lamuier.cursorT.widget.CursorTWidgetUpdater
+import com.lamuier.cursorT.widget.EXTRA_WIDGET_OPEN_TAB
 
 class MainActivity : FragmentActivity() {
     /** 长按图标 Shortcut 带来的待执行动作，由 UI 层消费后清空。 */
     private var pendingShortcutAction by mutableStateOf<ShortcutAction?>(null)
+
+    /** 小组件点击要打开的页签；状态小组件应落到状态页。 */
+    private var pendingOpenTab by mutableStateOf<DashboardTab?>(null)
 
     override fun attachBaseContext(newBase: Context) {
         super.attachBaseContext(AppLocale.wrap(newBase))
@@ -44,7 +49,7 @@ class MainActivity : FragmentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         preferWideColorGamut()
-        pendingShortcutAction = ShortcutAction.fromIntentAction(intent?.action)
+        applyLaunchIntent(intent)
         val viewModel = ViewModelProvider(
             this,
             CursorTViewModel.Factory(applicationContext),
@@ -66,6 +71,8 @@ class MainActivity : FragmentActivity() {
                     notificationSettings = notificationSettings,
                     pendingShortcutAction = pendingShortcutAction,
                     onShortcutActionConsumed = { pendingShortcutAction = null },
+                    pendingOpenTab = pendingOpenTab,
+                    onOpenTabConsumed = { pendingOpenTab = null },
                     onThemeModeChange = { mode ->
                         themePreferences.setThemeMode(mode)
                         CursorTWidgetUpdater.requestUpdate(applicationContext)
@@ -123,7 +130,15 @@ class MainActivity : FragmentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        pendingShortcutAction = ShortcutAction.fromIntentAction(intent.action)
+        applyLaunchIntent(intent)
+    }
+
+    private fun applyLaunchIntent(intent: Intent?) {
+        pendingShortcutAction = ShortcutAction.fromIntentAction(intent?.action)
+        pendingOpenTab = DashboardTab.fromWidgetLaunch(
+            tabId = intent?.getStringExtra(EXTRA_WIDGET_OPEN_TAB),
+            widgetKind = intent?.data?.pathSegments?.getOrNull(1),
+        )
     }
 
     /**

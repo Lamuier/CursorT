@@ -47,7 +47,6 @@ import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.ChevronLeft
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.History
-import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.CardGiftcard
 import androidx.compose.material.icons.outlined.CloudDone
 import androidx.compose.material.icons.outlined.CloudOff
@@ -63,7 +62,6 @@ import androidx.compose.material.icons.outlined.PersonAdd
 import androidx.compose.material.icons.outlined.PieChart
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Refresh
-import androidx.compose.material.icons.outlined.Savings
 import androidx.compose.material.icons.outlined.SpaceDashboard
 import androidx.compose.material.icons.outlined.SmartToy
 import androidx.compose.material3.Button
@@ -713,8 +711,7 @@ private fun OverviewTab(usage: CursorTOverview) {
     AdaptiveTabContent { compact ->
         val chartColors = LocalPulseChartColors.current
         val chartSize = if (compact) 150.dp else 178.dp
-        val quota = remember(usage) { UsageCalculations.quotaBreakdown(usage) }
-        val limit = quota.limitDollars
+        val limit = remember(usage) { UsageCalculations.effectiveLimit(usage) }
         val percent = remember(usage, limit) {
             if (usage.isTeam && limit > 0.0) {
                 usage.usage.includedSpendDollars.safeNonNegative() / limit * 100.0
@@ -736,34 +733,9 @@ private fun OverviewTab(usage: CursorTOverview) {
         val level = remember(percent, billing?.percent) {
             UsageCalculations.level(percent, billing?.percent?.toDouble())
         }
-        val planQuotaLabel = stringResource(R.string.label_plan_quota)
-        val usedQuotaLabel = stringResource(R.string.label_quota_used)
-        val remainingQuotaLabel = stringResource(R.string.label_remaining_quota)
         val ownPoolLabel = stringResource(R.string.label_own_pool_spend)
         val thirdPartyLabel = stringResource(R.string.label_third_party_spend)
         val tokenCostTotalLabel = stringResource(R.string.label_token_cost_total)
-        val quotaTiles = remember(quota, chartColors, planQuotaLabel, usedQuotaLabel, remainingQuotaLabel) {
-            listOf(
-                MetricTile(
-                    label = planQuotaLabel,
-                    value = quota.limitDollars.takeIf { it > 0.0 }?.let(::money) ?: "—",
-                    icon = Icons.Outlined.Savings,
-                    accent = chartColors.chart1,
-                ),
-                MetricTile(
-                    label = usedQuotaLabel,
-                    value = money(quota.usedInQuotaDollars),
-                    icon = Icons.Outlined.DataUsage,
-                    accent = chartColors.chart2,
-                ),
-                MetricTile(
-                    label = remainingQuotaLabel,
-                    value = money(quota.remainingDollars),
-                    icon = Icons.Outlined.AccountBalanceWallet,
-                    accent = chartColors.chart3,
-                ),
-            )
-        }
         val poolTiles = remember(usage, chartColors, ownPoolLabel, thirdPartyLabel, tokenCostTotalLabel) {
             val pools = UsageCalculations.poolSpend(usage.tokenUsage)
             listOf(
@@ -923,7 +895,6 @@ private fun OverviewTab(usage: CursorTOverview) {
         Column(
             verticalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 10.dp),
         ) {
-            MetricRowCard(tiles = quotaTiles, compact = compact)
             Column(verticalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 8.dp)) {
                 Text(
                     stringResource(R.string.label_token_spend_caption),

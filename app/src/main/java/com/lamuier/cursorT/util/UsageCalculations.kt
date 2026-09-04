@@ -28,7 +28,7 @@ data class PoolSpend(
 )
 
 /**
- * 套餐额度拆分：概览额度卡与用量「额度构成」共用，避免两边各算一遍。
+ * 套餐额度拆分，供用量页「额度构成」使用。
  *
  * [limitDollars] 优先用周期 `limit`，缺失时回退套餐 `includedAmount`。
  * 已知额度时 [includedInQuotaDollars] + [bonusInQuotaDollars] + [remainingDollars]
@@ -78,7 +78,7 @@ object UsageCalculations {
         }.coerceAtLeast(0.0)
     }
 
-    /** 概览「套餐额度」与用量构成条的共同上限。 */
+    /** 套餐额度上限：周期 `limit`，缺失时回退套餐 `includedAmount`。 */
     fun effectiveLimit(overview: CursorTOverview): Double = when {
         overview.usage.limitDollars > 0.0 -> overview.usage.limitDollars
         overview.plan.includedAmountDollars > 0.0 -> overview.plan.includedAmountDollars

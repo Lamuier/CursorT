@@ -264,11 +264,10 @@
     <string name="usage_level_exhausted">已用尽</string>
     <string name="usage_level_unknown">额度未知</string>
     <string name="label_plan_quota">套餐额度</string>
-    <string name="label_quota_used">已用额度</string>
     <string name="label_bonus">Bonus</string>
     <string name="label_bonus_extra">额外 Bonus</string>
     <string name="label_token_cost_total">Token 合计</string>
-    <string name="label_token_spend_caption">Token 费用按模型估算，与上方套餐额度不是同一组数字</string>
+    <string name="label_token_spend_caption">Token 费用按模型估算，与套餐额度不是同一组数字</string>
     <string name="label_own_pool_spend">自有池消费</string>
     <string name="label_third_party_spend">三方池费用</string>
     <string name="label_input_tokens">输入 Token</string>
@@ -295,8 +294,8 @@
     <string name="label_usage_pools_supporting">两个独立用量池，均在月度计费周期重置</string>
     <string name="label_other_models_caption">第三方模型，按模型的 API 价格计费</string>
     <string name="label_quota_composition">额度构成</string>
-    <string name="label_quota_composition_supporting">与概览套餐额度同一数据：包含用量、Bonus 与剩余额度</string>
-    <string name="label_quota_composition_supporting_extra_bonus">与概览套餐额度对齐；Bonus 为额外用量，不计入套餐额度</string>
+    <string name="label_quota_composition_supporting">包含用量、Bonus 与剩余额度</string>
+    <string name="label_quota_composition_supporting_extra_bonus">Bonus 为额外用量，不计入套餐额度</string>
     <string name="label_total_spend">总消费</string>
     <string name="label_token_section_supporting">本计费周期按模型汇总的输入 / 输出 Token</string>
     <string name="label_token_empty">本周期暂无按模型 Token 记录。</string>

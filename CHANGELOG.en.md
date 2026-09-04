@@ -4,6 +4,13 @@
 
 The Chinese [CHANGELOG.md](CHANGELOG.md) is canonical.
 
+## 2.5.4
+
+> Version: 2.5.3 → 2.5.4. This release removes the Overview plan-quota card. No new capability and no breaking change, so a patch bump under SemVer.
+
+- Overview no longer shows the one plan / used / remaining quota card; quota mix remains on the Usage tab
+- `versionCode=18`, `versionName=2.5.4`
+
 ## 2.5.3
 
 > Version: 2.5.2 → 2.5.3. This release aligns Overview and Usage plan-quota numbers. No new capability and no breaking change, so a patch bump under SemVer.

@@ -17,7 +17,7 @@ Chinese is the primary language of this repository and the default app locale. E
 
 ### Usage at a glance
 
-- Total usage, plan quota, billing cycle, Credits, two usage pools (Cursor models / other models), Grok Bot weekly quota, and on-demand budget in one place.
+- Total usage, billing cycle, Credits, two usage pools (Cursor models / other models), Grok Bot weekly quota, and on-demand budget in one place. Plan quota mix is on the Usage tab.
 - The Usage tab also shows billing-cycle token totals: input / output / cache tokens and cost by model. You can look back by calendar month or past billing cycles, with pool share estimated from token cost. Grok Bot weekly quota is a separate section and is not mixed into monthly pools.
 - Five tabs—Overview, Usage, Billing, Tasks, Status—with animated switching. Tab order is customizable in Settings. Dual rings show usage and billing-cycle progress.
 - The Tasks tab lists Cursor cloud tasks (background agents), grouped by repository / status / time / source. Merged branches are hidden. Sources that the website hides by default (Grok Bot, API, SDK, and others) are included. Tapping a task opens the official Agents page in Chrome Custom Tabs for the full conversation.

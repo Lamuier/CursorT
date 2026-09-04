@@ -16,7 +16,7 @@ The Chinese [technical.md](technical.md) is canonical.
 | Build | Android Gradle Plugin 9.2.1 · Gradle 9.5.1 |
 | Platform | `compileSdk` / `targetSdk` = 37 · `minSdk` = 26 (Android 8.0) |
 | Package | `com.lamuier.cursorT` |
-| Version | `versionCode` = 17 · `versionName` = 2.5.3 |
+| Version | `versionCode` = 18 · `versionName` = 2.5.4 |
 | Size | Release uses R8 shrinking and resource shrinking. Dependencies are AndroidX (including Browser Custom Tabs) and Biometric only—no third-party networking or DI |
 
 ## Build and release
@@ -59,7 +59,7 @@ Day-to-day release:
 .\build.ps1 -Release
 ```
 
-Clean is off by default (Windows often fails when `app\build` is locked). Add `-Clean` for a clean build, `-Online` to fetch dependencies, `-SkipChecks` to skip tests / Lint. The script checks the signing cert, zipalign, package name, version, permissions, and Manifest, and writes `dist\CursorT-v2.5.3-release.apk`.
+Clean is off by default (Windows often fails when `app\build` is locked). Add `-Clean` for a clean build, `-Online` to fetch dependencies, `-SkipChecks` to skip tests / Lint. The script checks the signing cert, zipalign, package name, version, permissions, and Manifest, and writes `dist\CursorT-v2.5.4-release.apk`.
 
 ### Data-security notes
 

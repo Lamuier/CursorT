@@ -12,7 +12,7 @@ import kotlin.math.roundToInt
 
 internal object WidgetCalculations {
     fun totalPercent(usage: CursorTOverview): Double {
-        val limit = effectiveLimit(usage)
+        val limit = UsageCalculations.effectiveLimit(usage)
         val raw = if (usage.isTeam && limit > 0.0) {
             usage.usage.includedSpendDollars.safeNonNegative() / limit * 100.0
         } else {
@@ -88,12 +88,6 @@ internal object WidgetCalculations {
         ComponentStatus.DegradedPerformance, ComponentStatus.UnderMaintenance -> COLOR_WARNING
         ComponentStatus.PartialOutage, ComponentStatus.MajorOutage, ComponentStatus.Unknown -> COLOR_CRITICAL
     }
-
-    private fun effectiveLimit(usage: CursorTOverview): Double = when {
-        usage.usage.limitDollars > 0.0 -> usage.usage.limitDollars
-        usage.plan.includedAmountDollars > 0.0 -> usage.plan.includedAmountDollars
-        else -> 0.0
-    }.safeNonNegative()
 
     private fun Double.safeNonNegative(): Double = takeIf { it.isFinite() }?.coerceAtLeast(0.0) ?: 0.0
 

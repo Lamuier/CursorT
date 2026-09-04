@@ -36,6 +36,18 @@ class UsageCalculationsTest {
     }
 
     @Test
+    fun teamAccount_usesPlanIncludedWhenPeriodLimitMissing() {
+        val overview = overview(
+            format = TotalFormat.Dollars,
+            totalUsed = 240.0,
+            includedSpend = 150.0,
+            limit = 0.0,
+            planIncluded = 200.0,
+        )
+        assertEquals(75.0, UsageCalculations.usagePercent(overview), 0.001)
+    }
+
+    @Test
     fun thresholdsMatchPulse() {
         assertEquals(UsageLevel.Healthy, UsageCalculations.level(79.99))
         assertEquals(UsageLevel.Healthy, UsageCalculations.level(70.0))
@@ -200,6 +212,104 @@ class UsageCalculationsTest {
     }
 
     @Test
+    fun quotaBreakdown_bonusInsideLimitMatchesOverviewQuota() {
+        val result = UsageCalculations.quotaBreakdown(
+            overview(
+                format = TotalFormat.Percent,
+                totalUsed = 25.0,
+                includedSpend = 8.0,
+                bonusSpend = 2.0,
+                remaining = 30.0,
+                limit = 40.0,
+            ),
+        )
+        assertEquals(40.0, result.limitDollars, 0.001)
+        assertEquals(8.0, result.includedInQuotaDollars, 0.001)
+        assertEquals(2.0, result.bonusInQuotaDollars, 0.001)
+        assertEquals(30.0, result.remainingDollars, 0.001)
+        assertEquals(10.0, result.usedInQuotaDollars, 0.001)
+        assertEquals(0.0, result.extraBonusDollars, 0.001)
+        assertEquals(40.0, result.usedInQuotaDollars + result.remainingDollars, 0.001)
+    }
+
+    @Test
+    fun quotaBreakdown_bonusOutsideLimitDoesNotInflatePlanQuota() {
+        val result = UsageCalculations.quotaBreakdown(
+            overview(
+                format = TotalFormat.Percent,
+                totalUsed = 40.0,
+                includedSpend = 8.0,
+                bonusSpend = 2.0,
+                remaining = 32.0,
+                limit = 40.0,
+                totalSpend = 10.0,
+            ),
+        )
+        assertEquals(40.0, result.limitDollars, 0.001)
+        assertEquals(8.0, result.includedInQuotaDollars, 0.001)
+        assertEquals(0.0, result.bonusInQuotaDollars, 0.001)
+        assertEquals(32.0, result.remainingDollars, 0.001)
+        assertEquals(2.0, result.extraBonusDollars, 0.001)
+        assertEquals(40.0, result.usedInQuotaDollars + result.remainingDollars, 0.001)
+        assertEquals(10.0, result.totalSpendDollars, 0.001)
+    }
+
+    @Test
+    fun quotaBreakdown_fallsBackToPlanIncludedAmount() {
+        val result = UsageCalculations.quotaBreakdown(
+            overview(
+                format = TotalFormat.Percent,
+                totalUsed = 25.0,
+                includedSpend = 5.0,
+                remaining = 0.0,
+                limit = 0.0,
+                planIncluded = 20.0,
+            ),
+        )
+        assertEquals(20.0, result.limitDollars, 0.001)
+        assertEquals(5.0, result.includedInQuotaDollars, 0.001)
+        assertEquals(15.0, result.remainingDollars, 0.001)
+        assertEquals(20.0, result.usedInQuotaDollars + result.remainingDollars, 0.001)
+    }
+
+    @Test
+    fun quotaBreakdown_overspendCapsUsedAtLimit() {
+        val result = UsageCalculations.quotaBreakdown(
+            overview(
+                format = TotalFormat.Percent,
+                totalUsed = 125.0,
+                includedSpend = 25.0,
+                remaining = 0.0,
+                limit = 20.0,
+                totalSpend = 25.0,
+            ),
+        )
+        assertEquals(20.0, result.limitDollars, 0.001)
+        assertEquals(20.0, result.usedInQuotaDollars, 0.001)
+        assertEquals(0.0, result.remainingDollars, 0.001)
+        assertEquals(20.0, result.usedInQuotaDollars + result.remainingDollars, 0.001)
+        assertEquals(25.0, result.totalSpendDollars, 0.001)
+    }
+
+    @Test
+    fun effectiveLimit_prefersPeriodLimitThenPlanAmount() {
+        assertEquals(
+            40.0,
+            UsageCalculations.effectiveLimit(
+                overview(TotalFormat.Percent, 10.0, includedSpend = 4.0, limit = 40.0, planIncluded = 20.0),
+            ),
+            0.001,
+        )
+        assertEquals(
+            20.0,
+            UsageCalculations.effectiveLimit(
+                overview(TotalFormat.Percent, 10.0, includedSpend = 4.0, limit = 0.0, planIncluded = 20.0),
+            ),
+            0.001,
+        )
+    }
+
+    @Test
     fun poolSpend_returnsZerosWhenModelsEmpty() {
         val result = UsageCalculations.poolSpend(
             TokenUsageBreakdown(
@@ -230,21 +340,25 @@ class UsageCalculationsTest {
         format: TotalFormat,
         totalUsed: Double,
         includedSpend: Double = 0.0,
+        bonusSpend: Double = 0.0,
+        remaining: Double = 0.0,
         limit: Double = 0.0,
+        planIncluded: Double = 0.0,
+        totalSpend: Double = includedSpend + bonusSpend,
     ) = CursorTOverview(
         accountId = 1,
         alias = "test",
         isTeam = format == TotalFormat.Dollars,
-        plan = PlanInfo(null, null, 0.0, null),
+        plan = PlanInfo(null, null, planIncluded, null),
         billingCycle = BillingCycle(null, null),
         usage = UsageMetrics(
             totalUsed = totalUsed,
             totalFormat = format,
-            totalSpendDollars = includedSpend,
+            totalSpendDollars = totalSpend,
             includedSpendDollars = includedSpend,
-            bonusSpendDollars = 0.0,
+            bonusSpendDollars = bonusSpend,
             limitDollars = limit,
-            remainingDollars = 0.0,
+            remainingDollars = remaining,
             autoPercentUsed = null,
             apiPercentUsed = null,
             displayMessage = null,

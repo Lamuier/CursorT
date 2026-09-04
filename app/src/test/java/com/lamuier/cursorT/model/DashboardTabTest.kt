@@ -5,6 +5,23 @@ import org.junit.Test
 
 class DashboardTabTest {
     @Test
+    fun fromWidgetLaunch_prefersExplicitTabId() {
+        assertEquals(DashboardTab.Status, DashboardTab.fromWidgetLaunch("status", "mini"))
+        assertEquals(DashboardTab.Overview, DashboardTab.fromWidgetLaunch("overview", "statustall"))
+        assertEquals(DashboardTab.Tasks, DashboardTab.fromWidgetLaunch(" TASKS ", null))
+    }
+
+    @Test
+    fun fromWidgetLaunch_fallsBackToWidgetKind() {
+        assertEquals(DashboardTab.Status, DashboardTab.fromWidgetLaunch(null, "statusmini"))
+        assertEquals(DashboardTab.Status, DashboardTab.fromWidgetLaunch("", "StatusTall"))
+        assertEquals(DashboardTab.Overview, DashboardTab.fromWidgetLaunch(null, "mini"))
+        assertEquals(DashboardTab.Overview, DashboardTab.fromWidgetLaunch(null, "tall"))
+        assertEquals(null, DashboardTab.fromWidgetLaunch(null, "unknown"))
+        assertEquals(null, DashboardTab.fromWidgetLaunch(null, null))
+    }
+
+    @Test
     fun resolveOrder_nullOrBlankUsesDefault() {
         assertEquals(DashboardTab.DEFAULT_ORDER, DashboardTab.resolveOrder(null as String?))
         assertEquals(DashboardTab.DEFAULT_ORDER, DashboardTab.resolveOrder(""))

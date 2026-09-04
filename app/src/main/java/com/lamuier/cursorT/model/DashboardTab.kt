@@ -19,6 +19,19 @@ enum class DashboardTab(val id: String, @StringRes val labelRes: Int) {
         fun fromId(id: String): DashboardTab? =
             entries.firstOrNull { it.id.equals(id.trim(), ignoreCase = true) }
 
+        /**
+         * 小组件点击打开应用时解析目标页签：优先 extra 里的页签 id，
+         * 否则按小组件种类回退（状态迷你/详情 → 状态，用量迷你/详情 → 概览）。
+         */
+        fun fromWidgetLaunch(tabId: String?, widgetKind: String?): DashboardTab? {
+            fromId(tabId.orEmpty())?.let { return it }
+            return when (widgetKind?.trim()?.lowercase()) {
+                "statusmini", "statustall" -> Status
+                "mini", "tall" -> Overview
+                else -> null
+            }
+        }
+
         /** 解析已存顺序：忽略未知 id、去重，并按默认顺序补上缺失页签。 */
         fun resolveOrder(storedIds: List<String>?): List<DashboardTab> {
             val seen = LinkedHashSet<DashboardTab>()

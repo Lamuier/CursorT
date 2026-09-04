@@ -4,6 +4,14 @@
 
 The Chinese [CHANGELOG.md](CHANGELOG.md) is canonical.
 
+## 2.5.2
+
+> Version: 2.5.1 → 2.5.2. This release fixes status widgets opening the wrong tab. No new capability and no breaking change, so a patch bump under SemVer.
+
+- Tapping the status mini or details widget opens the app on the Status tab; usage widgets still open Overview
+- Works when the app is already in the background (`singleTask` / `onNewIntent`)
+- `versionCode=16`, `versionName=2.5.2`
+
 ## 2.5.1
 
 > Version: 2.5.0 → 2.5.1. This release adjusts existing usage-level thresholds and warning conditions. No new capability and no breaking change, so a patch bump under SemVer.

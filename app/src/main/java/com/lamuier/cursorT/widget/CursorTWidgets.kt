@@ -482,10 +482,11 @@ object CursorTWidgetUpdater {
                 R.id.widget_plan,
                 service?.let(WidgetCalculations::summaryChip) ?: "—/—",
             )
+            val zone = DisplayTimeZones.resolve(DashboardPreferences.get(context).readTimeZoneId())
             views.setTextViewText(
                 R.id.widget_incident,
-                service?.let { WidgetCalculations.incidentHeadline(it, loc(context).resources) }
-                    ?: loc(context).getString(R.string.widget_no_incidents),
+                service?.let { WidgetCalculations.incidentHeadline(it, strings.resources, zone) }
+                    ?: strings.getString(R.string.widget_no_incidents),
             )
             bindStatusComponents(context, views, colors, service)
         }

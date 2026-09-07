@@ -6,7 +6,9 @@ import com.lamuier.cursorT.model.ComponentStatus
 import com.lamuier.cursorT.model.CursorServiceStatus
 import com.lamuier.cursorT.model.CursorTOverview
 import com.lamuier.cursorT.model.StatusIndicator
+import com.lamuier.cursorT.util.StatusPresentation
 import com.lamuier.cursorT.util.UsageCalculations
+import java.time.ZoneId
 import java.util.Locale
 import kotlin.math.roundToInt
 
@@ -64,15 +66,28 @@ internal object WidgetCalculations {
         return (degraded + operational).take(limit).map { it.name to it.status }
     }
 
-    fun incidentHeadline(status: CursorServiceStatus, resources: Resources? = null): String {
+    fun incidentHeadline(
+        status: CursorServiceStatus,
+        resources: Resources? = null,
+        zoneId: ZoneId = ZoneId.systemDefault(),
+    ): String {
         val active = status.activeIncidents.firstOrNull()
         if (active != null) return active.name
         val maintenance = status.scheduledMaintenances.firstOrNull()
         if (maintenance != null) return maintenance.name
         val recent = status.recentIncidents.firstOrNull()
         if (recent != null) {
-            return resources?.getString(R.string.widget_recent_incident, recent.name)
-                ?: "近期 ${recent.name}"
+            val module = recent.affectedComponents.firstOrNull().orEmpty()
+            val time = StatusPresentation.formatInstant(
+                recent.updatedAt ?: recent.resolvedAt ?: recent.createdAt,
+                zoneId,
+            ).orEmpty()
+            val detail = listOf(module, time).filter { it.isNotBlank() }.joinToString(" · ")
+            return if (detail.isNotBlank()) {
+                resources?.getString(R.string.widget_recent_incident, detail) ?: "近期 $detail"
+            } else {
+                resources?.getString(R.string.status_recent_events) ?: "近期事件"
+            }
         }
         return resources?.getString(R.string.widget_no_incidents) ?: "暂无事件"
     }
@@ -81,6 +96,14 @@ internal object WidgetCalculations {
         StatusIndicator.None -> COLOR_HEALTHY
         StatusIndicator.Minor, StatusIndicator.Maintenance -> COLOR_WARNING
         StatusIndicator.Major, StatusIndicator.Critical -> COLOR_CRITICAL
+    }
+
+    fun statusBadgeGlyph(indicator: StatusIndicator?): StatusBadgeGlyph = when (indicator) {
+        null -> StatusBadgeGlyph.Unknown
+        StatusIndicator.None -> StatusBadgeGlyph.Ok
+        StatusIndicator.Minor -> StatusBadgeGlyph.Warning
+        StatusIndicator.Major, StatusIndicator.Critical -> StatusBadgeGlyph.Error
+        StatusIndicator.Maintenance -> StatusBadgeGlyph.Maintenance
     }
 
     fun componentColor(status: ComponentStatus): Int = when (status) {
@@ -94,4 +117,12 @@ internal object WidgetCalculations {
     private const val COLOR_HEALTHY = 0xFF10B981.toInt()
     private const val COLOR_WARNING = 0xFFF59E0B.toInt()
     private const val COLOR_CRITICAL = 0xFFEF4444.toInt()
+}
+
+internal enum class StatusBadgeGlyph {
+    Ok,
+    Warning,
+    Error,
+    Maintenance,
+    Unknown,
 }

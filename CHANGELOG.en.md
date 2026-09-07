@@ -4,6 +4,14 @@
 
 The Chinese [CHANGELOG.md](CHANGELOG.md) is canonical.
 
+## 2.5.5
+
+> Version: 2.5.4 → 2.5.5. This release adjusts the status widget recent-incident line and indicator. No new capability and no breaking change, so a patch bump under SemVer.
+
+- Status detail widget recent-incident row now shows the affected component and time instead of the incident title; ongoing events and scheduled maintenance still use the official title
+- Status mini bar / detail card replace the progress ring with a color status indicator (ok / degraded / outage / maintenance); usage widgets still use a progress ring
+- `versionCode=19`, `versionName=2.5.5`
+
 ## 2.5.4
 
 > Version: 2.5.3 → 2.5.4. This release removes the Overview plan-quota card. No new capability and no breaking change, so a patch bump under SemVer.

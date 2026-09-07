@@ -13,7 +13,9 @@ import com.lamuier.cursorT.model.Subscription
 import com.lamuier.cursorT.model.TotalFormat
 import com.lamuier.cursorT.model.UsageMetrics
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Test
+import java.time.ZoneOffset
 
 class WidgetCalculationsTest {
     @Test
@@ -58,6 +60,16 @@ class WidgetCalculationsTest {
     }
 
     @Test
+    fun statusBadgeGlyph_matchesOverallIndicator() {
+        assertEquals(StatusBadgeGlyph.Ok, WidgetCalculations.statusBadgeGlyph(StatusIndicator.None))
+        assertEquals(StatusBadgeGlyph.Warning, WidgetCalculations.statusBadgeGlyph(StatusIndicator.Minor))
+        assertEquals(StatusBadgeGlyph.Error, WidgetCalculations.statusBadgeGlyph(StatusIndicator.Major))
+        assertEquals(StatusBadgeGlyph.Error, WidgetCalculations.statusBadgeGlyph(StatusIndicator.Critical))
+        assertEquals(StatusBadgeGlyph.Maintenance, WidgetCalculations.statusBadgeGlyph(StatusIndicator.Maintenance))
+        assertEquals(StatusBadgeGlyph.Unknown, WidgetCalculations.statusBadgeGlyph(null))
+    }
+
+    @Test
     fun emptyComponents_renderPlaceholder() {
         val status = serviceStatus()
         assertEquals(0.0, WidgetCalculations.operationalPercent(status), 0.001)
@@ -93,15 +105,58 @@ class WidgetCalculationsTest {
     fun incidentHeadline_prefersActiveThenMaintenanceThenRecent() {
         val active = incident("inc-active", "Agents delayed")
         val maintenance = incident("mnt-1", "Scheduled CLI window")
-        val recent = incident("inc-old", "Brief IDE blip")
+        val recent = incident(
+            id = "inc-old",
+            name = "Brief IDE blip",
+            affected = listOf("IDE", "Web"),
+            updatedAt = "2026-08-18T20:15:48.726Z",
+            resolvedAt = "2026-08-18T20:15:48.707Z",
+        )
         assertEquals("Agents delayed", WidgetCalculations.incidentHeadline(serviceStatus(active = listOf(active))))
         assertEquals(
             "Scheduled CLI window",
             WidgetCalculations.incidentHeadline(serviceStatus(maintenance = listOf(maintenance))),
         )
         assertEquals(
-            "近期 Brief IDE blip",
-            WidgetCalculations.incidentHeadline(serviceStatus(recent = listOf(recent))),
+            "近期 IDE · 08-18 20:15 GMT",
+            WidgetCalculations.incidentHeadline(
+                serviceStatus(recent = listOf(recent)),
+                zoneId = ZoneOffset.UTC,
+            ),
+        )
+    }
+
+    @Test
+    fun incidentHeadline_recentOmitsFaultReason() {
+        val recent = incident(
+            id = "inc-old",
+            name = "Grok Bot connector delays",
+            affected = listOf("Grok Bot"),
+            createdAt = "2026-08-18T18:46:26.341Z",
+            resolvedAt = "2026-08-18T20:15:48.707Z",
+        )
+        val headline = WidgetCalculations.incidentHeadline(
+            serviceStatus(recent = listOf(recent)),
+            zoneId = ZoneOffset.UTC,
+        )
+        assertEquals("近期 Grok Bot · 08-18 20:15 GMT", headline)
+        assertFalse(headline.contains("connector delays"))
+        assertFalse(headline.contains(recent.name))
+    }
+
+    @Test
+    fun incidentHeadline_recentFallsBackToTimeWithoutModule() {
+        val recent = incident(
+            id = "inc-old",
+            name = "Brief IDE blip",
+            createdAt = "2026-08-18T18:46:26.341Z",
+        )
+        assertEquals(
+            "近期 08-18 18:46 GMT",
+            WidgetCalculations.incidentHeadline(
+                serviceStatus(recent = listOf(recent)),
+                zoneId = ZoneOffset.UTC,
+            ),
         )
     }
 
@@ -163,18 +218,25 @@ class WidgetCalculationsTest {
         position = 0,
     )
 
-    private fun incident(id: String, name: String) = StatusIncident(
+    private fun incident(
+        id: String,
+        name: String,
+        affected: List<String> = emptyList(),
+        createdAt: String? = null,
+        updatedAt: String? = null,
+        resolvedAt: String? = null,
+    ) = StatusIncident(
         id = id,
         name = name,
         status = "investigating",
         impact = "major",
-        createdAt = null,
-        updatedAt = null,
-        resolvedAt = null,
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+        resolvedAt = resolvedAt,
         scheduledFor = null,
         scheduledUntil = null,
         shortlink = null,
-        affectedComponents = emptyList(),
+        affectedComponents = affected,
         updates = emptyList(),
     )
 }

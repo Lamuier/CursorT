@@ -440,21 +440,19 @@ object CursorTWidgetUpdater {
         val views = RemoteViews(context.packageName, kind.layoutId)
         val service = snapshot.serviceStatus
         val colors = WidgetThemeColors.resolve(context)
-        val operationalPercent = service?.let(WidgetCalculations::operationalPercent)
-        val donutColor = service?.let { WidgetCalculations.indicatorColor(it.indicator) } ?: colors.primary
+        val badgeColor = service?.let { WidgetCalculations.indicatorColor(it.indicator) } ?: colors.onSurfaceVariant
+        val badgeGlyph = WidgetCalculations.statusBadgeGlyph(service?.indicator)
 
         val strings = loc(context)
+        val indicatorLabel = service?.let { status ->
+            if (kind == WidgetKind.StatusMini) {
+                StatusPresentation.compactIndicatorLabel(status.indicator, strings.resources)
+            } else {
+                StatusPresentation.indicatorLabel(status.indicator, strings.resources)
+            }
+        }
         views.setTextViewText(R.id.widget_brand, strings.getString(R.string.widget_status_brand))
-        views.setTextViewText(
-            R.id.widget_value,
-            service?.let { status ->
-                if (kind == WidgetKind.StatusMini) {
-                    StatusPresentation.compactIndicatorLabel(status.indicator, strings.resources)
-                } else {
-                    StatusPresentation.indicatorLabel(status.indicator, strings.resources)
-                }
-            } ?: "—",
-        )
+        views.setTextViewText(R.id.widget_value, indicatorLabel ?: "—")
         views.setTextViewText(
             R.id.widget_status,
             snapshot.serviceStatusLine.ifBlank { strings.getString(R.string.widget_waiting_first) },
@@ -463,14 +461,19 @@ object CursorTWidgetUpdater {
             R.id.widget_root,
             openAppPendingIntent(context, spec, widgetId),
         )
+        views.setContentDescription(
+            R.id.widget_status_badge,
+            indicatorLabel?.let { strings.getString(R.string.status_current_a11y, it) }
+                ?: strings.getString(R.string.widget_status_badge_description),
+        )
         applyStatusWidgetTheme(
             context = context,
             views = views,
             kind = kind,
             widgetId = widgetId,
             colors = colors,
-            operationalPercent = operationalPercent,
-            donutColor = donutColor,
+            badgeColor = badgeColor,
+            badgeGlyph = badgeGlyph,
         )
 
         if (kind == WidgetKind.StatusTall) {
@@ -482,10 +485,11 @@ object CursorTWidgetUpdater {
                 R.id.widget_plan,
                 service?.let(WidgetCalculations::summaryChip) ?: "—/—",
             )
+            val zone = DisplayTimeZones.resolve(DashboardPreferences.get(context).readTimeZoneId())
             views.setTextViewText(
                 R.id.widget_incident,
-                service?.let { WidgetCalculations.incidentHeadline(it, loc(context).resources) }
-                    ?: loc(context).getString(R.string.widget_no_incidents),
+                service?.let { WidgetCalculations.incidentHeadline(it, strings.resources, zone) }
+                    ?: strings.getString(R.string.widget_no_incidents),
             )
             bindStatusComponents(context, views, colors, service)
         }
@@ -614,8 +618,8 @@ object CursorTWidgetUpdater {
         kind: WidgetKind,
         widgetId: Int,
         colors: WidgetThemeColors,
-        operationalPercent: Double?,
-        donutColor: Int,
+        badgeColor: Int,
+        badgeGlyph: StatusBadgeGlyph,
     ) {
         val (fallbackW, fallbackH) = when (kind) {
             WidgetKind.StatusMini -> 110 to 40
@@ -634,18 +638,15 @@ object CursorTWidgetUpdater {
         )
         views.setTextColor(R.id.widget_brand, colors.onSurfaceVariant)
         views.setTextColor(R.id.widget_status, colors.onSurfaceVariant)
-        views.setTextColor(R.id.widget_value, donutColor)
-        val donutSize = if (kind == WidgetKind.StatusMini) 28 else 64
-        val stroke = if (kind == WidgetKind.StatusMini) 4f else 12f
+        views.setTextColor(R.id.widget_value, badgeColor)
+        val badgeSize = if (kind == WidgetKind.StatusMini) 28 else 52
         views.setImageViewBitmap(
-            R.id.widget_donut,
-            WidgetVisuals.donutBitmap(
+            R.id.widget_status_badge,
+            WidgetVisuals.statusBadgeBitmap(
                 context = context,
-                sizeDp = donutSize,
-                progress = WidgetCalculations.progress(operationalPercent),
-                progressColor = donutColor,
-                trackColor = colors.progressTrack,
-                strokeDp = stroke,
+                sizeDp = badgeSize,
+                color = badgeColor,
+                glyph = badgeGlyph,
             ),
         )
         if (kind == WidgetKind.StatusTall) {

@@ -27,7 +27,7 @@
     <string name="widget_status_component_placeholder">Components —</string>
     <string name="widget_status_incident_placeholder">No incidents</string>
     <string name="widget_status_refresh_description">Refresh Cursor status</string>
-    <string name="widget_status_progress_description">Cursor service availability</string>
+    <string name="widget_status_badge_description">Current Cursor availability</string>
     <string name="widget_status_mini_name">Status mini bar</string>
     <string name="widget_status_mini_description">Official Cursor availability in a fixed 2×1 widget</string>
     <string name="widget_status_tall_name">Status details</string>

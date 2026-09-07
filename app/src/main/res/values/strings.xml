@@ -27,7 +27,7 @@
     <string name="widget_status_component_placeholder">组件 —</string>
     <string name="widget_status_incident_placeholder">暂无事件</string>
     <string name="widget_status_refresh_description">刷新 Cursor 状态</string>
-    <string name="widget_status_progress_description">Cursor 服务可用进度</string>
+    <string name="widget_status_badge_description">Cursor 当前可用状态</string>
     <string name="widget_status_mini_name">状态迷你条</string>
     <string name="widget_status_mini_description">极简显示 Cursor 官方可用状态，固定 2×1 尺寸</string>
     <string name="widget_status_tall_name">状态详情</string>

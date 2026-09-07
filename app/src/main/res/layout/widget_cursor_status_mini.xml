@@ -74,11 +74,10 @@
         </LinearLayout>
 
         <ImageView
-            android:id="@+id/widget_donut"
+            android:id="@+id/widget_status_badge"
             android:layout_width="28dp"
             android:layout_height="28dp"
-            android:contentDescription="@string/widget_status_progress_description"
-            android:importantForAccessibility="no"
+            android:contentDescription="@string/widget_status_badge_description"
             android:scaleType="fitCenter" />
     </LinearLayout>
 </FrameLayout>

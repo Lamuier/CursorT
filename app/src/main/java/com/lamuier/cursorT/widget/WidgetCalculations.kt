@@ -98,6 +98,14 @@ internal object WidgetCalculations {
         StatusIndicator.Major, StatusIndicator.Critical -> COLOR_CRITICAL
     }
 
+    fun statusBadgeGlyph(indicator: StatusIndicator?): StatusBadgeGlyph = when (indicator) {
+        null -> StatusBadgeGlyph.Unknown
+        StatusIndicator.None -> StatusBadgeGlyph.Ok
+        StatusIndicator.Minor -> StatusBadgeGlyph.Warning
+        StatusIndicator.Major, StatusIndicator.Critical -> StatusBadgeGlyph.Error
+        StatusIndicator.Maintenance -> StatusBadgeGlyph.Maintenance
+    }
+
     fun componentColor(status: ComponentStatus): Int = when (status) {
         ComponentStatus.Operational -> COLOR_HEALTHY
         ComponentStatus.DegradedPerformance, ComponentStatus.UnderMaintenance -> COLOR_WARNING
@@ -109,4 +117,12 @@ internal object WidgetCalculations {
     private const val COLOR_HEALTHY = 0xFF10B981.toInt()
     private const val COLOR_WARNING = 0xFFF59E0B.toInt()
     private const val COLOR_CRITICAL = 0xFFEF4444.toInt()
+}
+
+internal enum class StatusBadgeGlyph {
+    Ok,
+    Warning,
+    Error,
+    Maintenance,
+    Unknown,
 }

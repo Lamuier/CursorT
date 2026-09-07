@@ -5,6 +5,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.RectF
 import android.util.TypedValue
 import kotlin.math.max
@@ -78,6 +79,46 @@ internal object WidgetVisuals {
         return bitmap
     }
 
+    /** Status-page style lamp: tinted disc plus a glanceable glyph, not a progress ring. */
+    fun statusBadgeBitmap(
+        context: Context,
+        sizeDp: Int,
+        color: Int,
+        glyph: StatusBadgeGlyph,
+    ): Bitmap {
+        val size = dp(context, sizeDp.toFloat()).roundToInt().coerceAtLeast(1)
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        val cx = size / 2f
+        val cy = size / 2f
+        val background = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            this.color = android.graphics.Color.argb(
+                46,
+                android.graphics.Color.red(color),
+                android.graphics.Color.green(color),
+                android.graphics.Color.blue(color),
+            )
+        }
+        canvas.drawCircle(cx, cy, size / 2f, background)
+        val stroke = dp(context, if (sizeDp <= 32) 2.2f else 3.6f)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = stroke
+            strokeCap = Paint.Cap.ROUND
+            strokeJoin = Paint.Join.ROUND
+            this.color = color
+        }
+        when (glyph) {
+            StatusBadgeGlyph.Ok -> drawCheck(canvas, size, paint)
+            StatusBadgeGlyph.Warning -> drawExclamation(canvas, size, paint)
+            StatusBadgeGlyph.Error -> drawCross(canvas, size, paint)
+            StatusBadgeGlyph.Maintenance -> drawWrench(canvas, size, paint)
+            StatusBadgeGlyph.Unknown -> drawDash(canvas, size, paint)
+        }
+        return bitmap
+    }
+
     fun chipBitmap(
         context: Context,
         color: Int,
@@ -114,6 +155,46 @@ internal object WidgetVisuals {
         val cy = inset + dp(context, 1.5f)
         canvas.drawCircle(cx, cy, dp(context, 1.6f), tipPaint)
         return bitmap
+    }
+
+    private fun drawCheck(canvas: Canvas, size: Int, paint: Paint) {
+        val path = Path().apply {
+            moveTo(size * 0.28f, size * 0.52f)
+            lineTo(size * 0.42f, size * 0.68f)
+            lineTo(size * 0.74f, size * 0.34f)
+        }
+        canvas.drawPath(path, paint)
+    }
+
+    private fun drawExclamation(canvas: Canvas, size: Int, paint: Paint) {
+        canvas.drawLine(size * 0.5f, size * 0.28f, size * 0.5f, size * 0.58f, paint)
+        val dot = Paint(paint).apply { style = Paint.Style.FILL }
+        canvas.drawCircle(size * 0.5f, size * 0.72f, paint.strokeWidth * 0.72f, dot)
+    }
+
+    private fun drawCross(canvas: Canvas, size: Int, paint: Paint) {
+        canvas.drawLine(size * 0.34f, size * 0.34f, size * 0.66f, size * 0.66f, paint)
+        canvas.drawLine(size * 0.66f, size * 0.34f, size * 0.34f, size * 0.66f, paint)
+    }
+
+    private fun drawWrench(canvas: Canvas, size: Int, paint: Paint) {
+        val cx = size / 2f
+        val cy = size / 2f
+        canvas.save()
+        canvas.rotate(-40f, cx, cy)
+        canvas.drawLine(cx, cy - size * 0.06f, cx, cy + size * 0.28f, paint)
+        val head = RectF(
+            cx - size * 0.16f,
+            cy - size * 0.34f,
+            cx + size * 0.16f,
+            cy - size * 0.02f,
+        )
+        canvas.drawArc(head, 210f, 300f, false, paint)
+        canvas.restore()
+    }
+
+    private fun drawDash(canvas: Canvas, size: Int, paint: Paint) {
+        canvas.drawLine(size * 0.32f, size * 0.5f, size * 0.68f, size * 0.5f, paint)
     }
 
     private fun roundRectBitmap(

@@ -60,6 +60,16 @@ class WidgetCalculationsTest {
     }
 
     @Test
+    fun statusBadgeGlyph_matchesOverallIndicator() {
+        assertEquals(StatusBadgeGlyph.Ok, WidgetCalculations.statusBadgeGlyph(StatusIndicator.None))
+        assertEquals(StatusBadgeGlyph.Warning, WidgetCalculations.statusBadgeGlyph(StatusIndicator.Minor))
+        assertEquals(StatusBadgeGlyph.Error, WidgetCalculations.statusBadgeGlyph(StatusIndicator.Major))
+        assertEquals(StatusBadgeGlyph.Error, WidgetCalculations.statusBadgeGlyph(StatusIndicator.Critical))
+        assertEquals(StatusBadgeGlyph.Maintenance, WidgetCalculations.statusBadgeGlyph(StatusIndicator.Maintenance))
+        assertEquals(StatusBadgeGlyph.Unknown, WidgetCalculations.statusBadgeGlyph(null))
+    }
+
+    @Test
     fun emptyComponents_renderPlaceholder() {
         val status = serviceStatus()
         assertEquals(0.0, WidgetCalculations.operationalPercent(status), 0.001)

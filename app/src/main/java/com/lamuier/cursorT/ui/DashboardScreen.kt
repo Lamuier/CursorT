@@ -135,6 +135,7 @@ import com.lamuier.cursorT.model.TokenUsageBreakdown
 import com.lamuier.cursorT.model.UsageWindow
 import com.lamuier.cursorT.ui.theme.LocalDisplayZone
 import com.lamuier.cursorT.ui.theme.LocalPulseChartColors
+import com.lamuier.cursorT.ui.theme.PulseChartColors
 import com.lamuier.cursorT.util.BillingProgress
 import com.lamuier.cursorT.util.DisplayTime
 import com.lamuier.cursorT.util.UsageCalculations
@@ -706,20 +707,12 @@ internal fun DashboardState(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun OverviewTab(usage: CursorTOverview) {
     AdaptiveTabContent { compact ->
         val chartColors = LocalPulseChartColors.current
-        val chartSize = if (compact) 150.dp else 178.dp
-        val limit = remember(usage) { UsageCalculations.effectiveLimit(usage) }
-        val percent = remember(usage, limit) {
-            if (usage.isTeam && limit > 0.0) {
-                usage.usage.includedSpendDollars.safeNonNegative() / limit * 100.0
-            } else {
-                UsageCalculations.usagePercent(usage)
-            }
-        }
-        val percentKnown = !usage.isTeam || limit > 0.0
+        val chartSize = if (compact) 122.dp else 144.dp
         val nowMillis = rememberNowMillis()
         val zone = LocalDisplayZone.current
         val billing = remember(usage, nowMillis, zone) {
@@ -730,9 +723,11 @@ private fun OverviewTab(usage: CursorTOverview) {
                 displayZone = zone,
             )
         }
-        val level = remember(percent, billing?.percent) {
-            UsageCalculations.level(percent, billing?.percent?.toDouble())
-        }
+        val cyclePercent = billing?.percent?.toDouble()
+        val ownPercent = usage.usage.autoPercentUsed
+        val thirdPartyPercent = usage.usage.apiPercentUsed
+        val ownLevel = ownPercent?.let { UsageCalculations.level(it, cyclePercent) }
+        val thirdPartyLevel = thirdPartyPercent?.let { UsageCalculations.level(it, cyclePercent) }
         val ownPoolLabel = stringResource(R.string.label_own_pool_spend)
         val thirdPartyLabel = stringResource(R.string.label_third_party_spend)
         val tokenCostTotalLabel = stringResource(R.string.label_token_cost_total)
@@ -801,12 +796,21 @@ private fun OverviewTab(usage: CursorTOverview) {
                 MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.42f),
             ),
         )
-        val usageColor = when (level) {
-            UsageLevel.Healthy -> chartColors.healthy
-            UsageLevel.Warning -> chartColors.warning
-            UsageLevel.Critical -> chartColors.critical
-            UsageLevel.Exhausted -> chartColors.critical
-        }
+        val unknownColor = MaterialTheme.colorScheme.onSurfaceVariant
+        val ownColor = ownLevel.ringColor(chartColors, unknownColor)
+        val thirdPartyColor = thirdPartyLevel.ringColor(chartColors, unknownColor)
+        val ownLabel = stringResource(R.string.label_own_pool)
+        val thirdPartyLabelShort = stringResource(R.string.label_third_party_pool)
+        val ownDescription = poolRingDescription(
+            poolLabel = ownLabel,
+            percent = ownPercent,
+            level = ownLevel,
+        )
+        val thirdPartyDescription = poolRingDescription(
+            poolLabel = thirdPartyLabelShort,
+            percent = thirdPartyPercent,
+            level = thirdPartyLevel,
+        )
 
         Surface(
             modifier = Modifier.fillMaxWidth(),
@@ -844,48 +848,57 @@ private fun OverviewTab(usage: CursorTOverview) {
                         StatusChip(label = price)
                     }
                 }
-                val teamSpendPrefix = stringResource(R.string.label_team_spend_prefix, money(usage.usage.totalUsed))
-                val planQuotaUsed = stringResource(R.string.label_plan_quota_used, formatPercent(percent))
-                val planQuotaUnknown = stringResource(R.string.label_plan_quota_unknown)
-                val totalUsageLevel = stringResource(
-                    R.string.label_total_usage_level,
-                    formatPercent(percent),
-                    if (percentKnown) level.label() else stringResource(R.string.usage_level_unknown),
-                )
-                val cycleRemaining = billing?.let {
-                    stringResource(R.string.label_cycle_remaining_clause, formatRemainingLabel(it.remainingMillis))
-                }.orEmpty()
-                val usageDescription = buildString {
-                    if (usage.isTeam) {
-                        append(teamSpendPrefix)
-                        append(if (percentKnown) planQuotaUsed else planQuotaUnknown)
-                    } else if (percentKnown) {
-                        append(totalUsageLevel)
-                    }
-                    append(cycleRemaining)
+                val teamSpendLine = if (usage.isTeam) {
+                    stringResource(R.string.label_team_spend, money(usage.usage.totalUsed))
+                } else {
+                    null
                 }
-                UsageRing(
-                    percent = percent,
-                    size = chartSize,
-                    progressColor = usageColor,
-                    centerValue = if (usage.isTeam) money(usage.usage.totalUsed) else formatPercent(percent),
-                    caption = if (percentKnown) level.label() else stringResource(R.string.usage_level_unknown),
-                    description = usageDescription,
-                    showProgress = percentKnown,
-                    cyclePercent = billing?.percent,
-                    cycleColor = MaterialTheme.colorScheme.primary,
-                )
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    OverviewPoolRing(
+                        percent = ownPercent,
+                        size = chartSize,
+                        progressColor = ownColor,
+                        caption = ownLabel,
+                        description = ownDescription,
+                        compact = compact,
+                        modifier = Modifier.weight(1f),
+                    )
+                    OverviewPoolRing(
+                        percent = thirdPartyPercent,
+                        size = chartSize,
+                        progressColor = thirdPartyColor,
+                        caption = thirdPartyLabelShort,
+                        description = thirdPartyDescription,
+                        compact = compact,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
                     DotLabel(
-                        color = usageColor,
-                        text = if (percentKnown) stringResource(R.string.label_usage_percent, formatPercent(percent)) else stringResource(R.string.label_usage_placeholder),
+                        color = ownColor,
+                        text = ownPercent?.let { stringResource(R.string.label_own_pool_usage, formatPercent(it)) }
+                            ?: stringResource(R.string.label_own_pool_usage_placeholder),
                     )
                     DotLabel(
-                        color = MaterialTheme.colorScheme.primary,
-                        text = billing?.let { stringResource(R.string.label_cycle_percent, formatPercent(it.percent.toDouble())) } ?: stringResource(R.string.label_cycle_placeholder),
+                        color = thirdPartyColor,
+                        text = thirdPartyPercent?.let {
+                            stringResource(R.string.label_third_party_usage, formatPercent(it))
+                        } ?: stringResource(R.string.label_third_party_usage_placeholder),
+                    )
+                }
+                teamSpendLine?.let { spend ->
+                    Text(
+                        spend,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
@@ -1758,6 +1771,39 @@ private fun AnimatedValueText(
 }
 
 @Composable
+private fun OverviewPoolRing(
+    percent: Double?,
+    size: Dp,
+    progressColor: Color,
+    caption: String,
+    description: String,
+    compact: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.Center,
+    ) {
+        UsageRing(
+            percent = percent ?: 0.0,
+            size = size,
+            progressColor = progressColor,
+            centerValue = percent?.let(::formatPercent) ?: "—",
+            caption = caption,
+            description = description,
+            showProgress = percent != null,
+            cyclePercent = null,
+            cycleColor = Color.Transparent,
+            valueStyle = if (compact) {
+                MaterialTheme.typography.titleLarge
+            } else {
+                MaterialTheme.typography.headlineSmall
+            },
+        )
+    }
+}
+
+@Composable
 private fun UsageRing(
     percent: Double,
     size: Dp,
@@ -1768,6 +1814,7 @@ private fun UsageRing(
     showProgress: Boolean,
     cyclePercent: Float?,
     cycleColor: Color,
+    valueStyle: TextStyle = MaterialTheme.typography.headlineMedium,
 ) {
     val trackColor = MaterialTheme.colorScheme.surfaceVariant
     val targetSweep = if (showProgress) percent.visualPercent().toFloat() / 100f * 360f else 0f
@@ -1776,6 +1823,7 @@ private fun UsageRing(
         animationSpec = tween(650, easing = FastOutSlowInEasing),
         label = "usage ring",
     )
+    val showCycle = cyclePercent != null
     val cycleSweep by animateFloatAsState(
         targetValue = (cyclePercent ?: 0f).coerceIn(0f, 100f) / 100f * 360f,
         animationSpec = tween(650, easing = FastOutSlowInEasing),
@@ -1791,7 +1839,7 @@ private fun UsageRing(
         contentAlignment = Alignment.Center,
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val outerStroke = size.toPx() * 0.09f
+            val outerStroke = size.toPx() * if (showCycle) 0.09f else 0.11f
             val innerStroke = size.toPx() * 0.04f
             val outerInset = outerStroke / 2f
             val outerArc = Size(this.size.width - outerStroke, this.size.height - outerStroke)
@@ -1825,36 +1873,38 @@ private fun UsageRing(
                     style = Stroke(outerStroke, cap = StrokeCap.Round),
                 )
             }
-            val innerInset = outerStroke + innerStroke + size.toPx() * 0.035f
-            val innerArc = Size(
-                this.size.width - innerInset * 2f,
-                this.size.height - innerInset * 2f,
-            )
-            drawArc(
-                color = trackColor.copy(alpha = 0.55f),
-                startAngle = -90f,
-                sweepAngle = 360f,
-                useCenter = false,
-                topLeft = Offset(innerInset, innerInset),
-                size = innerArc,
-                style = Stroke(innerStroke, cap = StrokeCap.Round),
-            )
-            if (cycleSweep > 0f) {
+            if (showCycle) {
+                val innerInset = outerStroke + innerStroke + size.toPx() * 0.035f
+                val innerArc = Size(
+                    this.size.width - innerInset * 2f,
+                    this.size.height - innerInset * 2f,
+                )
                 drawArc(
-                    color = cycleColor,
+                    color = trackColor.copy(alpha = 0.55f),
                     startAngle = -90f,
-                    sweepAngle = cycleSweep,
+                    sweepAngle = 360f,
                     useCenter = false,
                     topLeft = Offset(innerInset, innerInset),
                     size = innerArc,
                     style = Stroke(innerStroke, cap = StrokeCap.Round),
                 )
+                if (cycleSweep > 0f) {
+                    drawArc(
+                        color = cycleColor,
+                        startAngle = -90f,
+                        sweepAngle = cycleSweep,
+                        useCenter = false,
+                        topLeft = Offset(innerInset, innerInset),
+                        size = innerArc,
+                        style = Stroke(innerStroke, cap = StrokeCap.Round),
+                    )
+                }
             }
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             AnimatedValueText(
                 value = centerValue,
-                style = MaterialTheme.typography.headlineMedium,
+                style = valueStyle,
                 fontWeight = FontWeight.Bold,
             )
             Text(
@@ -2281,6 +2331,29 @@ private fun UsageLevel.label(): String = stringResource(
         UsageLevel.Exhausted -> R.string.usage_level_exhausted
     },
 )
+
+private fun UsageLevel?.ringColor(chartColors: PulseChartColors, unknown: Color): Color = when (this) {
+    UsageLevel.Healthy -> chartColors.healthy
+    UsageLevel.Warning -> chartColors.warning
+    UsageLevel.Critical, UsageLevel.Exhausted -> chartColors.critical
+    null -> unknown
+}
+
+@Composable
+private fun poolRingDescription(
+    poolLabel: String,
+    percent: Double?,
+    level: UsageLevel?,
+): String = if (percent == null) {
+    stringResource(R.string.label_pool_usage_a11y_unknown, poolLabel)
+} else {
+    stringResource(
+        R.string.label_pool_usage_a11y,
+        poolLabel,
+        formatPercent(percent),
+        level?.label() ?: stringResource(R.string.usage_level_unknown),
+    )
+}
 
 private fun Double.safeNonNegative(): Double = takeIf { it.isFinite() }?.coerceAtLeast(0.0) ?: 0.0
 

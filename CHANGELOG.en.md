@@ -4,6 +4,14 @@
 
 The Chinese [CHANGELOG.md](CHANGELOG.md) is canonical.
 
+## 2.5.6
+
+> Version: 2.5.5 → 2.5.6. This release splits the Overview model-usage ring into own-pool and third-party rings. No new capability and no breaking change, so a patch bump under SemVer.
+
+- Overview hero card now shows two rings side by side: own pool (`autoPercentUsed`) and third-party (`apiPercentUsed`), each colored by usage level
+- Billing-cycle progress stays in the row under the rings instead of a nested inner ring
+- `versionCode=20`, `versionName=2.5.6`
+
 ## 2.5.5
 
 > Version: 2.5.4 → 2.5.5. This release adjusts the status widget recent-incident line and indicator. No new capability and no breaking change, so a patch bump under SemVer.

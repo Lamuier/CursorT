@@ -6,10 +6,10 @@ The Chinese [CHANGELOG.md](CHANGELOG.md) is canonical.
 
 ## 2.5.6
 
-> Version: 2.5.5 → 2.5.6. This release splits the Overview model-usage ring into own-pool and third-party rings. No new capability and no breaking change, so a patch bump under SemVer.
+> Version: 2.5.5 → 2.5.6. This release shows Overview own-pool and third-party usage on one outer ring (both arcs start at the same point and the later one covers the overlap) with billing-cycle progress on the inner ring. No new capability and no breaking change, so a patch bump under SemVer.
 
-- Overview hero card now shows two rings side by side: own pool (`autoPercentUsed`) and third-party (`apiPercentUsed`), each colored by usage level
-- Billing-cycle progress stays in the row under the rings instead of a nested inner ring
+- Overview hero outer ring draws own (`autoPercentUsed`) and third-party (`apiPercentUsed`) together from 12 o'clock; where they overlap, the arc drawn later covers the earlier one; the inner ring is still billing-cycle progress
+- The legend lists own and third-party; cycle dates and remaining time stay in the row under the rings
 - `versionCode=20`, `versionName=2.5.6`
 
 ## 2.5.5

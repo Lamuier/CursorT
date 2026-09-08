@@ -102,6 +102,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -712,7 +713,7 @@ internal fun DashboardState(
 private fun OverviewTab(usage: CursorTOverview) {
     AdaptiveTabContent { compact ->
         val chartColors = LocalPulseChartColors.current
-        val chartSize = if (compact) 122.dp else 144.dp
+        val chartSize = if (compact) 156.dp else 184.dp
         val nowMillis = rememberNowMillis()
         val zone = LocalDisplayZone.current
         val billing = remember(usage, nowMillis, zone) {
@@ -798,19 +799,28 @@ private fun OverviewTab(usage: CursorTOverview) {
         )
         val unknownColor = MaterialTheme.colorScheme.onSurfaceVariant
         val ownColor = ownLevel.ringColor(chartColors, unknownColor)
-        val thirdPartyColor = thirdPartyLevel.ringColor(chartColors, unknownColor)
+        val thirdPartyHealth = thirdPartyLevel.ringColor(chartColors, unknownColor)
+        val thirdPartyColor = if (thirdPartyHealth == ownColor) chartColors.chart3 else thirdPartyHealth
         val ownLabel = stringResource(R.string.label_own_pool)
         val thirdPartyLabelShort = stringResource(R.string.label_third_party_pool)
-        val ownDescription = poolRingDescription(
-            poolLabel = ownLabel,
-            percent = ownPercent,
-            level = ownLevel,
-        )
-        val thirdPartyDescription = poolRingDescription(
-            poolLabel = thirdPartyLabelShort,
-            percent = thirdPartyPercent,
-            level = thirdPartyLevel,
-        )
+        val cycleColor = MaterialTheme.colorScheme.primary
+        val cycleDescription = billing?.let {
+            stringResource(R.string.label_cycle_percent, formatPercent(it.percent.toDouble())) +
+                stringResource(R.string.label_cycle_remaining_clause, formatRemainingLabel(it.remainingMillis))
+        } ?: stringResource(R.string.label_cycle_placeholder)
+        val ringDescription = listOf(
+            poolRingDescription(
+                poolLabel = ownLabel,
+                percent = ownPercent,
+                level = ownLevel,
+            ),
+            poolRingDescription(
+                poolLabel = thirdPartyLabelShort,
+                percent = thirdPartyPercent,
+                level = thirdPartyLevel,
+            ),
+            cycleDescription,
+        ).joinToString("。")
 
         Surface(
             modifier = Modifier.fillMaxWidth(),
@@ -853,30 +863,19 @@ private fun OverviewTab(usage: CursorTOverview) {
                 } else {
                     null
                 }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    OverviewPoolRing(
-                        percent = ownPercent,
-                        size = chartSize,
-                        progressColor = ownColor,
-                        caption = ownLabel,
-                        description = ownDescription,
-                        compact = compact,
-                        modifier = Modifier.weight(1f),
-                    )
-                    OverviewPoolRing(
-                        percent = thirdPartyPercent,
-                        size = chartSize,
-                        progressColor = thirdPartyColor,
-                        caption = thirdPartyLabelShort,
-                        description = thirdPartyDescription,
-                        compact = compact,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
+                UsageRing(
+                    ownPercent = ownPercent?.toFloat(),
+                    ownColor = ownColor,
+                    thirdPartyPercent = thirdPartyPercent?.toFloat(),
+                    thirdPartyColor = thirdPartyColor,
+                    cyclePercent = billing?.percent,
+                    cycleColor = cycleColor,
+                    centerValue = ownPercent?.let(::formatPercent) ?: "—",
+                    caption = ownLabel,
+                    captionColor = ownColor,
+                    description = ringDescription,
+                    size = chartSize,
+                )
                 FlowRow(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
@@ -1771,67 +1770,24 @@ private fun AnimatedValueText(
 }
 
 @Composable
-private fun OverviewPoolRing(
-    percent: Double?,
-    size: Dp,
-    progressColor: Color,
-    caption: String,
-    description: String,
-    compact: Boolean,
-    modifier: Modifier = Modifier,
-) {
-    Box(
-        modifier = modifier,
-        contentAlignment = Alignment.Center,
-    ) {
-        UsageRing(
-            percent = percent ?: 0.0,
-            size = size,
-            progressColor = progressColor,
-            centerValue = percent?.let(::formatPercent) ?: "—",
-            caption = caption,
-            description = description,
-            showProgress = percent != null,
-            cyclePercent = null,
-            cycleColor = Color.Transparent,
-            valueStyle = if (compact) {
-                MaterialTheme.typography.titleLarge
-            } else {
-                MaterialTheme.typography.headlineSmall
-            },
-        )
-    }
-}
-
-@Composable
 private fun UsageRing(
-    percent: Double,
-    size: Dp,
-    progressColor: Color,
-    centerValue: String,
-    caption: String,
-    description: String,
-    showProgress: Boolean,
+    ownPercent: Float?,
+    ownColor: Color,
+    thirdPartyPercent: Float?,
+    thirdPartyColor: Color,
     cyclePercent: Float?,
     cycleColor: Color,
+    centerValue: String,
+    caption: String,
+    captionColor: Color,
+    description: String,
+    size: Dp,
     valueStyle: TextStyle = MaterialTheme.typography.headlineMedium,
 ) {
     val trackColor = MaterialTheme.colorScheme.surfaceVariant
-    val targetSweep = if (showProgress) percent.visualPercent().toFloat() / 100f * 360f else 0f
-    val sweep by animateFloatAsState(
-        targetValue = targetSweep,
-        animationSpec = tween(650, easing = FastOutSlowInEasing),
-        label = "usage ring",
-    )
-    val showCycle = cyclePercent != null
-    val cycleSweep by animateFloatAsState(
-        targetValue = (cyclePercent ?: 0f).coerceIn(0f, 100f) / 100f * 360f,
-        animationSpec = tween(650, easing = FastOutSlowInEasing),
-        label = "cycle ring",
-    )
-    val progressBrush = Brush.linearGradient(
-        listOf(progressColor.copy(alpha = 0.6f), progressColor),
-    )
+    val ownSweep = rememberRingSweep(ownPercent, "own ring")
+    val thirdPartySweep = rememberRingSweep(thirdPartyPercent, "third-party ring")
+    val cycleSweep = rememberRingSweep(cyclePercent, "cycle ring")
     Box(
         modifier = Modifier
             .size(size)
@@ -1839,67 +1795,27 @@ private fun UsageRing(
         contentAlignment = Alignment.Center,
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val outerStroke = size.toPx() * if (showCycle) 0.09f else 0.11f
-            val innerStroke = size.toPx() * 0.04f
+            val outerStroke = size.toPx() * 0.1f
+            val innerStroke = size.toPx() * 0.055f
+            val gap = size.toPx() * 0.028f
             val outerInset = outerStroke / 2f
-            val outerArc = Size(this.size.width - outerStroke, this.size.height - outerStroke)
-            drawArc(
-                color = trackColor,
-                startAngle = -90f,
-                sweepAngle = 360f,
-                useCenter = false,
-                topLeft = Offset(outerInset, outerInset),
-                size = outerArc,
-                style = Stroke(outerStroke, cap = StrokeCap.Round),
+            drawPairedUsageBand(
+                inset = outerInset,
+                stroke = outerStroke,
+                ownSweep = ownSweep,
+                ownColor = ownColor,
+                thirdPartySweep = thirdPartySweep,
+                thirdPartyColor = thirdPartyColor,
+                trackColor = trackColor,
             )
-            if (sweep > 0f) {
-                drawArc(
-                    color = progressColor,
-                    alpha = 0.18f,
-                    startAngle = -90f,
-                    sweepAngle = sweep,
-                    useCenter = false,
-                    topLeft = Offset(outerInset, outerInset),
-                    size = outerArc,
-                    style = Stroke(outerStroke * 1.85f, cap = StrokeCap.Round),
-                )
-                drawArc(
-                    brush = progressBrush,
-                    startAngle = -90f,
-                    sweepAngle = sweep,
-                    useCenter = false,
-                    topLeft = Offset(outerInset, outerInset),
-                    size = outerArc,
-                    style = Stroke(outerStroke, cap = StrokeCap.Round),
-                )
-            }
-            if (showCycle) {
-                val innerInset = outerStroke + innerStroke + size.toPx() * 0.035f
-                val innerArc = Size(
-                    this.size.width - innerInset * 2f,
-                    this.size.height - innerInset * 2f,
-                )
-                drawArc(
-                    color = trackColor.copy(alpha = 0.55f),
-                    startAngle = -90f,
-                    sweepAngle = 360f,
-                    useCenter = false,
-                    topLeft = Offset(innerInset, innerInset),
-                    size = innerArc,
-                    style = Stroke(innerStroke, cap = StrokeCap.Round),
-                )
-                if (cycleSweep > 0f) {
-                    drawArc(
-                        color = cycleColor,
-                        startAngle = -90f,
-                        sweepAngle = cycleSweep,
-                        useCenter = false,
-                        topLeft = Offset(innerInset, innerInset),
-                        size = innerArc,
-                        style = Stroke(innerStroke, cap = StrokeCap.Round),
-                    )
-                }
-            }
+            val innerInset = outerStroke + gap + innerStroke / 2f
+            drawConcentricBand(
+                inset = innerInset,
+                stroke = innerStroke,
+                sweep = cycleSweep,
+                color = cycleColor,
+                trackColor = trackColor.copy(alpha = 0.55f),
+            )
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             AnimatedValueText(
@@ -1910,11 +1826,127 @@ private fun UsageRing(
             Text(
                 caption,
                 style = MaterialTheme.typography.labelMedium,
-                color = progressColor,
+                color = captionColor,
                 fontWeight = FontWeight.SemiBold,
             )
         }
     }
+}
+
+@Composable
+private fun rememberRingSweep(percent: Float?, label: String): Float {
+    val target = percent?.coerceIn(0f, 100f)?.div(100f)?.times(360f) ?: 0f
+    val sweep by animateFloatAsState(
+        targetValue = target,
+        animationSpec = tween(650, easing = FastOutSlowInEasing),
+        label = label,
+    )
+    return sweep
+}
+
+private fun DrawScope.drawPairedUsageBand(
+    inset: Float,
+    stroke: Float,
+    ownSweep: Float,
+    ownColor: Color,
+    thirdPartySweep: Float,
+    thirdPartyColor: Color,
+    trackColor: Color,
+) {
+    val arc = Size(this.size.width - inset * 2f, this.size.height - inset * 2f)
+    val origin = Offset(inset, inset)
+    val roundStroke = Stroke(stroke, cap = StrokeCap.Round)
+    drawArc(
+        color = trackColor,
+        startAngle = -90f,
+        sweepAngle = 360f,
+        useCenter = false,
+        topLeft = origin,
+        size = arc,
+        style = roundStroke,
+    )
+    if (ownSweep > 0.5f) {
+        drawArc(
+            color = ownColor,
+            alpha = 0.16f,
+            startAngle = -90f,
+            sweepAngle = ownSweep,
+            useCenter = false,
+            topLeft = origin,
+            size = arc,
+            style = Stroke(stroke * 1.5f, cap = StrokeCap.Round),
+        )
+        drawArc(
+            brush = Brush.linearGradient(listOf(ownColor.copy(alpha = 0.6f), ownColor)),
+            startAngle = -90f,
+            sweepAngle = ownSweep,
+            useCenter = false,
+            topLeft = origin,
+            size = arc,
+            style = roundStroke,
+        )
+    }
+    if (thirdPartySweep > 0.5f) {
+        drawArc(
+            color = thirdPartyColor,
+            alpha = 0.16f,
+            startAngle = -90f,
+            sweepAngle = thirdPartySweep,
+            useCenter = false,
+            topLeft = origin,
+            size = arc,
+            style = Stroke(stroke * 1.5f, cap = StrokeCap.Round),
+        )
+        drawArc(
+            brush = Brush.linearGradient(listOf(thirdPartyColor.copy(alpha = 0.6f), thirdPartyColor)),
+            startAngle = -90f,
+            sweepAngle = thirdPartySweep,
+            useCenter = false,
+            topLeft = origin,
+            size = arc,
+            style = roundStroke,
+        )
+    }
+}
+
+private fun DrawScope.drawConcentricBand(
+    inset: Float,
+    stroke: Float,
+    sweep: Float,
+    color: Color,
+    trackColor: Color,
+) {
+    val arc = Size(this.size.width - inset * 2f, this.size.height - inset * 2f)
+    val origin = Offset(inset, inset)
+    drawArc(
+        color = trackColor,
+        startAngle = -90f,
+        sweepAngle = 360f,
+        useCenter = false,
+        topLeft = origin,
+        size = arc,
+        style = Stroke(stroke, cap = StrokeCap.Round),
+    )
+    if (sweep <= 0f) return
+    drawArc(
+        color = color,
+        alpha = 0.16f,
+        startAngle = -90f,
+        sweepAngle = sweep,
+        useCenter = false,
+        topLeft = origin,
+        size = arc,
+        style = Stroke(stroke * 1.5f, cap = StrokeCap.Round),
+    )
+    drawArc(
+        brush = Brush.linearGradient(listOf(color.copy(alpha = 0.6f), color)),
+        startAngle = -90f,
+        sweepAngle = sweep,
+        useCenter = false,
+        topLeft = origin,
+        size = arc,
+        style = Stroke(stroke, cap = StrokeCap.Round),
+    )
 }
 
 @Composable

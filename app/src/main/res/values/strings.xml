@@ -270,6 +270,15 @@
     <string name="label_token_spend_caption">Token 费用按模型估算，与套餐额度不是同一组数字</string>
     <string name="label_own_pool_spend">自有池消费</string>
     <string name="label_third_party_spend">三方池费用</string>
+    <string name="label_own_pool">自有</string>
+    <string name="label_third_party_pool">三方</string>
+    <string name="label_own_pool_usage">自有 %1$s</string>
+    <string name="label_third_party_usage">三方 %1$s</string>
+    <string name="label_own_pool_usage_placeholder">自有 —</string>
+    <string name="label_third_party_usage_placeholder">三方 —</string>
+    <string name="label_pool_usage_a11y">%1$s用量池 %2$s，%3$s</string>
+    <string name="label_pool_usage_a11y_unknown">%1$s用量池暂无数据</string>
+    <string name="label_team_spend">团队总消费 %1$s</string>
     <string name="label_input_tokens">输入 Token</string>
     <string name="label_output_tokens">输出 Token</string>
     <string name="label_cache_tokens">缓存 Token</string>

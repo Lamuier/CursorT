@@ -4,6 +4,14 @@
 
 The Chinese [CHANGELOG.md](CHANGELOG.md) is canonical.
 
+## 2.5.6
+
+> Version: 2.5.5 → 2.5.6. This release shows Overview own-pool and third-party usage on one outer ring (both arcs start at the same point and the later one covers the overlap) with billing-cycle progress on the inner ring. No new capability and no breaking change, so a patch bump under SemVer.
+
+- Overview hero outer ring draws own (`autoPercentUsed`) and third-party (`apiPercentUsed`) together from 12 o'clock; where they overlap, the arc drawn later covers the earlier one; the inner ring is still billing-cycle progress
+- The legend lists own and third-party; cycle dates and remaining time stay in the row under the rings
+- `versionCode=20`, `versionName=2.5.6`
+
 ## 2.5.5
 
 > Version: 2.5.4 → 2.5.5. This release adjusts the status widget recent-incident line and indicator. No new capability and no breaking change, so a patch bump under SemVer.

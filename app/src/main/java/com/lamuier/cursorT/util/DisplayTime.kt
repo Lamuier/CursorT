@@ -96,6 +96,7 @@ object DisplayTime {
         zone: ZoneId,
         withYear: Boolean = false,
         includeTime: Boolean = true,
+        includeOffset: Boolean = true,
     ): String {
         val local = instant.atZone(zone)
         val body = when {
@@ -104,7 +105,36 @@ object DisplayTime {
             includeTime -> DATE_TIME.format(local)
             else -> DATE.format(local)
         }
-        return withOffset(body, instant, zone)
+        return if (includeOffset) withOffset(body, instant, zone) else body
+    }
+
+    /**
+     * 周期起止拼成一行：起点不重复时区，只在终点标一次偏移。
+     * 例如 `09-09 — 10-09 15:41 GMT+8`；跨年保留年份。
+     */
+    fun formatRange(
+        start: Instant,
+        end: Instant,
+        zone: ZoneId,
+        withYear: Boolean = start.atZone(zone).year != end.atZone(zone).year,
+        startIncludeTime: Boolean = false,
+        endIncludeTime: Boolean = true,
+    ): String {
+        val startText = formatDateTime(
+            start,
+            zone,
+            withYear = withYear,
+            includeTime = startIncludeTime,
+            includeOffset = false,
+        )
+        val endText = formatDateTime(
+            end,
+            zone,
+            withYear = withYear,
+            includeTime = endIncludeTime,
+            includeOffset = true,
+        )
+        return "$startText — $endText"
     }
 
     fun formatEpoch(

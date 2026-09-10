@@ -49,6 +49,22 @@ class DisplayTimeTest {
     }
 
     @Test
+    fun formatRange_putsOffsetOnlyOnEnd() {
+        val zone = ZoneOffset.ofHours(8)
+        val start = LocalDateTime.of(2026, 9, 9, 15, 41).atZone(zone).toInstant()
+        val end = LocalDateTime.of(2026, 10, 9, 15, 41).atZone(zone).toInstant()
+        assertEquals(
+            "09-09 — 10-09 15:41 GMT+8",
+            DisplayTime.formatRange(start, end, zone, startIncludeTime = false, endIncludeTime = true),
+        )
+        val nextYear = LocalDateTime.of(2027, 1, 1, 0, 0).atZone(zone).toInstant()
+        assertEquals(
+            "2026-09-09 — 2027-01-01 00:00 GMT+8",
+            DisplayTime.formatRange(start, nextYear, zone, startIncludeTime = false, endIncludeTime = true),
+        )
+    }
+
+    @Test
     fun formatStoredDateTime_omitsClockWhenDateOnly() {
         val zone = ZoneOffset.ofHours(8)
         val local = LocalDateTime.of(2026, 7, 31, 0, 0).atZone(zone).toInstant()

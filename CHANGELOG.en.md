@@ -4,6 +4,14 @@
 
 The Chinese [CHANGELOG.md](CHANGELOG.md) is canonical.
 
+## 2.5.7
+
+> Version: 2.5.6 → 2.5.7. This release keeps the Overview billing-cycle dates from being ellipsized by the remaining chip. No new capability and no breaking change, so a patch bump under SemVer.
+
+- Overview billing cycle is two lines: title + remaining chip on the first, full-width start/end on the second; the range shows the timezone offset once at the end (`09-09 — 10-09 15:41 GMT+8`) instead of `09-09 GMT+8 — 10-…`
+- The Billing tab cycle card uses the same range label
+- `versionCode=21`, `versionName=2.5.7`
+
 ## 2.5.6
 
 > Version: 2.5.5 → 2.5.6. This release shows Overview own-pool and third-party usage on one outer ring (both arcs start at the same point and the later one covers the overlap) with billing-cycle progress on the inner ring. No new capability and no breaking change, so a patch bump under SemVer.

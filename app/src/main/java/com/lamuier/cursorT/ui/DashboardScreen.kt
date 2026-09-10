@@ -960,42 +960,53 @@ private fun OverviewTab(usage: CursorTOverview) {
 
 @Composable
 private fun OverviewCycleRow(billing: BillingProgress?, planCycleEnd: String?) {
-    Row(
+    val cycleRange = when {
+        billing != null -> billing.rangeLabel
+        !planCycleEnd.isNullOrBlank() ->
+            stringResource(
+                R.string.label_ends_at,
+                DisplayTime.formatStoredDateTime(planCycleEnd, LocalDisplayZone.current) ?: planCycleEnd.take(10),
+            )
+        else -> stringResource(R.string.label_cycle_unknown)
+    }
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Icon(
-            Icons.Outlined.CalendarMonth,
-            contentDescription = null,
-            modifier = Modifier.size(16.dp),
-            tint = MaterialTheme.colorScheme.primary,
-        )
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-            Text(
-                stringResource(R.string.label_billing_cycle),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(
+                Icons.Outlined.CalendarMonth,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = MaterialTheme.colorScheme.primary,
             )
             Text(
-                when {
-                    billing != null -> "${billing.startLabel} — ${billing.endLabel}"
-                    !planCycleEnd.isNullOrBlank() ->
-                        stringResource(
-                            R.string.label_ends_at,
-                            DisplayTime.formatStoredDateTime(planCycleEnd, LocalDisplayZone.current) ?: planCycleEnd.take(10),
-                        )
-                    else -> stringResource(R.string.label_cycle_unknown)
-                },
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium,
+                stringResource(R.string.label_billing_cycle),
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
+            billing?.let {
+                StatusChip(
+                    label = stringResource(
+                        R.string.label_remaining_chip,
+                        formatRemainingLabel(it.remainingMillis),
+                    ),
+                )
+            }
         }
-        billing?.let {
-            StatusChip(label = stringResource(R.string.label_remaining_chip, formatRemainingLabel(it.remainingMillis)))
-        }
+        Text(
+            cycleRange,
+            modifier = Modifier.padding(start = 24.dp),
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
+        )
     }
 }
 
@@ -2216,14 +2227,13 @@ private fun BillingCycleChart(usage: CursorTOverview, compact: Boolean) {
                 )
                 Row(modifier = Modifier.fillMaxWidth()) {
                     Text(
-                        "${billing.startLabel} — ${billing.endLabel}",
+                        billing.rangeLabel,
                         modifier = Modifier.weight(1f),
                         style = MaterialTheme.typography.bodyMedium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
                     )
                     Text(
                         stringResource(R.string.label_remaining, formatRemainingLabel(billing.remainingMillis)),
+                        modifier = Modifier.padding(start = 8.dp),
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.primary,
                         maxLines = 1,

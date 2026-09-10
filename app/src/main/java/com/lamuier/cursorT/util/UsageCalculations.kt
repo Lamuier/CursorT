@@ -63,6 +63,8 @@ data class BillingProgress(
     val percent: Float,
     val startLabel: String,
     val endLabel: String,
+    /** 起止拼成一行，时区偏移只标在终点，供概览等窄行使用。 */
+    val rangeLabel: String,
     /** 距离周期重置的精确毫秒数（已按周期范围收敛）。 */
     val remainingMillis: Long,
 )
@@ -170,6 +172,7 @@ object UsageCalculations {
         val startInstant = Instant.ofEpochMilli(startMillis)
         val endInstant = Instant.ofEpochMilli(endMillis)
         val withYear = startInstant.atZone(displayZone).year != endInstant.atZone(displayZone).year
+        val endIncludeTime = (end?.trim()?.length ?: 0) >= 16
         return BillingProgress(
             totalDays = totalDays,
             elapsedDays = elapsedDays,
@@ -185,7 +188,15 @@ object UsageCalculations {
                 endInstant,
                 displayZone,
                 withYear = withYear,
-                includeTime = (end?.trim()?.length ?: 0) >= 16,
+                includeTime = endIncludeTime,
+            ),
+            rangeLabel = DisplayTime.formatRange(
+                startInstant,
+                endInstant,
+                displayZone,
+                withYear = withYear,
+                startIncludeTime = false,
+                endIncludeTime = endIncludeTime,
             ),
             remainingMillis = (endMillis - nowMillis).coerceIn(0, totalMillis),
         )

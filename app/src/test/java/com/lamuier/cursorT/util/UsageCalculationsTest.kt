@@ -97,6 +97,7 @@ class UsageCalculationsTest {
         assertEquals(35f, result.percent, 0.01f)
         assertEquals("07-01 GMT+8", result.startLabel)
         assertEquals("07-31 00:00 GMT+8", result.endLabel)
+        assertEquals("07-01 — 07-31 00:00 GMT+8", result.rangeLabel)
         assertEquals(19L * 24 * 60 * 60_000 + 12 * 60 * 60_000, result.remainingMillis)
     }
 
@@ -115,6 +116,7 @@ class UsageCalculationsTest {
         assertNotNull(result)
         assertEquals("2026-12-01 GMT+8", result!!.startLabel)
         assertEquals("2027-01-01 00:00 GMT+8", result.endLabel)
+        assertEquals("2026-12-01 — 2027-01-01 00:00 GMT+8", result.rangeLabel)
     }
 
     @Test
@@ -131,6 +133,7 @@ class UsageCalculationsTest {
         )
         assertNotNull(result)
         assertEquals("07-31 GMT+8", result!!.endLabel)
+        assertEquals("07-01 — 07-31 GMT+8", result.rangeLabel)
     }
 
     @Test

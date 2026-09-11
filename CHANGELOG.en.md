@@ -4,6 +4,13 @@
 
 The Chinese [CHANGELOG.md](CHANGELOG.md) is canonical.
 
+## 2.6.1
+
+> Version: 2.6.0 → 2.6.1. This release keeps the longer Overview split-ring arc from covering the shorter one. No new capability and no breaking change, so a patch bump under SemVer.
+
+- Overview split ring: own-pool and third-party arcs breathe in opposite phase so the longer one no longer covers the shorter one
+- `versionCode=23`, `versionName=2.6.1`
+
 ## 2.6.0
 
 > Version: 2.5.7 → 2.6.0. This release adds an Overview ring style switch and searchable time-zone picking. Backward-compatible new capability, so a minor bump under SemVer.

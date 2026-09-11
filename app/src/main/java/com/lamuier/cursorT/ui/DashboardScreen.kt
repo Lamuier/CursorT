@@ -1,9 +1,11 @@
 package com.lamuier.cursorT.ui
 
+import android.provider.Settings
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -149,12 +151,19 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import java.util.Locale
+import kotlin.math.cos
 import kotlinx.coroutines.delay
 import java.time.YearMonth
 import kotlinx.coroutines.launch
 
 /** 周期倒计时/百分比的本地走动间隔（仅重算时间，不触发网络请求）。 */
 private const val BILLING_TICK_MS = 5_000L
+
+/** 自有 / 三方外环一次完整呼吸周期（自有最亮 → 三方最亮 → 回到自有）。 */
+private const val PAIRED_RING_BREATH_MS = 3_000
+
+/** 呼吸谷值透明度：不要到 0，避免另一侧完全消失后突然跳出来。 */
+private const val PAIRED_RING_MIN_ALPHA = 0.08f
 
 private val DashboardTab.icon: ImageVector
     get() = when (this) {
@@ -1929,6 +1938,9 @@ private fun UsageRing(
     val ownSweep = rememberRingSweep(ownPercent, "own ring")
     val thirdPartySweep = rememberRingSweep(thirdPartyPercent, "third-party ring")
     val cycleSweep = rememberRingSweep(cyclePercent, "cycle ring")
+    val ringAlphas = rememberPairedRingAlphas(
+        enabled = (ownPercent ?: 0f) > 0f && (thirdPartyPercent ?: 0f) > 0f,
+    )
     Box(
         modifier = Modifier
             .size(size)
@@ -1945,8 +1957,10 @@ private fun UsageRing(
                 stroke = outerStroke,
                 ownSweep = ownSweep,
                 ownColor = ownColor,
+                ownAlpha = ringAlphas.own,
                 thirdPartySweep = thirdPartySweep,
                 thirdPartyColor = thirdPartyColor,
+                thirdPartyAlpha = ringAlphas.thirdParty,
                 trackColor = trackColor,
             )
             val innerInset = outerStroke + gap + innerStroke / 2f
@@ -1975,6 +1989,40 @@ private fun UsageRing(
 }
 
 @Composable
+private fun rememberPairedRingAlphas(enabled: Boolean): PairedRingAlphas {
+    val context = LocalContext.current
+    val animationsOn = remember {
+        Settings.Global.getFloat(
+            context.contentResolver,
+            Settings.Global.ANIMATOR_DURATION_SCALE,
+            1f,
+        ) > 0f
+    }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val phase = remember { Animatable(0f) }
+    LaunchedEffect(enabled, animationsOn, lifecycleOwner) {
+        if (!enabled || !animationsOn) {
+            phase.snapTo(0f)
+            return@LaunchedEffect
+        }
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            phase.snapTo(0f)
+            while (true) {
+                phase.animateTo(
+                    targetValue = 1f,
+                    animationSpec = tween(PAIRED_RING_BREATH_MS, easing = LinearEasing),
+                )
+                phase.snapTo(0f)
+            }
+        }
+    }
+    return when {
+        !enabled || !animationsOn -> PairedRingAlphas.Opaque
+        else -> pairedRingBreathAlphas(phase.value)
+    }
+}
+
+@Composable
 private fun rememberRingSweep(percent: Float?, label: String): Float {
     val target = percent?.coerceIn(0f, 100f)?.div(100f)?.times(360f) ?: 0f
     val sweep by animateFloatAsState(
@@ -1985,18 +2033,46 @@ private fun rememberRingSweep(percent: Float?, label: String): Float {
     return sweep
 }
 
+private data class PairedRingAlphas(
+    val own: Float,
+    val thirdParty: Float,
+) {
+    companion object {
+        val Opaque = PairedRingAlphas(1f, 1f)
+    }
+}
+
+private fun pairedRingBreathAlphas(
+    phase: Float,
+    minAlpha: Float = PAIRED_RING_MIN_ALPHA,
+): PairedRingAlphas {
+    val wave = 0.5f + 0.5f * cos((phase * 2.0 * Math.PI).toFloat())
+    val span = 1f - minAlpha
+    return PairedRingAlphas(
+        own = minAlpha + span * wave,
+        thirdParty = minAlpha + span * (1f - wave),
+    )
+}
+
+private data class PairedRingLayer(
+    val sweep: Float,
+    val color: Color,
+    val alpha: Float,
+)
+
 private fun DrawScope.drawPairedUsageBand(
     inset: Float,
     stroke: Float,
     ownSweep: Float,
     ownColor: Color,
+    ownAlpha: Float,
     thirdPartySweep: Float,
     thirdPartyColor: Color,
+    thirdPartyAlpha: Float,
     trackColor: Color,
 ) {
     val arc = Size(this.size.width - inset * 2f, this.size.height - inset * 2f)
     val origin = Offset(inset, inset)
-    val roundStroke = Stroke(stroke, cap = StrokeCap.Round)
     drawArc(
         color = trackColor,
         startAngle = -90f,
@@ -2004,50 +2080,57 @@ private fun DrawScope.drawPairedUsageBand(
         useCenter = false,
         topLeft = origin,
         size = arc,
-        style = roundStroke,
+        style = Stroke(stroke, cap = StrokeCap.Round),
     )
-    if (ownSweep > 0.5f) {
-        drawArc(
-            color = ownColor,
-            alpha = 0.16f,
-            startAngle = -90f,
-            sweepAngle = ownSweep,
-            useCenter = false,
-            topLeft = origin,
-            size = arc,
-            style = Stroke(stroke * 1.5f, cap = StrokeCap.Round),
-        )
-        drawArc(
-            brush = Brush.linearGradient(listOf(ownColor.copy(alpha = 0.6f), ownColor)),
-            startAngle = -90f,
-            sweepAngle = ownSweep,
-            useCenter = false,
-            topLeft = origin,
-            size = arc,
-            style = roundStroke,
+    val layers = buildList {
+        if (ownSweep > 0.5f && ownAlpha > 0.01f) {
+            add(PairedRingLayer(ownSweep, ownColor, ownAlpha.coerceIn(0f, 1f)))
+        }
+        if (thirdPartySweep > 0.5f && thirdPartyAlpha > 0.01f) {
+            add(PairedRingLayer(thirdPartySweep, thirdPartyColor, thirdPartyAlpha.coerceIn(0f, 1f)))
+        }
+    }.sortedWith(compareBy<PairedRingLayer> { it.alpha }.thenByDescending { it.sweep })
+    layers.forEach { layer ->
+        drawUsageProgressArc(
+            origin = origin,
+            arc = arc,
+            stroke = stroke,
+            sweep = layer.sweep,
+            color = layer.color,
+            alpha = layer.alpha,
         )
     }
-    if (thirdPartySweep > 0.5f) {
-        drawArc(
-            color = thirdPartyColor,
-            alpha = 0.16f,
-            startAngle = -90f,
-            sweepAngle = thirdPartySweep,
-            useCenter = false,
-            topLeft = origin,
-            size = arc,
-            style = Stroke(stroke * 1.5f, cap = StrokeCap.Round),
-        )
-        drawArc(
-            brush = Brush.linearGradient(listOf(thirdPartyColor.copy(alpha = 0.6f), thirdPartyColor)),
-            startAngle = -90f,
-            sweepAngle = thirdPartySweep,
-            useCenter = false,
-            topLeft = origin,
-            size = arc,
-            style = roundStroke,
-        )
-    }
+}
+
+private fun DrawScope.drawUsageProgressArc(
+    origin: Offset,
+    arc: Size,
+    stroke: Float,
+    sweep: Float,
+    color: Color,
+    alpha: Float,
+) {
+    if (sweep <= 0.5f || alpha <= 0.01f) return
+    drawArc(
+        color = color,
+        alpha = 0.16f * alpha,
+        startAngle = -90f,
+        sweepAngle = sweep,
+        useCenter = false,
+        topLeft = origin,
+        size = arc,
+        style = Stroke(stroke * 1.5f, cap = StrokeCap.Round),
+    )
+    drawArc(
+        brush = Brush.linearGradient(listOf(color.copy(alpha = 0.6f), color)),
+        alpha = alpha,
+        startAngle = -90f,
+        sweepAngle = sweep,
+        useCenter = false,
+        topLeft = origin,
+        size = arc,
+        style = Stroke(stroke, cap = StrokeCap.Round),
+    )
 }
 
 private fun DrawScope.drawConcentricBand(

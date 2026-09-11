@@ -16,24 +16,102 @@ import java.util.Locale
 object DisplayTimeZones {
     const val SYSTEM_ID = "system"
 
-    data class Option(val id: String, @StringRes val labelRes: Int)
+    data class Option(
+        val id: String,
+        @StringRes val labelRes: Int,
+        val aliases: List<String> = emptyList(),
+    )
 
     val OPTIONS = listOf(
         Option(SYSTEM_ID, R.string.timezone_system),
-        Option("Asia/Shanghai", R.string.timezone_china),
-        Option("Asia/Hong_Kong", R.string.timezone_hong_kong),
-        Option("Asia/Taipei", R.string.timezone_taipei),
-        Option("Asia/Tokyo", R.string.timezone_tokyo),
-        Option("Asia/Seoul", R.string.timezone_seoul),
-        Option("Asia/Singapore", R.string.timezone_singapore),
-        Option("UTC", R.string.timezone_utc),
-        Option("Europe/London", R.string.timezone_london),
-        Option("Europe/Paris", R.string.timezone_paris),
-        Option("America/New_York", R.string.timezone_new_york),
-        Option("America/Chicago", R.string.timezone_chicago),
-        Option("America/Los_Angeles", R.string.timezone_los_angeles),
-        Option("Australia/Sydney", R.string.timezone_sydney),
+        Option(
+            "Asia/Shanghai",
+            R.string.timezone_china,
+            listOf("北京", "上海", "中国", "CST", "Beijing", "Shanghai", "China"),
+        ),
+        Option(
+            "Asia/Hong_Kong",
+            R.string.timezone_hong_kong,
+            listOf("香港", "Hong Kong", "HK"),
+        ),
+        Option(
+            "Asia/Taipei",
+            R.string.timezone_taipei,
+            listOf("台北", "台湾", "Taipei", "Taiwan"),
+        ),
+        Option(
+            "Asia/Tokyo",
+            R.string.timezone_tokyo,
+            listOf("东京", "日本", "Tokyo", "Japan", "JST"),
+        ),
+        Option(
+            "Asia/Seoul",
+            R.string.timezone_seoul,
+            listOf("首尔", "韩国", "Seoul", "Korea", "KST"),
+        ),
+        Option(
+            "Asia/Singapore",
+            R.string.timezone_singapore,
+            listOf("新加坡", "Singapore", "SGT"),
+        ),
+        Option("UTC", R.string.timezone_utc, listOf("GMT", "世界时", "协调世界时")),
+        Option(
+            "Europe/London",
+            R.string.timezone_london,
+            listOf("伦敦", "英国", "London", "UK", "BST"),
+        ),
+        Option(
+            "Europe/Paris",
+            R.string.timezone_paris,
+            listOf("巴黎", "法国", "Paris", "France", "CET"),
+        ),
+        Option(
+            "America/New_York",
+            R.string.timezone_new_york,
+            listOf("纽约", "美东", "New York", "EST", "EDT", "Eastern"),
+        ),
+        Option(
+            "America/Chicago",
+            R.string.timezone_chicago,
+            listOf("芝加哥", "美中", "Chicago", "Central"),
+        ),
+        Option(
+            "America/Los_Angeles",
+            R.string.timezone_los_angeles,
+            listOf("洛杉矶", "美西", "旧金山", "Los Angeles", "PST", "PDT", "Pacific"),
+        ),
+        Option(
+            "Australia/Sydney",
+            R.string.timezone_sydney,
+            listOf("悉尼", "澳大利亚", "Sydney", "Australia", "AEST"),
+        ),
     )
+
+    /** 固定展示「跟随系统」之外、可供搜索选择的时区。 */
+    val SEARCHABLE_OPTIONS: List<Option> = OPTIONS.filter { it.id != SYSTEM_ID }
+
+    fun option(id: String): Option? = OPTIONS.firstOrNull { it.id == id }
+
+    /**
+     * 按城市名、时区 id 或别名筛选目录里的时区；空白查询不返回结果。
+     * [localizedLabel] 传入界面文案，便于中英文都可搜到。
+     */
+    fun search(
+        query: String,
+        localizedLabel: (Option) -> String = { resourcesFallback(it.labelRes) },
+    ): List<Option> {
+        val needle = query.trim()
+        if (needle.isEmpty()) return emptyList()
+        return SEARCHABLE_OPTIONS.filter { matches(it, needle, localizedLabel(it)) }
+    }
+
+    fun matches(option: Option, query: String, localizedLabel: String): Boolean {
+        val needle = query.trim()
+        if (needle.isEmpty() || option.id == SYSTEM_ID) return false
+        if (option.id.contains(needle, ignoreCase = true)) return true
+        if (localizedLabel.contains(needle, ignoreCase = true)) return true
+        return option.aliases.any { it.contains(needle, ignoreCase = true) }
+    }
 
     fun fromStorage(value: String?): String {
         val raw = value?.trim().orEmpty()

@@ -16,7 +16,7 @@ The Chinese [technical.md](technical.md) is canonical.
 | Build | Android Gradle Plugin 9.2.1 · Gradle 9.5.1 |
 | Platform | `compileSdk` / `targetSdk` = 37 · `minSdk` = 26 (Android 8.0) |
 | Package | `com.lamuier.cursorT` |
-| Version | `versionCode` = 21 · `versionName` = 2.5.7 |
+| Version | `versionCode` = 22 · `versionName` = 2.6.0 |
 | Size | Release uses R8 shrinking and resource shrinking. Dependencies are AndroidX (including Browser Custom Tabs) and Biometric only—no third-party networking or DI |
 
 ## Build and release
@@ -59,7 +59,7 @@ Day-to-day release:
 .\build.ps1 -Release
 ```
 
-Clean is off by default (Windows often fails when `app\build` is locked). Add `-Clean` for a clean build, `-Online` to fetch dependencies, `-SkipChecks` to skip tests / Lint. The script checks the signing cert, zipalign, package name, version, permissions, and Manifest, and writes `dist\CursorT-v2.5.7-release.apk`.
+Clean is off by default (Windows often fails when `app\build` is locked). Add `-Clean` for a clean build, `-Online` to fetch dependencies, `-SkipChecks` to skip tests / Lint. The script checks the signing cert, zipalign, package name, version, permissions, and Manifest, and writes `dist\CursorT-v2.6.0-release.apk`.
 
 ### Data-security notes
 
@@ -83,7 +83,8 @@ Android App (on device)
 - The token is sent only to fixed official Cursor HTTPS hosts. Redirects are rejected. Custom service URLs are not allowed. Status-page requests do not carry the token. Custom Tabs are opened by the system browser and do not carry this app’s Access Token.
 - The token is not written to `savedInstanceState`, logs, or usage / task caches. Release disables app backup, device transfer, and cleartext HTTP.
 - Only parsed usage and task fields are cached (task cache is also encrypted per account + credential revision). Cursor raw responses are not stored. Conversations are not fetched in-app; the official website is opened instead. Task list requests include `include_sources` (including `BACKGROUND_COMPOSER_SOURCE_GROK_BOT`). After parsing `source`, tasks are grouped by repository / status / time / source. Tasks with a merged PR are omitted from the Tasks tab.
-- Absolute times are formatted in the Settings display time zone with a GMT offset (default: follow system). Cache timestamps without a zone are read in the system zone at write time, then converted.
+- Absolute times are formatted in the Settings display time zone with a GMT offset (default: follow system; other zones are searchable). Cache timestamps without a zone are read in the system zone at write time, then converted.
+- Overview ring style (separate pools / combined total) is stored in on-device SharedPreferences; separate pools is the default.
 - UI language follows the system by default: English systems use `values-en`; everything else falls back to the default Chinese resources. Settings can force Simplified Chinese or English. Default `values/strings.xml` is Chinese.
 - Custom Tabs URLs must pass an allowlist: `cursor.com/agents` (no query, or only `id=<bcId>`), or `github.com` HTTPS links with no query/fragment.
 - Service status uses Statuspage public JSON (`/api/v2/summary.json` and `/api/v2/incidents.json`). HTML is not parsed and RSS is not subscribed. `summary.json` has overview, components, and unresolved incidents; `incidents.json` has recent history. Both are official, structured, unauthenticated APIs.

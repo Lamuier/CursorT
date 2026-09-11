@@ -43,6 +43,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import com.lamuier.cursorT.R
 import com.lamuier.cursorT.data.NotificationSettings
+import com.lamuier.cursorT.data.OverviewUsageRingMode
 import com.lamuier.cursorT.data.PercentDisplayMode
 import com.lamuier.cursorT.data.ThemeSettings
 import com.lamuier.cursorT.model.AppStage
@@ -83,6 +84,8 @@ fun CursorTApp(
     tabOrder: List<DashboardTab>,
     onTabOrderChange: (List<DashboardTab>) -> Unit,
     onTabOrderReset: () -> Unit,
+    overviewUsageRingMode: OverviewUsageRingMode,
+    onOverviewUsageRingModeChange: (OverviewUsageRingMode) -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -301,6 +304,8 @@ fun CursorTApp(
             tabOrder = tabOrder,
             onTabOrderChange = onTabOrderChange,
             onTabOrderReset = onTabOrderReset,
+            overviewUsageRingMode = overviewUsageRingMode,
+            onOverviewUsageRingModeChange = onOverviewUsageRingModeChange,
             onManageAccount = { showSettings = false; manageAccount = true },
         )
     }

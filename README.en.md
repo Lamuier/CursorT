@@ -19,7 +19,7 @@ Chinese is the primary language of this repository and the default app locale. E
 
 - Total usage, billing cycle, Credits, two usage pools (Cursor models / other models), Grok Bot weekly quota, and on-demand budget in one place. Plan quota mix is on the Usage tab.
 - The Usage tab also shows billing-cycle token totals: input / output / cache tokens and cost by model. You can look back by calendar month or past billing cycles, with pool share estimated from token cost. Grok Bot weekly quota is a separate section and is not mixed into monthly pools.
-- Five tabs—Overview, Usage, Billing, Tasks, Status—with animated switching. Tab order is customizable in Settings. Overview combines own-pool and third-party usage on the outer ring (arcs overlap and the later one covers) and shows billing-cycle progress on the inner ring.
+- Five tabs—Overview, Usage, Billing, Tasks, Status—with animated switching. Tab order is customizable in Settings. Overview defaults to own-pool and third-party usage on the same outer ring; Settings can restore the original combined total-usage ring. Billing-cycle progress stays on the inner ring.
 - The Tasks tab lists Cursor cloud tasks (background agents), grouped by repository / status / time / source. Merged branches are hidden. Sources that the website hides by default (Grok Bot, API, SDK, and others) are included. Tapping a task opens the official Agents page in Chrome Custom Tabs for the full conversation.
 - The Status tab shows official Cursor availability: overview, components, active incidents, and recent history. No token required.
 - Rings, progress bars, and key numbers use light motion without clutter.
@@ -42,7 +42,7 @@ Chinese is the primary language of this repository and the default app locale. E
 
 - Auto-refresh on launch and when returning to the foreground; silent sync every 5 minutes in the foreground; manual refresh is also available.
 - 64-bit only. High refresh rate is used in the foreground and released when you leave.
-- Light / dark follow the system. Accessibility and large-screen layouts are supported. Tab order, display time zone, and UI language can be changed in Settings. Default copy is Simplified Chinese; Follow system uses English on English devices and falls back to Chinese otherwise.
+- Light / dark follow the system. Accessibility and large-screen layouts are supported. Tab order, Overview ring style, display time zone, and UI language can be changed in Settings (time zone defaults to follow system; other zones are searchable). Default copy is Simplified Chinese; Follow system uses English on English devices and falls back to Chinese otherwise.
 - Built-in Windows guide for extracting a Token.
 
 ---

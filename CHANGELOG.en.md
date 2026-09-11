@@ -4,6 +4,14 @@
 
 The Chinese [CHANGELOG.md](CHANGELOG.md) is canonical.
 
+## 2.6.0
+
+> Version: 2.5.7 → 2.6.0. This release adds an Overview ring style switch and searchable time-zone picking. Backward-compatible new capability, so a minor bump under SemVer.
+
+- Settings adds an Overview ring option: keep the default split own / third-party outer ring, or restore the original combined total-usage ring (center shows total usage and health; legend is usage / cycle)
+- Settings keeps only Follow system in the time-zone list; other zones are chosen through a search box
+- `versionCode=22`, `versionName=2.6.0`
+
 ## 2.5.7
 
 > Version: 2.5.6 → 2.5.7. This release keeps the Overview billing-cycle dates from being ellipsized by the remaining chip. No new capability and no breaking change, so a patch bump under SemVer.

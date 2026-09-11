@@ -49,6 +49,23 @@ class DisplayTimeTest {
     }
 
     @Test
+    fun timeZones_searchMatchesIdLabelAndAlias() {
+        assertEquals(emptyList<DisplayTimeZones.Option>(), DisplayTimeZones.search("   "))
+        assertEquals(emptyList<DisplayTimeZones.Option>(), DisplayTimeZones.search("跟随系统"))
+
+        val shanghai = DisplayTimeZones.search("上海").map { it.id }
+        assertEquals(listOf("Asia/Shanghai"), shanghai)
+        assertEquals(listOf("Asia/Shanghai"), DisplayTimeZones.search("beijing").map { it.id })
+        assertEquals(listOf("Asia/Tokyo"), DisplayTimeZones.search("东京").map { it.id })
+        assertEquals(listOf("America/New_York"), DisplayTimeZones.search("纽约").map { it.id })
+        assertEquals(listOf("Asia/Seoul"), DisplayTimeZones.search("Asia/Seoul").map { it.id })
+        assertEquals(
+            listOf("America/Los_Angeles"),
+            DisplayTimeZones.search("los angeles").map { it.id },
+        )
+    }
+
+    @Test
     fun formatRange_putsOffsetOnlyOnEnd() {
         val zone = ZoneOffset.ofHours(8)
         val start = LocalDateTime.of(2026, 9, 9, 15, 41).atZone(zone).toInstant()

@@ -12,11 +12,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -28,30 +31,40 @@ import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.LightMode
 import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.lamuier.cursorT.R
 import com.lamuier.cursorT.data.NotificationSettings
+import com.lamuier.cursorT.data.OverviewUsageRingMode
 import com.lamuier.cursorT.data.PercentDisplayMode
 import com.lamuier.cursorT.data.ThemeSettings
 import com.lamuier.cursorT.model.DashboardTab
@@ -81,6 +94,8 @@ internal fun SettingsSheet(
     tabOrder: List<DashboardTab>,
     onTabOrderChange: (List<DashboardTab>) -> Unit,
     onTabOrderReset: () -> Unit,
+    overviewUsageRingMode: OverviewUsageRingMode,
+    onOverviewUsageRingModeChange: (OverviewUsageRingMode) -> Unit,
     onManageAccount: () -> Unit,
 ) {
     val systemPaletteAvailable = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
@@ -93,6 +108,7 @@ internal fun SettingsSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
+                .imePadding()
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp),
@@ -211,13 +227,10 @@ internal fun SettingsSheet(
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.Medium,
                 )
-                DisplayTimeZones.OPTIONS.forEach { option ->
-                    TimeZoneOption(
-                        option = option,
-                        selected = timeZoneId == option.id,
-                        onClick = { onTimeZoneChange(option.id) },
-                    )
-                }
+                TimeZonePicker(
+                    timeZoneId = timeZoneId,
+                    onTimeZoneChange = onTimeZoneChange,
+                )
             }
 
             HorizontalDivider()
@@ -244,6 +257,21 @@ internal fun SettingsSheet(
                 ) {
                     Text(stringResource(R.string.tab_order_reset))
                 }
+            }
+
+            HorizontalDivider()
+
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                SectionTitle(stringResource(R.string.overview_ring_section_title))
+                Text(
+                    stringResource(R.string.overview_ring_section_description),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                OverviewUsageRingModeSelector(
+                    selected = overviewUsageRingMode,
+                    onSelected = onOverviewUsageRingModeChange,
+                )
             }
 
             HorizontalDivider()
@@ -455,6 +483,30 @@ private fun PercentDisplayModeSelector(
 }
 
 @Composable
+private fun OverviewUsageRingModeSelector(
+    selected: OverviewUsageRingMode,
+    onSelected: (OverviewUsageRingMode) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        OverviewUsageRingMode.entries.forEach { mode ->
+            val label = when (mode) {
+                OverviewUsageRingMode.Split -> stringResource(R.string.overview_ring_mode_split)
+                OverviewUsageRingMode.Combined -> stringResource(R.string.overview_ring_mode_combined)
+            }
+            PercentModeOption(
+                modifier = Modifier.weight(1f),
+                label = label,
+                selected = selected == mode,
+                onClick = { onSelected(mode) },
+            )
+        }
+    }
+}
+
+@Composable
 private fun PercentModeOption(
     modifier: Modifier = Modifier,
     label: String,
@@ -543,15 +595,97 @@ private fun SettingToggleRow(
 }
 
 @Composable
+private fun TimeZonePicker(
+    timeZoneId: String,
+    onTimeZoneChange: (String) -> Unit,
+) {
+    val resources = LocalContext.current.resources
+    val focusManager = LocalFocusManager.current
+    var query by remember { mutableStateOf("") }
+    val selectedOption = DisplayTimeZones.option(timeZoneId)
+    val matches = remember(query, timeZoneId) {
+        DisplayTimeZones.search(query) { option ->
+            resources.getString(option.labelRes)
+        }.filter { it.id != timeZoneId }
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        TimeZoneOption(
+            id = DisplayTimeZones.SYSTEM_ID,
+            label = stringResource(R.string.timezone_system),
+            selected = timeZoneId == DisplayTimeZones.SYSTEM_ID,
+            onClick = {
+                query = ""
+                focusManager.clearFocus()
+                onTimeZoneChange(DisplayTimeZones.SYSTEM_ID)
+            },
+        )
+        if (timeZoneId != DisplayTimeZones.SYSTEM_ID) {
+            TimeZoneOption(
+                id = timeZoneId,
+                label = selectedOption?.let { stringResource(it.labelRes) }
+                    ?: DisplayTimeZones.label(timeZoneId, resources),
+                selected = true,
+                onClick = { query = "" },
+            )
+        }
+        OutlinedTextField(
+            value = query,
+            onValueChange = { query = it },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text(stringResource(R.string.timezone_search_label)) },
+            placeholder = { Text(stringResource(R.string.timezone_search_placeholder)) },
+            leadingIcon = {
+                Icon(Icons.Outlined.Search, contentDescription = null)
+            },
+            trailingIcon = if (query.isNotEmpty()) {
+                {
+                    IconButton(onClick = { query = "" }) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = stringResource(R.string.timezone_search_clear),
+                        )
+                    }
+                }
+            } else {
+                null
+            },
+            singleLine = true,
+            shape = MaterialTheme.shapes.medium,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
+        )
+        if (query.trim().isNotEmpty() && matches.isEmpty()) {
+            Text(
+                stringResource(R.string.timezone_search_empty),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        matches.forEach { option ->
+            TimeZoneOption(
+                id = option.id,
+                label = stringResource(option.labelRes),
+                selected = false,
+                onClick = {
+                    onTimeZoneChange(option.id)
+                    query = ""
+                    focusManager.clearFocus()
+                },
+            )
+        }
+    }
+}
+
+@Composable
 private fun TimeZoneOption(
-    option: DisplayTimeZones.Option,
+    id: String,
+    label: String,
     selected: Boolean,
     onClick: () -> Unit,
 ) {
-    val label = stringResource(option.labelRes)
-    val zone = DisplayTimeZones.resolve(option.id)
+    val zone = DisplayTimeZones.resolve(id)
     val offset = DisplayTime.offsetLabel(zone)
-    val supporting = if (option.id == DisplayTimeZones.SYSTEM_ID) {
+    val supporting = if (id == DisplayTimeZones.SYSTEM_ID) {
         stringResource(R.string.timezone_device_offset, offset)
     } else {
         offset

@@ -127,6 +127,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.lamuier.cursorT.R
+import com.lamuier.cursorT.data.DashboardPreferences
+import com.lamuier.cursorT.data.OverviewUsageRingMode
 import com.lamuier.cursorT.model.AppUiState
 import com.lamuier.cursorT.model.CursorAccount
 import com.lamuier.cursorT.model.CursorTOverview
@@ -144,6 +146,7 @@ import com.lamuier.cursorT.util.UsageHistoryWindows
 import com.lamuier.cursorT.util.UsageLevel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import java.util.Locale
 import kotlinx.coroutines.delay
@@ -708,10 +711,12 @@ internal fun DashboardState(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun OverviewTab(usage: CursorTOverview) {
     AdaptiveTabContent { compact ->
+        val context = LocalContext.current
+        val preferences = remember { DashboardPreferences.get(context) }
+        val ringMode by preferences.overviewUsageRingMode.collectAsStateWithLifecycle()
         val chartColors = LocalPulseChartColors.current
         val chartSize = if (compact) 156.dp else 184.dp
         val nowMillis = rememberNowMillis()
@@ -724,11 +729,6 @@ private fun OverviewTab(usage: CursorTOverview) {
                 displayZone = zone,
             )
         }
-        val cyclePercent = billing?.percent?.toDouble()
-        val ownPercent = usage.usage.autoPercentUsed
-        val thirdPartyPercent = usage.usage.apiPercentUsed
-        val ownLevel = ownPercent?.let { UsageCalculations.level(it, cyclePercent) }
-        val thirdPartyLevel = thirdPartyPercent?.let { UsageCalculations.level(it, cyclePercent) }
         val ownPoolLabel = stringResource(R.string.label_own_pool_spend)
         val thirdPartyLabel = stringResource(R.string.label_third_party_spend)
         val tokenCostTotalLabel = stringResource(R.string.label_token_cost_total)
@@ -797,30 +797,6 @@ private fun OverviewTab(usage: CursorTOverview) {
                 MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.42f),
             ),
         )
-        val unknownColor = MaterialTheme.colorScheme.onSurfaceVariant
-        val ownColor = ownLevel.ringColor(chartColors, unknownColor)
-        val thirdPartyHealth = thirdPartyLevel.ringColor(chartColors, unknownColor)
-        val thirdPartyColor = if (thirdPartyHealth == ownColor) chartColors.chart3 else thirdPartyHealth
-        val ownLabel = stringResource(R.string.label_own_pool)
-        val thirdPartyLabelShort = stringResource(R.string.label_third_party_pool)
-        val cycleColor = MaterialTheme.colorScheme.primary
-        val cycleDescription = billing?.let {
-            stringResource(R.string.label_cycle_percent, formatPercent(it.percent.toDouble())) +
-                stringResource(R.string.label_cycle_remaining_clause, formatRemainingLabel(it.remainingMillis))
-        } ?: stringResource(R.string.label_cycle_placeholder)
-        val ringDescription = listOf(
-            poolRingDescription(
-                poolLabel = ownLabel,
-                percent = ownPercent,
-                level = ownLevel,
-            ),
-            poolRingDescription(
-                poolLabel = thirdPartyLabelShort,
-                percent = thirdPartyPercent,
-                level = thirdPartyLevel,
-            ),
-            cycleDescription,
-        ).joinToString("。")
 
         Surface(
             modifier = Modifier.fillMaxWidth(),
@@ -858,48 +834,13 @@ private fun OverviewTab(usage: CursorTOverview) {
                         StatusChip(label = price)
                     }
                 }
-                val teamSpendLine = if (usage.isTeam) {
-                    stringResource(R.string.label_team_spend, money(usage.usage.totalUsed))
-                } else {
-                    null
-                }
-                UsageRing(
-                    ownPercent = ownPercent?.toFloat(),
-                    ownColor = ownColor,
-                    thirdPartyPercent = thirdPartyPercent?.toFloat(),
-                    thirdPartyColor = thirdPartyColor,
-                    cyclePercent = billing?.percent,
-                    cycleColor = cycleColor,
-                    centerValue = ownPercent?.let(::formatPercent) ?: "—",
-                    caption = ownLabel,
-                    captionColor = ownColor,
-                    description = ringDescription,
-                    size = chartSize,
+                OverviewHeroUsageRing(
+                    usage = usage,
+                    billing = billing,
+                    chartSize = chartSize,
+                    chartColors = chartColors,
+                    mode = ringMode,
                 )
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    DotLabel(
-                        color = ownColor,
-                        text = ownPercent?.let { stringResource(R.string.label_own_pool_usage, formatPercent(it)) }
-                            ?: stringResource(R.string.label_own_pool_usage_placeholder),
-                    )
-                    DotLabel(
-                        color = thirdPartyColor,
-                        text = thirdPartyPercent?.let {
-                            stringResource(R.string.label_third_party_usage, formatPercent(it))
-                        } ?: stringResource(R.string.label_third_party_usage_placeholder),
-                    )
-                }
-                teamSpendLine?.let { spend ->
-                    Text(
-                        spend,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
                 OverviewCycleRow(billing = billing, planCycleEnd = usage.plan.billingCycleEnd)
             }
@@ -1776,6 +1717,195 @@ private fun AnimatedValueText(
             fontWeight = fontWeight,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
+private fun OverviewHeroUsageRing(
+    usage: CursorTOverview,
+    billing: BillingProgress?,
+    chartSize: Dp,
+    chartColors: PulseChartColors,
+    mode: OverviewUsageRingMode,
+) {
+    val cyclePercent = billing?.percent?.toDouble()
+    val cycleColor = MaterialTheme.colorScheme.primary
+    when (mode) {
+        OverviewUsageRingMode.Split -> OverviewSplitUsageRing(
+            usage = usage,
+            billing = billing,
+            cyclePercent = cyclePercent,
+            cycleColor = cycleColor,
+            chartSize = chartSize,
+            chartColors = chartColors,
+        )
+        OverviewUsageRingMode.Combined -> OverviewCombinedUsageRing(
+            usage = usage,
+            billing = billing,
+            cyclePercent = cyclePercent,
+            cycleColor = cycleColor,
+            chartSize = chartSize,
+            chartColors = chartColors,
+        )
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun OverviewSplitUsageRing(
+    usage: CursorTOverview,
+    billing: BillingProgress?,
+    cyclePercent: Double?,
+    cycleColor: Color,
+    chartSize: Dp,
+    chartColors: PulseChartColors,
+) {
+    val ownPercent = usage.usage.autoPercentUsed
+    val thirdPartyPercent = usage.usage.apiPercentUsed
+    val ownLevel = ownPercent?.let { UsageCalculations.level(it, cyclePercent) }
+    val thirdPartyLevel = thirdPartyPercent?.let { UsageCalculations.level(it, cyclePercent) }
+    val unknownColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val ownColor = ownLevel.ringColor(chartColors, unknownColor)
+    val thirdPartyHealth = thirdPartyLevel.ringColor(chartColors, unknownColor)
+    val thirdPartyColor = if (thirdPartyHealth == ownColor) chartColors.chart3 else thirdPartyHealth
+    val ownLabel = stringResource(R.string.label_own_pool)
+    val thirdPartyLabelShort = stringResource(R.string.label_third_party_pool)
+    val cycleDescription = billing?.let {
+        stringResource(R.string.label_cycle_percent, formatPercent(it.percent.toDouble())) +
+            stringResource(R.string.label_cycle_remaining_clause, formatRemainingLabel(it.remainingMillis))
+    } ?: stringResource(R.string.label_cycle_placeholder)
+    val ringDescription = listOf(
+        poolRingDescription(
+            poolLabel = ownLabel,
+            percent = ownPercent,
+            level = ownLevel,
+        ),
+        poolRingDescription(
+            poolLabel = thirdPartyLabelShort,
+            percent = thirdPartyPercent,
+            level = thirdPartyLevel,
+        ),
+        cycleDescription,
+    ).joinToString("。")
+    val teamSpendLine = if (usage.isTeam) {
+        stringResource(R.string.label_team_spend, money(usage.usage.totalUsed))
+    } else {
+        null
+    }
+    UsageRing(
+        ownPercent = ownPercent?.toFloat(),
+        ownColor = ownColor,
+        thirdPartyPercent = thirdPartyPercent?.toFloat(),
+        thirdPartyColor = thirdPartyColor,
+        cyclePercent = billing?.percent,
+        cycleColor = cycleColor,
+        centerValue = ownPercent?.let(::formatPercent) ?: "—",
+        caption = ownLabel,
+        captionColor = ownColor,
+        description = ringDescription,
+        size = chartSize,
+    )
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        DotLabel(
+            color = ownColor,
+            text = ownPercent?.let { stringResource(R.string.label_own_pool_usage, formatPercent(it)) }
+                ?: stringResource(R.string.label_own_pool_usage_placeholder),
+        )
+        DotLabel(
+            color = thirdPartyColor,
+            text = thirdPartyPercent?.let {
+                stringResource(R.string.label_third_party_usage, formatPercent(it))
+            } ?: stringResource(R.string.label_third_party_usage_placeholder),
+        )
+    }
+    teamSpendLine?.let { spend ->
+        Text(
+            spend,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun OverviewCombinedUsageRing(
+    usage: CursorTOverview,
+    billing: BillingProgress?,
+    cyclePercent: Double?,
+    cycleColor: Color,
+    chartSize: Dp,
+    chartColors: PulseChartColors,
+) {
+    val total = remember(usage) { UsageCalculations.overviewTotalUsage(usage) }
+    val level = remember(total, cyclePercent) {
+        if (total.known) UsageCalculations.level(total.percent, cyclePercent) else null
+    }
+    val usageColor = level.ringColor(chartColors, MaterialTheme.colorScheme.onSurfaceVariant)
+    val teamSpendPrefix = stringResource(R.string.label_team_spend_prefix, money(usage.usage.totalUsed))
+    val planQuotaUsed = stringResource(R.string.label_plan_quota_used, formatPercent(total.percent))
+    val planQuotaUnknown = stringResource(R.string.label_plan_quota_unknown)
+    val totalUsageLevel = stringResource(
+        R.string.label_total_usage_level,
+        formatPercent(total.percent),
+        if (total.known) {
+            level?.label() ?: stringResource(R.string.usage_level_unknown)
+        } else {
+            stringResource(R.string.usage_level_unknown)
+        },
+    )
+    val cycleRemaining = billing?.let {
+        stringResource(R.string.label_cycle_remaining_clause, formatRemainingLabel(it.remainingMillis))
+    }.orEmpty()
+    val usageDescription = buildString {
+        if (usage.isTeam) {
+            append(teamSpendPrefix)
+            append(if (total.known) planQuotaUsed else planQuotaUnknown)
+        } else if (total.known) {
+            append(totalUsageLevel)
+        }
+        append(cycleRemaining)
+    }
+    UsageRing(
+        ownPercent = total.percent.takeIf { total.known }?.toFloat(),
+        ownColor = usageColor,
+        thirdPartyPercent = null,
+        thirdPartyColor = usageColor,
+        cyclePercent = billing?.percent,
+        cycleColor = cycleColor,
+        centerValue = if (usage.isTeam) money(usage.usage.totalUsed) else formatPercent(total.percent),
+        caption = if (total.known) {
+            level?.label() ?: stringResource(R.string.usage_level_unknown)
+        } else {
+            stringResource(R.string.usage_level_unknown)
+        },
+        captionColor = usageColor,
+        description = usageDescription,
+        size = chartSize,
+    )
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        DotLabel(
+            color = usageColor,
+            text = if (total.known) {
+                stringResource(R.string.label_usage_percent, formatPercent(total.percent))
+            } else {
+                stringResource(R.string.label_usage_placeholder)
+            },
+        )
+        DotLabel(
+            color = cycleColor,
+            text = billing?.let {
+                stringResource(R.string.label_cycle_percent, formatPercent(it.percent.toDouble()))
+            } ?: stringResource(R.string.label_cycle_placeholder),
         )
     }
 }

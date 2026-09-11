@@ -56,6 +56,12 @@ data class PoolPercents(
     val thirdPartyDollars: Double,
 )
 
+/** 概览「合并总用量」圆环用的套餐总用量百分比。团队账号在额度未知时 [known] 为 false。 */
+data class OverviewTotalUsage(
+    val percent: Double,
+    val known: Boolean,
+)
+
 data class BillingProgress(
     val totalDays: Int,
     val elapsedDays: Int,
@@ -63,6 +69,8 @@ data class BillingProgress(
     val percent: Float,
     val startLabel: String,
     val endLabel: String,
+    /** 起止拼成一行，时区偏移只标在终点，供概览等窄行使用。 */
+    val rangeLabel: String,
     /** 距离周期重置的精确毫秒数（已按周期范围收敛）。 */
     val remainingMillis: Long,
 )
@@ -76,6 +84,18 @@ object UsageCalculations {
             limit > 0 -> usage.includedSpendDollars / limit * 100.0
             else -> 0.0
         }.coerceAtLeast(0.0)
+    }
+
+    /** 合并显示时的总用量：个人用官方总百分比；团队用计入额度的消费 / 套餐额度。 */
+    fun overviewTotalUsage(overview: CursorTOverview): OverviewTotalUsage {
+        val limit = effectiveLimit(overview)
+        val known = !overview.isTeam || limit > 0.0
+        val percent = if (overview.isTeam && limit > 0.0) {
+            overview.usage.includedSpendDollars.moneyAmount() / limit * 100.0
+        } else {
+            usagePercent(overview)
+        }
+        return OverviewTotalUsage(percent = percent.coerceAtLeast(0.0), known = known)
     }
 
     /** 套餐额度上限：周期 `limit`，缺失时回退套餐 `includedAmount`。 */
@@ -170,6 +190,7 @@ object UsageCalculations {
         val startInstant = Instant.ofEpochMilli(startMillis)
         val endInstant = Instant.ofEpochMilli(endMillis)
         val withYear = startInstant.atZone(displayZone).year != endInstant.atZone(displayZone).year
+        val endIncludeTime = (end?.trim()?.length ?: 0) >= 16
         return BillingProgress(
             totalDays = totalDays,
             elapsedDays = elapsedDays,
@@ -185,7 +206,15 @@ object UsageCalculations {
                 endInstant,
                 displayZone,
                 withYear = withYear,
-                includeTime = (end?.trim()?.length ?: 0) >= 16,
+                includeTime = endIncludeTime,
+            ),
+            rangeLabel = DisplayTime.formatRange(
+                startInstant,
+                endInstant,
+                displayZone,
+                withYear = withYear,
+                startIncludeTime = false,
+                endIncludeTime = endIncludeTime,
             ),
             remainingMillis = (endMillis - nowMillis).coerceIn(0, totalMillis),
         )

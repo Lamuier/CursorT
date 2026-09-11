@@ -64,6 +64,7 @@ class MainActivity : FragmentActivity() {
             val tabOrder by dashboardPreferences.order.collectAsStateWithLifecycle()
             val timeZoneId by dashboardPreferences.timeZoneId.collectAsStateWithLifecycle()
             val language by dashboardPreferences.language.collectAsStateWithLifecycle()
+            val overviewUsageRingMode by dashboardPreferences.overviewUsageRingMode.collectAsStateWithLifecycle()
             CursorTTheme(settings = themeSettings) {
                 CursorTApp(
                     viewModel = viewModel,
@@ -122,6 +123,8 @@ class MainActivity : FragmentActivity() {
                 tabOrder = tabOrder,
                 onTabOrderChange = dashboardPreferences::setOrder,
                 onTabOrderReset = dashboardPreferences::resetOrder,
+                overviewUsageRingMode = overviewUsageRingMode,
+                onOverviewUsageRingModeChange = dashboardPreferences::setOverviewUsageRingMode,
             )
             }
         }

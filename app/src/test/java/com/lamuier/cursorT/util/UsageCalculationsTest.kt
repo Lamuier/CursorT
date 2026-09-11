@@ -36,6 +36,41 @@ class UsageCalculationsTest {
     }
 
     @Test
+    fun overviewTotalUsage_individualUsesServerPercentage() {
+        val result = UsageCalculations.overviewTotalUsage(overview(TotalFormat.Percent, 72.5))
+        assertTrue(result.known)
+        assertEquals(72.5, result.percent, 0.001)
+    }
+
+    @Test
+    fun overviewTotalUsage_teamUsesIncludedSpendAndLimit() {
+        val result = UsageCalculations.overviewTotalUsage(
+            overview(
+                format = TotalFormat.Dollars,
+                totalUsed = 240.0,
+                includedSpend = 150.0,
+                limit = 200.0,
+            ),
+        )
+        assertTrue(result.known)
+        assertEquals(75.0, result.percent, 0.001)
+    }
+
+    @Test
+    fun overviewTotalUsage_teamUnknownWithoutLimit() {
+        val result = UsageCalculations.overviewTotalUsage(
+            overview(
+                format = TotalFormat.Dollars,
+                totalUsed = 240.0,
+                includedSpend = 150.0,
+                limit = 0.0,
+            ),
+        )
+        assertFalse(result.known)
+        assertEquals(0.0, result.percent, 0.001)
+    }
+
+    @Test
     fun teamAccount_usesPlanIncludedWhenPeriodLimitMissing() {
         val overview = overview(
             format = TotalFormat.Dollars,
@@ -45,6 +80,9 @@ class UsageCalculationsTest {
             planIncluded = 200.0,
         )
         assertEquals(75.0, UsageCalculations.usagePercent(overview), 0.001)
+        val total = UsageCalculations.overviewTotalUsage(overview)
+        assertTrue(total.known)
+        assertEquals(75.0, total.percent, 0.001)
     }
 
     @Test
@@ -97,6 +135,7 @@ class UsageCalculationsTest {
         assertEquals(35f, result.percent, 0.01f)
         assertEquals("07-01 GMT+8", result.startLabel)
         assertEquals("07-31 00:00 GMT+8", result.endLabel)
+        assertEquals("07-01 — 07-31 00:00 GMT+8", result.rangeLabel)
         assertEquals(19L * 24 * 60 * 60_000 + 12 * 60 * 60_000, result.remainingMillis)
     }
 
@@ -115,6 +154,7 @@ class UsageCalculationsTest {
         assertNotNull(result)
         assertEquals("2026-12-01 GMT+8", result!!.startLabel)
         assertEquals("2027-01-01 00:00 GMT+8", result.endLabel)
+        assertEquals("2026-12-01 — 2027-01-01 00:00 GMT+8", result.rangeLabel)
     }
 
     @Test
@@ -131,6 +171,7 @@ class UsageCalculationsTest {
         )
         assertNotNull(result)
         assertEquals("07-31 GMT+8", result!!.endLabel)
+        assertEquals("07-01 — 07-31 GMT+8", result.rangeLabel)
     }
 
     @Test

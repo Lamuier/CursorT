@@ -118,7 +118,7 @@ class WidgetCalculationsTest {
             WidgetCalculations.incidentHeadline(serviceStatus(maintenance = listOf(maintenance))),
         )
         assertEquals(
-            "近期 IDE · 08-18 20:15 GMT",
+            "近期 IDE · 08/18 20:15 GMT",
             WidgetCalculations.incidentHeadline(
                 serviceStatus(recent = listOf(recent)),
                 zoneId = ZoneOffset.UTC,
@@ -139,7 +139,7 @@ class WidgetCalculationsTest {
             serviceStatus(recent = listOf(recent)),
             zoneId = ZoneOffset.UTC,
         )
-        assertEquals("近期 Grok Bot · 08-18 20:15 GMT", headline)
+        assertEquals("近期 Grok Bot · 08/18 20:15 GMT", headline)
         assertFalse(headline.contains("connector delays"))
         assertFalse(headline.contains(recent.name))
     }
@@ -152,7 +152,7 @@ class WidgetCalculationsTest {
             createdAt = "2026-08-18T18:46:26.341Z",
         )
         assertEquals(
-            "近期 08-18 18:46 GMT",
+            "近期 08/18 18:46 GMT",
             WidgetCalculations.incidentHeadline(
                 serviceStatus(recent = listOf(recent)),
                 zoneId = ZoneOffset.UTC,

@@ -69,11 +69,13 @@ data class BillingProgress(
     val percent: Float,
     val startLabel: String,
     val endLabel: String,
-    /** 起止拼成一行，时区偏移只标在终点，供概览等窄行使用。 */
-    val rangeLabel: String,
+    val range: DisplayTime.RangeParts,
     /** 距离周期重置的精确毫秒数（已按周期范围收敛）。 */
     val remainingMillis: Long,
-)
+) {
+    /** 起止拼成一行，时区偏移只标在终点，供无障碍与账单窄行使用。 */
+    val rangeLabel: String get() = range.asLine()
+}
 
 object UsageCalculations {
     fun usagePercent(overview: CursorTOverview): Double {
@@ -208,7 +210,7 @@ object UsageCalculations {
                 withYear = withYear,
                 includeTime = endIncludeTime,
             ),
-            rangeLabel = DisplayTime.formatRange(
+            range = DisplayTime.formatRangeParts(
                 startInstant,
                 endInstant,
                 displayZone,

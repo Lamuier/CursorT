@@ -334,7 +334,6 @@
     <string name="label_ends_at">Ends %1$s</string>
     <string name="label_cycle_end">Cycle ends: %1$s</string>
     <string name="label_remaining">%1$s left</string>
-    <string name="label_remaining_chip">%1$s left</string>
     <string name="label_until_date">Until %1$s</string>
     <string name="label_cycle_elapsed_days">%1$d / %2$d days elapsed</string>
     <string name="label_cycle_progress_a11y">Billing cycle %1$s complete, %2$s remaining</string>

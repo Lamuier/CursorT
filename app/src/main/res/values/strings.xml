@@ -337,7 +337,6 @@
     <string name="label_ends_at">结束于 %1$s</string>
     <string name="label_cycle_end">周期结束：%1$s</string>
     <string name="label_remaining">剩余 %1$s</string>
-    <string name="label_remaining_chip">剩余 %1$s</string>
     <string name="label_until_date">截至 %1$s</string>
     <string name="label_cycle_elapsed_days">已过 %1$d / %2$d 天</string>
     <string name="label_cycle_progress_a11y">计费周期已进行 %1$s，剩余 %2$s</string>

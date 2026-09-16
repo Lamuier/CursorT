@@ -159,7 +159,7 @@ object DisplayTimeZones {
 }
 
 /**
- * 把时刻格式化为「本地时间 + 时区偏移」（如 `09-02 11:37 GMT+8`）。
+ * 把时刻格式化为「本地时间 + 时区偏移」（如 `09/02 11:37 GMT+8`）。
  * 本机缓存的无时区字符串按 [storageZone]（默认系统时区，即写入时的时区）解读。
  */
 object DisplayTime {
@@ -187,8 +187,56 @@ object DisplayTime {
     }
 
     /**
+     * 周期起止的结构化展示：日期、重置时刻与时区分开，便于分层排版。
+     * [asLine] 仍是「起点不重复时区、只在终点标一次偏移」的一行文案。
+     */
+    data class RangeParts(
+        val startDate: String,
+        val startTime: String? = null,
+        val endDate: String,
+        val endTime: String? = null,
+        val offset: String,
+    ) {
+        fun asLine(): String = buildString {
+            append(startDate)
+            if (!startTime.isNullOrBlank()) {
+                append(' ')
+                append(startTime)
+            }
+            append(" — ")
+            append(endDate)
+            if (!endTime.isNullOrBlank()) {
+                append(' ')
+                append(endTime)
+            }
+            append(' ')
+            append(offset)
+        }
+    }
+
+    fun formatRangeParts(
+        start: Instant,
+        end: Instant,
+        zone: ZoneId,
+        withYear: Boolean = start.atZone(zone).year != end.atZone(zone).year,
+        startIncludeTime: Boolean = false,
+        endIncludeTime: Boolean = true,
+    ): RangeParts {
+        val startLocal = start.atZone(zone)
+        val endLocal = end.atZone(zone)
+        val datePattern = if (withYear) DATE_YEAR else DATE
+        return RangeParts(
+            startDate = datePattern.format(startLocal),
+            startTime = CLOCK.format(startLocal).takeIf { startIncludeTime },
+            endDate = datePattern.format(endLocal),
+            endTime = CLOCK.format(endLocal).takeIf { endIncludeTime },
+            offset = offsetLabel(zone, end.toEpochMilli()),
+        )
+    }
+
+    /**
      * 周期起止拼成一行：起点不重复时区，只在终点标一次偏移。
-     * 例如 `09-09 — 10-09 15:41 GMT+8`；跨年保留年份。
+     * 例如 `09/09 — 10/09 15:41 GMT+8`；跨年保留年份。
      */
     fun formatRange(
         start: Instant,
@@ -197,23 +245,14 @@ object DisplayTime {
         withYear: Boolean = start.atZone(zone).year != end.atZone(zone).year,
         startIncludeTime: Boolean = false,
         endIncludeTime: Boolean = true,
-    ): String {
-        val startText = formatDateTime(
-            start,
-            zone,
-            withYear = withYear,
-            includeTime = startIncludeTime,
-            includeOffset = false,
-        )
-        val endText = formatDateTime(
-            end,
-            zone,
-            withYear = withYear,
-            includeTime = endIncludeTime,
-            includeOffset = true,
-        )
-        return "$startText — $endText"
-    }
+    ): String = formatRangeParts(
+        start,
+        end,
+        zone,
+        withYear = withYear,
+        startIncludeTime = startIncludeTime,
+        endIncludeTime = endIncludeTime,
+    ).asLine()
 
     fun formatEpoch(
         epochMs: Long,
@@ -288,11 +327,11 @@ object DisplayTime {
     private val CLOCK: DateTimeFormatter =
         DateTimeFormatter.ofPattern("HH:mm", Locale.US)
     private val DATE: DateTimeFormatter =
-        DateTimeFormatter.ofPattern("MM-dd", Locale.US)
+        DateTimeFormatter.ofPattern("MM/dd", Locale.US)
     private val DATE_YEAR: DateTimeFormatter =
-        DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.US)
+        DateTimeFormatter.ofPattern("yyyy/MM/dd", Locale.US)
     private val DATE_TIME: DateTimeFormatter =
-        DateTimeFormatter.ofPattern("MM-dd HH:mm", Locale.US)
+        DateTimeFormatter.ofPattern("MM/dd HH:mm", Locale.US)
     private val DATE_TIME_YEAR: DateTimeFormatter =
-        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm", Locale.US)
+        DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm", Locale.US)
 }

@@ -128,6 +128,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.lamuier.cursorT.R
 import com.lamuier.cursorT.data.DashboardPreferences
 import com.lamuier.cursorT.data.OverviewUsageRingMode
@@ -850,7 +851,6 @@ private fun OverviewTab(usage: CursorTOverview) {
                     chartColors = chartColors,
                     mode = ringMode,
                 )
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
                 OverviewCycleRow(billing = billing, planCycleEnd = usage.plan.billingCycleEnd)
             }
         }
@@ -919,45 +919,101 @@ private fun OverviewCycleRow(billing: BillingProgress?, planCycleEnd: String?) {
             )
         else -> stringResource(R.string.label_cycle_unknown)
     }
+    val remaining = billing?.let {
+        stringResource(R.string.label_remaining, formatRemainingLabel(it.remainingMillis))
+    }
+    val description = listOfNotNull(
+        billing?.let {
+            stringResource(
+                R.string.label_cycle_progress_a11y,
+                formatPercent(it.percent.toDouble()),
+                formatRemainingLabel(it.remainingMillis),
+            )
+        } ?: stringResource(R.string.label_billing_cycle),
+        cycleRange,
+    ).joinToString("\n")
     Column(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clearAndSetSemantics { contentDescription = description },
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        if (remaining != null) {
+            Text(
+                remaining,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+                textAlign = TextAlign.Center,
+            )
+        }
+        if (billing != null) {
+            CycleRangeMark(billing.range)
+        } else {
+            Text(
+                cycleRange,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+        }
+    }
+}
+
+@Composable
+private fun CycleRangeMark(range: DisplayTime.RangeParts) {
+    val dateStyle = MaterialTheme.typography.titleSmall.copy(
+        fontFeatureSettings = "tnum",
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = 0.4.sp,
+    )
+    val metaStyle = MaterialTheme.typography.labelSmall.copy(
+        fontFeatureSettings = "tnum",
+        letterSpacing = 0.3.sp,
+    )
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Icon(
-                Icons.Outlined.CalendarMonth,
-                contentDescription = null,
-                modifier = Modifier.size(16.dp),
-                tint = MaterialTheme.colorScheme.primary,
+            Text(
+                range.startDate,
+                style = dateStyle,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Box(
+                modifier = Modifier
+                    .width(16.dp)
+                    .height(1.dp)
+                    .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.45f)),
             )
             Text(
-                stringResource(R.string.label_billing_cycle),
-                modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+                range.endDate,
+                style = dateStyle,
+                color = MaterialTheme.colorScheme.onSurface,
             )
-            billing?.let {
-                StatusChip(
-                    label = stringResource(
-                        R.string.label_remaining_chip,
-                        formatRemainingLabel(it.remainingMillis),
-                    ),
-                )
-            }
         }
+        val meta = listOfNotNull(range.endTime, range.offset).joinToString("  ")
         Text(
-            cycleRange,
-            modifier = Modifier.padding(start = 24.dp),
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Medium,
+            meta,
+            style = metaStyle,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
         )
     }
+}
+
+@Composable
+private fun CyclePercentDotLabel(billing: BillingProgress?, color: Color) {
+    DotLabel(
+        color = color,
+        text = billing?.let {
+            stringResource(R.string.label_cycle_percent, formatPercent(it.percent.toDouble()))
+        } ?: stringResource(R.string.label_cycle_placeholder),
+    )
 }
 
 @Composable
@@ -1740,23 +1796,29 @@ private fun OverviewHeroUsageRing(
 ) {
     val cyclePercent = billing?.percent?.toDouble()
     val cycleColor = MaterialTheme.colorScheme.primary
-    when (mode) {
-        OverviewUsageRingMode.Split -> OverviewSplitUsageRing(
-            usage = usage,
-            billing = billing,
-            cyclePercent = cyclePercent,
-            cycleColor = cycleColor,
-            chartSize = chartSize,
-            chartColors = chartColors,
-        )
-        OverviewUsageRingMode.Combined -> OverviewCombinedUsageRing(
-            usage = usage,
-            billing = billing,
-            cyclePercent = cyclePercent,
-            cycleColor = cycleColor,
-            chartSize = chartSize,
-            chartColors = chartColors,
-        )
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        when (mode) {
+            OverviewUsageRingMode.Split -> OverviewSplitUsageRing(
+                usage = usage,
+                billing = billing,
+                cyclePercent = cyclePercent,
+                cycleColor = cycleColor,
+                chartSize = chartSize,
+                chartColors = chartColors,
+            )
+            OverviewUsageRingMode.Combined -> OverviewCombinedUsageRing(
+                usage = usage,
+                billing = billing,
+                cyclePercent = cyclePercent,
+                cycleColor = cycleColor,
+                chartSize = chartSize,
+                chartColors = chartColors,
+            )
+        }
     }
 }
 
@@ -1831,6 +1893,7 @@ private fun OverviewSplitUsageRing(
                 stringResource(R.string.label_third_party_usage, formatPercent(it))
             } ?: stringResource(R.string.label_third_party_usage_placeholder),
         )
+        CyclePercentDotLabel(billing = billing, color = cycleColor)
     }
     teamSpendLine?.let { spend ->
         Text(
@@ -1910,12 +1973,7 @@ private fun OverviewCombinedUsageRing(
                 stringResource(R.string.label_usage_placeholder)
             },
         )
-        DotLabel(
-            color = cycleColor,
-            text = billing?.let {
-                stringResource(R.string.label_cycle_percent, formatPercent(it.percent.toDouble()))
-            } ?: stringResource(R.string.label_cycle_placeholder),
-        )
+        CyclePercentDotLabel(billing = billing, color = cycleColor)
     }
 }
 
@@ -2089,7 +2147,11 @@ private fun DrawScope.drawPairedUsageBand(
         if (thirdPartySweep > 0.5f && thirdPartyAlpha > 0.01f) {
             add(PairedRingLayer(thirdPartySweep, thirdPartyColor, thirdPartyAlpha.coerceIn(0f, 1f)))
         }
-    }.sortedWith(compareBy<PairedRingLayer> { it.alpha }.thenByDescending { it.sweep })
+    }.sortedWith(
+        // 较长的先画；较短的永远叠在上面，透明度变化才看得清。
+        // 若按透明度排序，较短那段在变暗时会被较长那段整段盖住，呼吸会像闪断。
+        compareByDescending<PairedRingLayer> { it.sweep }.thenBy { it.alpha },
+    )
     layers.forEach { layer ->
         drawUsageProgressArc(
             origin = origin,

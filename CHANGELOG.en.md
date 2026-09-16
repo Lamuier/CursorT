@@ -4,6 +4,17 @@
 
 The Chinese [CHANGELOG.md](CHANGELOG.md) is canonical.
 
+## 2.6.2
+
+> Version: 2.6.1 → 2.6.2. This release restores the split-ring cycle legend, keeps the shorter arc visible while breathing, and restyles cycle dates. No new capability and no breaking change, so a patch bump under SemVer.
+
+- Overview split ring: restore the inner-ring cycle-percent legend, matching combined total mode
+- Overview billing cycle sits on the same center axis as the ring: remaining time as the lead line, date range as caption, without the list-row title, chip, or divider
+- Overview cycle dates split from the reset clock: `09/09 — 10/09` above, `23:15 GMT+8` below
+- Display dates use slashes (`09/09`, `2026/12/01`); storage and APIs stay ISO with hyphens
+- Overview split ring: keep the shorter arc on top so its breath is visible instead of popping when the longer arc covers it
+- `versionCode=24`, `versionName=2.6.2`
+
 ## 2.6.1
 
 > Version: 2.6.0 → 2.6.1. This release keeps the longer Overview split-ring arc from covering the shorter one. No new capability and no breaking change, so a patch bump under SemVer.

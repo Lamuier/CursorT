@@ -133,9 +133,13 @@ class UsageCalculationsTest {
         assertEquals(10, result.elapsedDays)
         assertEquals(20, result.remainingDays)
         assertEquals(35f, result.percent, 0.01f)
-        assertEquals("07-01 GMT+8", result.startLabel)
-        assertEquals("07-31 00:00 GMT+8", result.endLabel)
-        assertEquals("07-01 — 07-31 00:00 GMT+8", result.rangeLabel)
+        assertEquals("07/01 GMT+8", result.startLabel)
+        assertEquals("07/31 00:00 GMT+8", result.endLabel)
+        assertEquals("07/01", result.range.startDate)
+        assertEquals("07/31", result.range.endDate)
+        assertEquals("00:00", result.range.endTime)
+        assertEquals("GMT+8", result.range.offset)
+        assertEquals("07/01 — 07/31 00:00 GMT+8", result.rangeLabel)
         assertEquals(19L * 24 * 60 * 60_000 + 12 * 60 * 60_000, result.remainingMillis)
     }
 
@@ -152,9 +156,9 @@ class UsageCalculationsTest {
             storageZone = zone,
         )
         assertNotNull(result)
-        assertEquals("2026-12-01 GMT+8", result!!.startLabel)
-        assertEquals("2027-01-01 00:00 GMT+8", result.endLabel)
-        assertEquals("2026-12-01 — 2027-01-01 00:00 GMT+8", result.rangeLabel)
+        assertEquals("2026/12/01 GMT+8", result!!.startLabel)
+        assertEquals("2027/01/01 00:00 GMT+8", result.endLabel)
+        assertEquals("2026/12/01 — 2027/01/01 00:00 GMT+8", result.rangeLabel)
     }
 
     @Test
@@ -170,8 +174,8 @@ class UsageCalculationsTest {
             storageZone = zone,
         )
         assertNotNull(result)
-        assertEquals("07-31 GMT+8", result!!.endLabel)
-        assertEquals("07-01 — 07-31 GMT+8", result.rangeLabel)
+        assertEquals("07/31 GMT+8", result!!.endLabel)
+        assertEquals("07/01 — 07/31 GMT+8", result.rangeLabel)
     }
 
     @Test

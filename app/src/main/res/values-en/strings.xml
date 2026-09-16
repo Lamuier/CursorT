@@ -55,9 +55,10 @@
     <string name="tab_order_move_down">Move %1$s down</string>
     <string name="tab_order_reset">Reset to default order</string>
     <string name="overview_ring_section_title">Overview ring</string>
-    <string name="overview_ring_section_description">The hero outer ring defaults to own-pool and third-party usage on the same ring, breathing between the two; you can restore the original combined total</string>
+    <string name="overview_ring_section_description">The hero outer ring defaults to own-pool and third-party usage on the same ring, breathing between the two; you can restore the original combined total. If you chose separate pools and the own pool is exhausted while the third-party pool still has quota, this cycle switches to the combined ring and reverts next cycle</string>
     <string name="overview_ring_mode_split">Separate pools</string>
     <string name="overview_ring_mode_combined">Combined total</string>
+    <string name="overview_ring_auto_combined_caption">Own pool is used up; combined view for this cycle</string>
     <string name="accounts_section_title">Account</string>
     <string name="accounts_manage_label">Manage Cursor account</string>
     <string name="accounts_manage_description">Add, edit, or delete the Cursor account stored on this device</string>

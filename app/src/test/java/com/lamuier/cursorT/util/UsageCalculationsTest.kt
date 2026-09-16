@@ -117,6 +117,23 @@ class UsageCalculationsTest {
     }
 
     @Test
+    fun shouldCollapseSplitOverviewRing_ownExhaustedThirdHasRemaining() {
+        assertTrue(UsageCalculations.shouldCollapseSplitOverviewRing(100.0, 0.0))
+        assertTrue(UsageCalculations.shouldCollapseSplitOverviewRing(100.0, 40.0))
+        assertTrue(UsageCalculations.shouldCollapseSplitOverviewRing(120.0, 99.9))
+    }
+
+    @Test
+    fun shouldCollapseSplitOverviewRing_skipsWhenThirdAlsoExhaustedOrUnknown() {
+        assertFalse(UsageCalculations.shouldCollapseSplitOverviewRing(100.0, 100.0))
+        assertFalse(UsageCalculations.shouldCollapseSplitOverviewRing(99.9, 40.0))
+        assertFalse(UsageCalculations.shouldCollapseSplitOverviewRing(null, 40.0))
+        assertFalse(UsageCalculations.shouldCollapseSplitOverviewRing(100.0, null))
+        assertFalse(UsageCalculations.shouldCollapseSplitOverviewRing(Double.NaN, 40.0))
+        assertFalse(UsageCalculations.shouldCollapseSplitOverviewRing(100.0, Double.NaN))
+    }
+
+    @Test
     fun billingProgress_reportsElapsedAndRemainingDays() {
         val zone = ZoneOffset.ofHours(8)
         val start = LocalDateTime.of(2026, 7, 1, 0, 0)

@@ -56,9 +56,10 @@
     <string name="tab_order_move_down">下移%1$s</string>
     <string name="tab_order_reset">恢复默认顺序</string>
     <string name="overview_ring_section_title">概览圆环</string>
-    <string name="overview_ring_section_description">英雄卡外环默认同环叠画自有与三方用量，两段反向呼吸交替显示，也可换回原来的总用量单环</string>
+    <string name="overview_ring_section_description">英雄卡外环默认同环叠画自有与三方用量，两段反向呼吸交替显示，也可换回原来的总用量单环。分列时若自有池已用尽而三方仍有额度，本周期会自动改为合并显示，下个周期再回到分列</string>
     <string name="overview_ring_mode_split">分列两池</string>
     <string name="overview_ring_mode_combined">合并总用量</string>
+    <string name="overview_ring_auto_combined_caption">自有池已用尽，本周期改为合并显示</string>
     <string name="accounts_section_title">账号</string>
     <string name="accounts_manage_label">管理 Cursor 账号</string>
     <string name="accounts_manage_description">添加、编辑或删除本机保存的 Cursor 账号</string>

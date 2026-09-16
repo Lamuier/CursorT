@@ -17,6 +17,7 @@ import com.lamuier.cursorT.model.CursorTOverview
 import com.lamuier.cursorT.network.ApiException
 import com.lamuier.cursorT.notification.CursorTNotificationCoordinator
 import com.lamuier.cursorT.util.AppLocale
+import com.lamuier.cursorT.widget.CursorTWidgetUpdater
 import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -75,6 +76,7 @@ class CursorTViewModel(
             )
         }
         refreshSelected(force = false, silent = cached != null)
+        syncWidgetsFromCache()
     }
 
     fun loadHistoryWindow(
@@ -204,6 +206,7 @@ class CursorTViewModel(
                 _state.update {
                     it.copy(serviceStatus = status, statusError = null)
                 }
+                syncWidgetsFromCache()
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
@@ -269,6 +272,7 @@ class CursorTViewModel(
                 runCatching {
                     CursorTNotificationCoordinator.get(appContext).refresh(usage)
                 }
+                syncWidgetsFromCache()
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
@@ -333,6 +337,7 @@ class CursorTViewModel(
                 }
                 runCatching(onSuccess)
                 refreshSelected(force = true, silent = result.cachedUsage != null)
+                syncWidgetsFromCache()
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
@@ -410,6 +415,7 @@ class CursorTViewModel(
                 }
                 runCatching(onSuccess)
                 if (selected) refreshSelected(force = true, silent = cached != null && cachedTasks != null)
+                if (selected) syncWidgetsFromCache()
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
@@ -470,6 +476,7 @@ class CursorTViewModel(
                 if (selectionChanged && result.selectedAccountId != null) {
                     refreshSelected(force = false, silent = cached != null && cachedTasks != null)
                 }
+                syncWidgetsFromCache()
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
@@ -528,6 +535,7 @@ class CursorTViewModel(
                     force = false,
                     silent = initial.usage != null || initial.serviceStatus != null,
                 )
+                syncWidgetsFromCache()
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
@@ -567,6 +575,10 @@ class CursorTViewModel(
         }
 
     private fun str(@StringRes id: Int) = AppLocale.string(appContext, id)
+
+    private fun syncWidgetsFromCache() {
+        runCatching { CursorTWidgetUpdater.pushFromCache(appContext) }
+    }
 
     private fun messageFor(error: Throwable, @StringRes fallback: Int): String = when (error) {
         is ApiException -> error.message

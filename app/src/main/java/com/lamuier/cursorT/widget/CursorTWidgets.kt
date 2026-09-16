@@ -50,7 +50,9 @@ const val ACTION_OPEN_FROM_WIDGET = "com.lamuier.cursorT.action.OPEN_FROM_WIDGET
 const val EXTRA_WIDGET_OPEN_TAB = "com.lamuier.cursorT.extra.OPEN_TAB"
 private const val EXTRA_FORCE_REFRESH = "force_refresh"
 private const val WIDGET_REFRESH_JOB_ID = 0x43505731
+private const val WIDGET_PERIODIC_JOB_ID = 0x43505732
 private const val CACHE_FRESH_SECONDS = 15 * 60
+private const val PERIODIC_REFRESH_MS = 15L * 60 * 1000
 private const val MANUAL_REFRESH_COOLDOWN_MS = 10_000L
 
 private fun loc(context: Context): Context = AppLocale.wrap(context)
@@ -99,6 +101,7 @@ abstract class BaseCursorWidgetProvider : AppWidgetProvider() {
     ) {
         CursorTWidgetUpdater.updateFromCache(context.applicationContext, goAsync())
         CursorTWidgetUpdater.scheduleRefresh(context.applicationContext, force = false)
+        CursorTWidgetUpdater.ensurePeriodicRefresh(context.applicationContext)
     }
 
     override fun onAppWidgetOptionsChanged(
@@ -139,6 +142,7 @@ abstract class BaseCursorWidgetProvider : AppWidgetProvider() {
 
     override fun onEnabled(context: Context) {
         CursorTWidgetUpdater.scheduleRefresh(context.applicationContext, force = false)
+        CursorTWidgetUpdater.ensurePeriodicRefresh(context.applicationContext)
     }
 
     override fun onDisabled(context: Context) {
@@ -173,13 +177,44 @@ object CursorTWidgetUpdater {
 
     fun requestUpdate(context: Context) {
         val appContext = context.applicationContext
+        pushFromCache(appContext)
+        scheduleRefresh(appContext, force = false)
+        ensurePeriodicRefresh(appContext)
+    }
+
+    /** 用本机缓存立刻重绘小组件，不另发网络请求。App 拉到最新用量/状态后走这条。 */
+    fun pushFromCache(context: Context) {
+        val appContext = context.applicationContext
         if (!hasWidgets(appContext)) return
         val generation = cacheRenderGeneration.incrementAndGet()
         shortScope.launch {
             val snapshot = withContext(Dispatchers.IO) { WidgetLoader.readCached(appContext) }
             renderAll(appContext, snapshot, generation)
         }
-        scheduleRefresh(appContext, force = false)
+    }
+
+    fun ensurePeriodicRefresh(context: Context) {
+        val appContext = context.applicationContext
+        val scheduler = appContext.getSystemService(JobScheduler::class.java)
+        if (!hasWidgets(appContext)) {
+            scheduler.cancel(WIDGET_PERIODIC_JOB_ID)
+            return
+        }
+        if (scheduler.getPendingJob(WIDGET_PERIODIC_JOB_ID) != null) return
+        val job = JobInfo.Builder(
+            WIDGET_PERIODIC_JOB_ID,
+            ComponentName(appContext, CursorTWidgetJobService::class.java),
+        )
+            .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
+            .setPeriodic(PERIODIC_REFRESH_MS)
+            .setPersisted(true)
+            .apply {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    setRequiresBatteryNotLow(false)
+                }
+            }
+            .build()
+        runCatching { scheduler.schedule(job) }
     }
 
     internal fun updateFromCache(
@@ -288,7 +323,9 @@ object CursorTWidgetUpdater {
 
     internal fun cancelIfNoWidgets(context: Context) {
         if (!hasWidgets(context)) {
-            context.getSystemService(JobScheduler::class.java).cancel(WIDGET_REFRESH_JOB_ID)
+            val scheduler = context.getSystemService(JobScheduler::class.java)
+            scheduler.cancel(WIDGET_REFRESH_JOB_ID)
+            scheduler.cancel(WIDGET_PERIODIC_JOB_ID)
         }
     }
 
@@ -822,39 +859,62 @@ object CursorTWidgetUpdater {
 
 class CursorTWidgetJobService : JobService() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private var activeJob: Job? = null
+    private val activeJobs = java.util.concurrent.ConcurrentHashMap<Int, Job>()
 
     override fun onStartJob(params: JobParameters): Boolean {
-        val initialForce = CursorTWidgetUpdater.onJobStarted(
-            params.extras.getBoolean(EXTRA_FORCE_REFRESH, false),
-        )
-        activeJob?.cancel()
-        activeJob = serviceScope.launch {
-            var force = initialForce
-            var retry: Boolean
-            while (true) {
-                retry = try {
-                    CursorTWidgetUpdater.performScheduledRefresh(applicationContext, force)
-                } catch (_: CancellationException) {
-                    return@launch
-                } catch (_: Exception) {
-                    true
+        val jobId = params.jobId
+        val periodic = jobId == WIDGET_PERIODIC_JOB_ID
+        val initialForce = if (periodic) {
+            false
+        } else {
+            CursorTWidgetUpdater.onJobStarted(
+                params.extras.getBoolean(EXTRA_FORCE_REFRESH, false),
+            )
+        }
+        activeJobs.remove(jobId)?.cancel()
+        val job = serviceScope.launch {
+            var retry = false
+            try {
+                if (periodic) {
+                    retry = try {
+                        CursorTWidgetUpdater.performScheduledRefresh(applicationContext, false)
+                    } catch (_: CancellationException) {
+                        return@launch
+                    } catch (_: Exception) {
+                        true
+                    }
+                } else {
+                    var force = initialForce
+                    while (true) {
+                        retry = try {
+                            CursorTWidgetUpdater.performScheduledRefresh(applicationContext, force)
+                        } catch (_: CancellationException) {
+                            return@launch
+                        } catch (_: Exception) {
+                            true
+                        }
+                        if (!CursorTWidgetUpdater.takeQueuedForce()) break
+                        force = true
+                    }
                 }
-                if (!CursorTWidgetUpdater.takeQueuedForce()) break
-                force = true
+            } finally {
+                activeJobs.remove(jobId, coroutineContext[Job])
             }
             withContext(Dispatchers.Main) {
                 jobFinished(params, retry)
-                CursorTWidgetUpdater.onJobFinished(applicationContext)
+                if (!periodic) CursorTWidgetUpdater.onJobFinished(applicationContext)
             }
         }
+        activeJobs[jobId] = job
         return true
     }
 
     override fun onStopJob(params: JobParameters): Boolean {
-        activeJob?.cancel()
-        activeJob = null
-        CursorTWidgetUpdater.onJobStopped(applicationContext)
+        val jobId = params.jobId
+        activeJobs.remove(jobId)?.cancel()
+        if (jobId != WIDGET_PERIODIC_JOB_ID) {
+            CursorTWidgetUpdater.onJobStopped(applicationContext)
+        }
         return true
     }
 

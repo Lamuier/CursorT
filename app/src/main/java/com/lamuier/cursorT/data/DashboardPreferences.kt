@@ -46,6 +46,9 @@ class DashboardPreferences(context: Context) {
     private val _overviewUsageRingMode = MutableStateFlow(readOverviewUsageRingMode())
     val overviewUsageRingMode: StateFlow<OverviewUsageRingMode> = _overviewUsageRingMode.asStateFlow()
 
+    private val _overviewRingCollapseKeys = MutableStateFlow(readOverviewRingCollapseKeys())
+    val overviewRingCollapseKeys: StateFlow<Set<String>> = _overviewRingCollapseKeys.asStateFlow()
+
     fun read(): List<DashboardTab> =
         DashboardTab.resolveOrder(preferences.getString(KEY_TAB_ORDER, null))
 
@@ -93,12 +96,28 @@ class DashboardPreferences(context: Context) {
         _overviewUsageRingMode.value = mode
     }
 
+    fun syncOverviewRingCollapse(accountId: Int, cycleStart: String?, markNow: Boolean) {
+        val next = OverviewRingCollapse.syncedKeys(
+            stored = _overviewRingCollapseKeys.value,
+            accountId = accountId,
+            cycleStart = cycleStart,
+            markNow = markNow,
+        )
+        if (next == _overviewRingCollapseKeys.value) return
+        preferences.edit().putStringSet(KEY_OVERVIEW_RING_COLLAPSE_KEYS, next).apply()
+        _overviewRingCollapseKeys.value = next
+    }
+
+    private fun readOverviewRingCollapseKeys(): Set<String> =
+        preferences.getStringSet(KEY_OVERVIEW_RING_COLLAPSE_KEYS, emptySet())?.toSet().orEmpty()
+
     companion object {
         private const val PREFERENCES_NAME = AppLocale.PREFERENCES_NAME
         private const val KEY_TAB_ORDER = "tab_order"
         private const val KEY_TASK_GROUP_MODE = "task_group_mode"
         private const val KEY_TIME_ZONE = "time_zone"
         private const val KEY_OVERVIEW_USAGE_RING = "overview_usage_ring"
+        private const val KEY_OVERVIEW_RING_COLLAPSE_KEYS = "overview_ring_collapse_keys"
 
         @Volatile
         private var instance: DashboardPreferences? = null

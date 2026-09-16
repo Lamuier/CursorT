@@ -4,6 +4,15 @@
 
 The Chinese [CHANGELOG.md](CHANGELOG.md) is canonical.
 
+## 2.7.0
+
+> Version: 2.6.2 → 2.7.0. This release auto-collapses the split Overview ring when the own pool is exhausted, adds 15-minute widget background refresh, and syncs widgets after the app loads live data. Backward-compatible new capability, so a minor bump under SemVer.
+
+- When Overview uses the split ring and the own pool is exhausted while the third-party pool still has quota, this cycle switches to the combined ring and reverts next cycle
+- Desktop widgets now refresh on a 15-minute background schedule; opening the app and loading latest usage/status also pushes the widgets immediately
+- Pull-to-refresh keeps only the content indicator; the toolbar refresh button spins only when tapped, so the two animations no longer appear together
+- `versionCode=25`, `versionName=2.7.0`
+
 ## 2.6.2
 
 > Version: 2.6.1 → 2.6.2. This release restores the split-ring cycle legend, keeps the shorter arc visible while breathing, and restyles cycle dates. No new capability and no breaking change, so a patch bump under SemVer.

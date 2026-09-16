@@ -158,6 +158,19 @@ object UsageCalculations {
     }
 
     /**
+     * 分列圆环在自有池已用尽、三方池仍有额度时没有可读性：外环几乎被自有段占满。
+     * 百分比缺失或非有限值时不折叠，避免把未知额度当成「还有余量」。
+     */
+    fun shouldCollapseSplitOverviewRing(
+        ownPercent: Double?,
+        thirdPartyPercent: Double?,
+    ): Boolean {
+        val own = ownPercent?.takeIf { it.isFinite() } ?: return false
+        val thirdParty = thirdPartyPercent?.takeIf { it.isFinite() } ?: return false
+        return own >= 100.0 && thirdParty < 100.0
+    }
+
+    /**
      * 用量档位：≥100% 已用尽、≥90% 即将用尽、≥80% 请关注用量（与通知阈值对齐）。
      * 未到 80% 时，若用量百分比仍高于计费周期进度，同样视为请关注用量。
      */

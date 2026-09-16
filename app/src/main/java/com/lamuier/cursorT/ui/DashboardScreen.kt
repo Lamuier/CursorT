@@ -94,6 +94,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -131,6 +132,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lamuier.cursorT.R
 import com.lamuier.cursorT.data.DashboardPreferences
+import com.lamuier.cursorT.data.OverviewRingCollapse
 import com.lamuier.cursorT.data.OverviewUsageRingMode
 import com.lamuier.cursorT.model.AppUiState
 import com.lamuier.cursorT.model.CursorAccount
@@ -190,6 +192,11 @@ private data class MetricTile(
     val accent: Color,
 )
 
+private enum class DashboardRefreshSource {
+    Pull,
+    Button,
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun DashboardScreen(
@@ -210,6 +217,23 @@ internal fun DashboardScreen(
             ?: state.accounts.firstOrNull()
     }
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+    val refreshBusy = state.refreshing || state.refreshingStatus || state.refreshingTasks
+    val refreshBusyUpdated by rememberUpdatedState(refreshBusy)
+    var refreshSource by remember { mutableStateOf<DashboardRefreshSource?>(null) }
+    val startRefresh: (DashboardRefreshSource) -> Unit = { source ->
+        if (!state.submitting && !refreshBusy && refreshSource == null) {
+            refreshSource = source
+            onRefresh()
+        }
+    }
+    LaunchedEffect(refreshBusy) {
+        if (!refreshBusy) refreshSource = null
+    }
+    LaunchedEffect(refreshSource) {
+        if (refreshSource == null) return@LaunchedEffect
+        delay(400)
+        if (!refreshBusyUpdated) refreshSource = null
+    }
 
     Scaffold(
         contentWindowInsets = WindowInsets.safeDrawing,
@@ -233,8 +257,7 @@ internal fun DashboardScreen(
                 ),
                 scrollBehavior = scrollBehavior,
                 actions = {
-                    val refreshBusy = state.refreshing || state.refreshingStatus || state.refreshingTasks
-                    val refreshDescription = if (refreshBusy) {
+                    val refreshDescription = if (refreshBusy || refreshSource != null) {
                         stringResource(R.string.action_refreshing)
                     } else {
                         stringResource(R.string.action_refresh)
@@ -242,13 +265,13 @@ internal fun DashboardScreen(
                     IconButton(
                         modifier = Modifier.semantics {
                             contentDescription = refreshDescription
-                            if (refreshBusy) liveRegion = LiveRegionMode.Polite
+                            if (refreshBusy || refreshSource != null) liveRegion = LiveRegionMode.Polite
                         },
-                        enabled = !state.loadingAccounts && !state.refreshing &&
-                            !state.refreshingStatus && !state.refreshingTasks && !state.submitting,
-                        onClick = onRefresh,
+                        enabled = !state.loadingAccounts && !refreshBusy &&
+                            refreshSource == null && !state.submitting,
+                        onClick = { startRefresh(DashboardRefreshSource.Button) },
                     ) {
-                        if (state.refreshing || state.refreshingStatus || state.refreshingTasks) {
+                        if (refreshSource == DashboardRefreshSource.Button) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(20.dp),
                                 strokeWidth = 2.dp,
@@ -334,7 +357,6 @@ internal fun DashboardScreen(
                         }
                     }
                     val selectedIndex = tabs.indexOf(selectedTab).takeIf { it >= 0 } ?: 0
-                    val refreshing = state.refreshing || state.refreshingStatus || state.refreshingTasks
 
                     Column(modifier = Modifier.fillMaxSize()) {
                         DashboardTabPills(
@@ -347,10 +369,8 @@ internal fun DashboardScreen(
                             },
                         )
                         PullToRefreshBox(
-                            isRefreshing = refreshing,
-                            onRefresh = {
-                                if (!state.submitting && !refreshing) onRefresh()
-                            },
+                            isRefreshing = refreshSource == DashboardRefreshSource.Pull,
+                            onRefresh = { startRefresh(DashboardRefreshSource.Pull) },
                             modifier = Modifier.fillMaxSize(),
                         ) {
                             HorizontalPager(
@@ -361,13 +381,13 @@ internal fun DashboardScreen(
                                 when (tabs.getOrNull(page) ?: DashboardTab.Overview) {
                                     DashboardTab.Overview -> UsageDependentTab(
                                         state = state,
-                                        onRefresh = onRefresh,
+                                        onRefresh = { startRefresh(DashboardRefreshSource.Button) },
                                         onManageAccount = onManageAccount,
                                         onShowTokenHelp = onShowTokenHelp,
                                     ) { OverviewTab(it) }
                                     DashboardTab.Usage -> UsageDependentTab(
                                         state = state,
-                                        onRefresh = onRefresh,
+                                        onRefresh = { startRefresh(DashboardRefreshSource.Button) },
                                         onManageAccount = onManageAccount,
                                         onShowTokenHelp = onShowTokenHelp,
                                     ) {
@@ -380,7 +400,7 @@ internal fun DashboardScreen(
                                     }
                                     DashboardTab.Billing -> UsageDependentTab(
                                         state = state,
-                                        onRefresh = onRefresh,
+                                        onRefresh = { startRefresh(DashboardRefreshSource.Button) },
                                         onManageAccount = onManageAccount,
                                         onShowTokenHelp = onShowTokenHelp,
                                     ) { BillingTab(it) }
@@ -394,7 +414,7 @@ internal fun DashboardScreen(
                                             loading = state.loadingTasks,
                                             refreshing = state.refreshingTasks,
                                             error = state.tasksError,
-                                            onRetry = onRefresh,
+                                            onRetry = { startRefresh(DashboardRefreshSource.Button) },
                                             onOpenFailed = { message ->
                                                 uiScope.launch {
                                                     snackbarHostState.showSnackbar(message)
@@ -407,7 +427,7 @@ internal fun DashboardScreen(
                                         loading = state.loadingStatus,
                                         refreshing = state.refreshingStatus,
                                         error = state.statusError,
-                                        onRetry = onRefresh,
+                                        onRetry = { startRefresh(DashboardRefreshSource.Button) },
                                     )
                                 }
                             }
@@ -727,6 +747,29 @@ private fun OverviewTab(usage: CursorTOverview) {
         val context = LocalContext.current
         val preferences = remember { DashboardPreferences.get(context) }
         val ringMode by preferences.overviewUsageRingMode.collectAsStateWithLifecycle()
+        val collapseKeys by preferences.overviewRingCollapseKeys.collectAsStateWithLifecycle()
+        val ownPercent = usage.usage.autoPercentUsed
+        val thirdPartyPercent = usage.usage.apiPercentUsed
+        val markCollapse = UsageCalculations.shouldCollapseSplitOverviewRing(ownPercent, thirdPartyPercent)
+        LaunchedEffect(ringMode, usage.accountId, usage.billingCycle.start, markCollapse) {
+            if (ringMode != OverviewUsageRingMode.Split) return@LaunchedEffect
+            preferences.syncOverviewRingCollapse(
+                accountId = usage.accountId,
+                cycleStart = usage.billingCycle.start,
+                markNow = markCollapse,
+            )
+        }
+        val collapsedThisCycle = OverviewRingCollapse.collapsedThisCycle(
+            collapseKeys,
+            usage.accountId,
+            usage.billingCycle.start,
+        )
+        val effectiveRingMode = OverviewRingCollapse.effectiveMode(
+            preferred = ringMode,
+            ownPercent = ownPercent,
+            thirdPartyPercent = thirdPartyPercent,
+            collapsedThisCycle = collapsedThisCycle,
+        )
         val chartColors = LocalPulseChartColors.current
         val chartSize = if (compact) 156.dp else 184.dp
         val nowMillis = rememberNowMillis()
@@ -849,7 +892,9 @@ private fun OverviewTab(usage: CursorTOverview) {
                     billing = billing,
                     chartSize = chartSize,
                     chartColors = chartColors,
-                    mode = ringMode,
+                    mode = effectiveRingMode,
+                    autoCollapsed = ringMode == OverviewUsageRingMode.Split &&
+                        effectiveRingMode == OverviewUsageRingMode.Combined,
                 )
                 OverviewCycleRow(billing = billing, planCycleEnd = usage.plan.billingCycleEnd)
             }
@@ -1793,6 +1838,7 @@ private fun OverviewHeroUsageRing(
     chartSize: Dp,
     chartColors: PulseChartColors,
     mode: OverviewUsageRingMode,
+    autoCollapsed: Boolean = false,
 ) {
     val cyclePercent = billing?.percent?.toDouble()
     val cycleColor = MaterialTheme.colorScheme.primary
@@ -1817,6 +1863,7 @@ private fun OverviewHeroUsageRing(
                 cycleColor = cycleColor,
                 chartSize = chartSize,
                 chartColors = chartColors,
+                autoCollapsed = autoCollapsed,
             )
         }
     }
@@ -1913,6 +1960,7 @@ private fun OverviewCombinedUsageRing(
     cycleColor: Color,
     chartSize: Dp,
     chartColors: PulseChartColors,
+    autoCollapsed: Boolean = false,
 ) {
     val total = remember(usage) { UsageCalculations.overviewTotalUsage(usage) }
     val level = remember(total, cyclePercent) {
@@ -1934,6 +1982,7 @@ private fun OverviewCombinedUsageRing(
     val cycleRemaining = billing?.let {
         stringResource(R.string.label_cycle_remaining_clause, formatRemainingLabel(it.remainingMillis))
     }.orEmpty()
+    val autoCollapsedCaption = stringResource(R.string.overview_ring_auto_combined_caption)
     val usageDescription = buildString {
         if (usage.isTeam) {
             append(teamSpendPrefix)
@@ -1942,6 +1991,10 @@ private fun OverviewCombinedUsageRing(
             append(totalUsageLevel)
         }
         append(cycleRemaining)
+        if (autoCollapsed) {
+            if (isNotEmpty()) append("。")
+            append(autoCollapsedCaption)
+        }
     }
     UsageRing(
         ownPercent = total.percent.takeIf { total.known }?.toFloat(),
@@ -1960,6 +2013,15 @@ private fun OverviewCombinedUsageRing(
         description = usageDescription,
         size = chartSize,
     )
+    if (autoCollapsed) {
+        Text(
+            autoCollapsedCaption,
+            modifier = Modifier.fillMaxWidth(),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+    }
     FlowRow(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),

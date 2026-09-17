@@ -32,7 +32,7 @@ Chinese is the primary language of this repository and the default app locale. E
 
 ### Home screen widgets
 
-- Usage and status Material 3 widgets, each with a 2×1 mini bar and a 4×3 detail card. Android 12+ follows system colors. Status widgets do not need an Access Token.
+- Usage and status Material 3 widgets. Usage comes in 2×1 mini bar and 4×3 detail card; status comes in 2×1, 2×2, 4×1, 4×2, and 4×3. Android 12+ follows system colors. Status widgets do not need an Access Token.
 
 ### App shortcuts
 

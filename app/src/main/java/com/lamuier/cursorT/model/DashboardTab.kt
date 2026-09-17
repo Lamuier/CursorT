@@ -21,13 +21,14 @@ enum class DashboardTab(val id: String, @StringRes val labelRes: Int) {
 
         /**
          * 小组件点击打开应用时解析目标页签：优先 extra 里的页签 id，
-         * 否则按小组件种类回退（状态迷你/详情 → 状态，用量迷你/详情 → 概览）。
+         * 否则按小组件种类回退（状态规格 → 状态，用量迷你/详情 → 概览）。
          */
         fun fromWidgetLaunch(tabId: String?, widgetKind: String?): DashboardTab? {
             fromId(tabId.orEmpty())?.let { return it }
-            return when (widgetKind?.trim()?.lowercase()) {
-                "statusmini", "statustall" -> Status
-                "mini", "tall" -> Overview
+            val kind = widgetKind?.trim()?.lowercase().orEmpty()
+            return when {
+                kind.startsWith("status") -> Status
+                kind == "mini" || kind == "tall" -> Overview
                 else -> null
             }
         }

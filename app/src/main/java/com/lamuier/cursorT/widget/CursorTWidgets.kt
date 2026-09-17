@@ -60,12 +60,82 @@ private fun loc(context: Context): Context = AppLocale.wrap(context)
 private enum class WidgetKind(
     val layoutId: Int,
     val requestBase: Int,
+    val fallbackWidthDp: Int,
+    val fallbackHeightDp: Int,
     val isStatus: Boolean = false,
+    val compactLabel: Boolean = false,
+    val hasRefresh: Boolean = false,
+    val hasChip: Boolean = false,
+    val hasIncident: Boolean = false,
+    val componentSlots: Int = 0,
+    val badgeSizeDp: Int = 28,
 ) {
-    Mini(R.layout.widget_cursor_mini, 15_000),
-    Tall(R.layout.widget_cursor_tall, 25_000),
-    StatusMini(R.layout.widget_cursor_status_mini, 35_000, isStatus = true),
-    StatusTall(R.layout.widget_cursor_status_tall, 45_000, isStatus = true),
+    Mini(
+        layoutId = R.layout.widget_cursor_mini,
+        requestBase = 15_000,
+        fallbackWidthDp = 110,
+        fallbackHeightDp = 40,
+    ),
+    Tall(
+        layoutId = R.layout.widget_cursor_tall,
+        requestBase = 25_000,
+        fallbackWidthDp = 250,
+        fallbackHeightDp = 180,
+        hasRefresh = true,
+    ),
+    StatusMini(
+        layoutId = R.layout.widget_cursor_status_mini,
+        requestBase = 35_000,
+        fallbackWidthDp = 110,
+        fallbackHeightDp = 40,
+        isStatus = true,
+        compactLabel = true,
+        badgeSizeDp = 28,
+    ),
+    StatusSquare(
+        layoutId = R.layout.widget_cursor_status_square,
+        requestBase = 55_000,
+        fallbackWidthDp = 110,
+        fallbackHeightDp = 110,
+        isStatus = true,
+        compactLabel = true,
+        hasChip = true,
+        hasIncident = true,
+        badgeSizeDp = 40,
+    ),
+    StatusWide(
+        layoutId = R.layout.widget_cursor_status_wide,
+        requestBase = 65_000,
+        fallbackWidthDp = 250,
+        fallbackHeightDp = 40,
+        isStatus = true,
+        compactLabel = true,
+        hasIncident = true,
+        badgeSizeDp = 28,
+    ),
+    StatusMedium(
+        layoutId = R.layout.widget_cursor_status_medium,
+        requestBase = 75_000,
+        fallbackWidthDp = 250,
+        fallbackHeightDp = 110,
+        isStatus = true,
+        hasRefresh = true,
+        hasChip = true,
+        hasIncident = true,
+        badgeSizeDp = 36,
+    ),
+    StatusTall(
+        layoutId = R.layout.widget_cursor_status_tall,
+        requestBase = 45_000,
+        fallbackWidthDp = 250,
+        fallbackHeightDp = 180,
+        isStatus = true,
+        hasRefresh = true,
+        hasChip = true,
+        hasIncident = true,
+        componentSlots = 6,
+        badgeSizeDp = 52,
+    ),
 }
 
 private data class ProviderSpec(
@@ -156,6 +226,12 @@ class TallCursorWidgetProvider : BaseCursorWidgetProvider()
 
 class MiniCursorStatusWidgetProvider : BaseCursorWidgetProvider()
 
+class SquareCursorStatusWidgetProvider : BaseCursorWidgetProvider()
+
+class WideCursorStatusWidgetProvider : BaseCursorWidgetProvider()
+
+class MediumCursorStatusWidgetProvider : BaseCursorWidgetProvider()
+
 class TallCursorStatusWidgetProvider : BaseCursorWidgetProvider()
 
 object CursorTWidgetUpdater {
@@ -172,6 +248,9 @@ object CursorTWidgetUpdater {
         ProviderSpec(MiniCursorWidgetProvider::class.java, WidgetKind.Mini),
         ProviderSpec(TallCursorWidgetProvider::class.java, WidgetKind.Tall),
         ProviderSpec(MiniCursorStatusWidgetProvider::class.java, WidgetKind.StatusMini),
+        ProviderSpec(SquareCursorStatusWidgetProvider::class.java, WidgetKind.StatusSquare),
+        ProviderSpec(WideCursorStatusWidgetProvider::class.java, WidgetKind.StatusWide),
+        ProviderSpec(MediumCursorStatusWidgetProvider::class.java, WidgetKind.StatusMedium),
         ProviderSpec(TallCursorStatusWidgetProvider::class.java, WidgetKind.StatusTall),
     )
 
@@ -482,7 +561,7 @@ object CursorTWidgetUpdater {
 
         val strings = loc(context)
         val indicatorLabel = service?.let { status ->
-            if (kind == WidgetKind.StatusMini) {
+            if (kind.compactLabel) {
                 StatusPresentation.compactIndicatorLabel(status.indicator, strings.resources)
             } else {
                 StatusPresentation.indicatorLabel(status.indicator, strings.resources)
@@ -513,22 +592,28 @@ object CursorTWidgetUpdater {
             badgeGlyph = badgeGlyph,
         )
 
-        if (kind == WidgetKind.StatusTall) {
+        if (kind.hasRefresh) {
             views.setOnClickPendingIntent(
                 R.id.widget_refresh,
                 refreshPendingIntent(context, spec, widgetId),
             )
+        }
+        if (kind.hasChip) {
             views.setTextViewText(
                 R.id.widget_plan,
                 service?.let(WidgetCalculations::summaryChip) ?: "—/—",
             )
+        }
+        if (kind.hasIncident) {
             val zone = DisplayTimeZones.resolve(DashboardPreferences.get(context).readTimeZoneId())
             views.setTextViewText(
                 R.id.widget_incident,
                 service?.let { WidgetCalculations.incidentHeadline(it, strings.resources, zone) }
                     ?: strings.getString(R.string.widget_no_incidents),
             )
-            bindStatusComponents(context, views, colors, service)
+        }
+        if (kind.componentSlots > 0) {
+            bindStatusComponents(context, views, colors, service, kind.componentSlots)
         }
         return views
     }
@@ -538,10 +623,11 @@ object CursorTWidgetUpdater {
         views: RemoteViews,
         colors: WidgetThemeColors,
         service: CursorServiceStatus?,
+        slots: Int,
     ) {
-        val items = service?.let { WidgetCalculations.highlightedComponents(it, STATUS_COMPONENT_SLOTS) }
+        val items = service?.let { WidgetCalculations.highlightedComponents(it, slots) }
             .orEmpty()
-        STATUS_COMPONENT_ROWS.forEachIndexed { index, rowId ->
+        STATUS_COMPONENT_ROWS.take(slots).forEachIndexed { index, rowId ->
             val item = items.getOrNull(index)
             if (item == null) {
                 views.setViewVisibility(rowId, android.view.View.INVISIBLE)
@@ -573,10 +659,8 @@ object CursorTWidgetUpdater {
         colors: WidgetThemeColors,
         totalPercent: Double?,
     ) {
-        val (fallbackW, fallbackH) = when (kind) {
-            WidgetKind.Mini, WidgetKind.StatusMini -> 110 to 40
-            WidgetKind.Tall, WidgetKind.StatusTall -> 250 to 180
-        }
+        val fallbackW = kind.fallbackWidthDp
+        val fallbackH = kind.fallbackHeightDp
         // Root must stay transparent — a solid color here fills the bitmap's
         // transparent corners and makes the widget look completely square.
         views.setInt(R.id.widget_root, "setBackgroundColor", android.graphics.Color.TRANSPARENT)
@@ -645,7 +729,7 @@ object CursorTWidgetUpdater {
                 tintProgress(views, R.id.widget_auto_progress, colors)
                 tintProgress(views, R.id.widget_api_progress, colors, secondary = true)
             }
-            WidgetKind.StatusMini, WidgetKind.StatusTall -> Unit
+            else -> Unit
         }
     }
 
@@ -658,10 +742,6 @@ object CursorTWidgetUpdater {
         badgeColor: Int,
         badgeGlyph: StatusBadgeGlyph,
     ) {
-        val (fallbackW, fallbackH) = when (kind) {
-            WidgetKind.StatusMini -> 110 to 40
-            else -> 250 to 180
-        }
         views.setInt(R.id.widget_root, "setBackgroundColor", android.graphics.Color.TRANSPARENT)
         views.setImageViewBitmap(
             R.id.widget_surface,
@@ -669,32 +749,35 @@ object CursorTWidgetUpdater {
                 context,
                 widgetId,
                 WidgetVisuals.glassSurface(colors.surface),
-                fallbackW,
-                fallbackH,
+                kind.fallbackWidthDp,
+                kind.fallbackHeightDp,
             ),
         )
         views.setTextColor(R.id.widget_brand, colors.onSurfaceVariant)
         views.setTextColor(R.id.widget_status, colors.onSurfaceVariant)
         views.setTextColor(R.id.widget_value, badgeColor)
-        val badgeSize = if (kind == WidgetKind.StatusMini) 28 else 52
         views.setImageViewBitmap(
             R.id.widget_status_badge,
             WidgetVisuals.statusBadgeBitmap(
                 context = context,
-                sizeDp = badgeSize,
+                sizeDp = kind.badgeSizeDp,
                 color = badgeColor,
                 glyph = badgeGlyph,
             ),
         )
-        if (kind == WidgetKind.StatusTall) {
+        if (kind.hasRefresh) {
             tintRefreshButton(views, colors)
             views.setImageViewBitmap(
                 R.id.widget_refresh,
                 WidgetVisuals.refreshIconBitmap(context, colors.onSurfaceVariant),
             )
+        }
+        if (kind.hasChip) {
             tintChipBackground(views, R.id.widget_plan, colors.surfaceContainer)
-            tintChipBackground(views, R.id.widget_incident, colors.surfaceContainer)
             views.setTextColor(R.id.widget_plan, colors.onSurfaceVariant)
+        }
+        if (kind.hasIncident) {
+            tintChipBackground(views, R.id.widget_incident, colors.surfaceContainer)
             views.setTextColor(R.id.widget_incident, colors.onSurface)
         }
     }
@@ -830,7 +913,6 @@ object CursorTWidgetUpdater {
             .appendPath(widgetId.toString())
             .build()
 
-    private const val STATUS_COMPONENT_SLOTS = 6
     private val STATUS_COMPONENT_ROWS = intArrayOf(
         R.id.widget_status_row_1,
         R.id.widget_status_row_2,

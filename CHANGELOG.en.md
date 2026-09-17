@@ -4,6 +4,14 @@
 
 The Chinese [CHANGELOG.md](CHANGELOG.md) is canonical.
 
+## 2.8.0
+
+> Version: 2.7.0 → 2.8.0. This release adds 4×1 / 4×2 / 2×2 status widget sizes. Backward-compatible new capability, so a minor bump under SemVer.
+
+- Status widgets add 4×1 wide bar, 4×2 card, and 2×2 square; existing 2×1 mini bar and 4×3 detail card remain
+- Added Overview ring color notes (`docs/overview-ring-colors.md`)
+- `versionCode=26`, `versionName=2.8.0`
+
 ## 2.7.0
 
 > Version: 2.6.2 → 2.7.0. This release auto-collapses the split Overview ring when the own pool is exhausted, adds 15-minute widget background refresh, and syncs widgets after the app loads live data. Backward-compatible new capability, so a minor bump under SemVer.

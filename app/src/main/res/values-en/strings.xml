@@ -30,6 +30,12 @@
     <string name="widget_status_badge_description">Current Cursor availability</string>
     <string name="widget_status_mini_name">Status mini bar</string>
     <string name="widget_status_mini_description">Official Cursor availability in a fixed 2×1 widget</string>
+    <string name="widget_status_square_name">Status square</string>
+    <string name="widget_status_square_description">Official availability and recent incidents in a fixed 2×2 widget</string>
+    <string name="widget_status_wide_name">Status wide bar</string>
+    <string name="widget_status_wide_description">Official availability and recent incidents in a fixed 4×1 widget</string>
+    <string name="widget_status_medium_name">Status card</string>
+    <string name="widget_status_medium_description">Availability and recent incidents in a fixed 4×2 widget</string>
     <string name="widget_status_tall_name">Status details</string>
     <string name="widget_status_tall_description">Components and current incidents in a fixed 4×3 widget</string>
     <string name="shortcut_token_short_label">View Token</string>

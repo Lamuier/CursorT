@@ -87,6 +87,45 @@
         </receiver>
 
         <receiver
+            android:name=".widget.SquareCursorStatusWidgetProvider"
+            android:exported="false"
+            android:label="@string/widget_status_square_name"
+            android:process=":widgetProvider">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_cursor_status_square_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.WideCursorStatusWidgetProvider"
+            android:exported="false"
+            android:label="@string/widget_status_wide_name"
+            android:process=":widgetProvider">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_cursor_status_wide_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.MediumCursorStatusWidgetProvider"
+            android:exported="false"
+            android:label="@string/widget_status_medium_name"
+            android:process=":widgetProvider">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_cursor_status_medium_info" />
+        </receiver>
+
+        <receiver
             android:name=".widget.TallCursorStatusWidgetProvider"
             android:exported="false"
             android:label="@string/widget_status_tall_name"

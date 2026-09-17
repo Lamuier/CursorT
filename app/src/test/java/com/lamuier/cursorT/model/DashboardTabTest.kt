@@ -15,6 +15,9 @@ class DashboardTabTest {
     fun fromWidgetLaunch_fallsBackToWidgetKind() {
         assertEquals(DashboardTab.Status, DashboardTab.fromWidgetLaunch(null, "statusmini"))
         assertEquals(DashboardTab.Status, DashboardTab.fromWidgetLaunch("", "StatusTall"))
+        assertEquals(DashboardTab.Status, DashboardTab.fromWidgetLaunch(null, "statuswide"))
+        assertEquals(DashboardTab.Status, DashboardTab.fromWidgetLaunch(null, "StatusSquare"))
+        assertEquals(DashboardTab.Status, DashboardTab.fromWidgetLaunch(null, "statusmedium"))
         assertEquals(DashboardTab.Overview, DashboardTab.fromWidgetLaunch(null, "mini"))
         assertEquals(DashboardTab.Overview, DashboardTab.fromWidgetLaunch(null, "tall"))
         assertEquals(null, DashboardTab.fromWidgetLaunch(null, "unknown"))

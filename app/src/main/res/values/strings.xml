@@ -30,6 +30,12 @@
     <string name="widget_status_badge_description">Cursor 当前可用状态</string>
     <string name="widget_status_mini_name">状态迷你条</string>
     <string name="widget_status_mini_description">极简显示 Cursor 官方可用状态，固定 2×1 尺寸</string>
+    <string name="widget_status_square_name">状态方卡</string>
+    <string name="widget_status_square_description">官方可用状态与近期事件，固定 2×2 尺寸</string>
+    <string name="widget_status_wide_name">状态横条</string>
+    <string name="widget_status_wide_description">官方可用状态与近期事件，固定 4×1 尺寸</string>
+    <string name="widget_status_medium_name">状态中卡</string>
+    <string name="widget_status_medium_description">可用状态与近期事件，固定 4×2 尺寸</string>
     <string name="widget_status_tall_name">状态详情</string>
     <string name="widget_status_tall_description">查看各服务组件与当前事件，固定 4×3 尺寸</string>
     <!-- 长按图标静态 Shortcut -->
